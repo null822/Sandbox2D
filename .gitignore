@@ -1,4 +1,4 @@
 bin
 obj
-.config
-.idea
+/.config/
+/.idea/
