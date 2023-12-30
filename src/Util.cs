@@ -20,7 +20,7 @@ public static class Util
     /// <param name="screenCords">The coords from the screen to convert</param>
     public static Vec2Long ScreenToGameCoords(Vec2Int screenCords)
     {
-        var center = MainWindow.GetScreenSize() / 2;
+        var center = Program.Get().GetScreenSize() / 2;
         return (Vec2Long)((Vec2Double)(screenCords - center) / MainWindow.GetScale() - MainWindow.GetTranslation() + center);
     }
     
@@ -30,7 +30,7 @@ public static class Util
     /// <param name="gameCoords">The coords from the game to convert</param>
     public static Vec2Long GameToScreenCoords(Vec2Long gameCoords)
     {
-        var center = MainWindow.GetScreenSize() / 2f;
+        var center = (Vec2Float)Program.Get().GetScreenSize() / 2f;
         return (Vec2Long)((gameCoords + MainWindow.GetTranslation() - center) * MainWindow.GetScale() + center);
     }
     

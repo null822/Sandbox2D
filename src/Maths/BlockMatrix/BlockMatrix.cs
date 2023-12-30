@@ -3,12 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using Sandbox2D;
-using Sandbox2D.Maths;
-using Sandbox2D.Maths.BlockMatrix;
-using static ElectroSim.Maths.BlockMatrix.BlockMatrixUtil;
+using static Sandbox2D.Maths.BlockMatrix.BlockMatrixUtil;
 
-namespace ElectroSim.Maths.BlockMatrix;
+namespace Sandbox2D.Maths.BlockMatrix;
 
 internal abstract class BlockMatrixBlock<T> where T : class, IBlockMatrixElement<T>
 {

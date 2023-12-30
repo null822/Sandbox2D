@@ -6,23 +6,20 @@
         <PublishReadyToRun>false</PublishReadyToRun>
         <TieredCompilation>false</TieredCompilation>
     </PropertyGroup>
+    
     <PropertyGroup>
         <ApplicationManifest>app.manifest</ApplicationManifest>
-        <ApplicationIcon>Icon.ico</ApplicationIcon>
     </PropertyGroup>
+    
     <ItemGroup>
-        <None Remove="Icon.ico"/>
-        <None Remove="Icon.bmp"/>
+      <PackageReference Include="OpenTK" Version="4.8.2" />
+      <PackageReference Include="StbImageSharp" Version="2.27.13" />
     </ItemGroup>
+    
     <ItemGroup>
-        <EmbeddedResource Include="Icon.ico"/>
-        <EmbeddedResource Include="Icon.bmp"/>
+      <Folder Include="assets\" />
     </ItemGroup>
-    <ItemGroup>
-        <PackageReference Include="MonoGame.Extended" Version="3.8.0" />
-        <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.1.303"/>
-        <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.1.303"/>
-    </ItemGroup>
+    
     <Target Name="RestoreDotnetTools" BeforeTargets="Restore">
         <Message Text="Restoring dotnet tools" Importance="High"/>
         <Exec Command="dotnet tool restore"/>

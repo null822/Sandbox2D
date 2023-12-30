@@ -1,19 +1,13 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
+using System.Numerics;
 using System.Text;
-using ElectroSim.Content;
-using ElectroSim.Gui;
-using ElectroSim.Maths.BlockMatrix;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
-using MonoGame.Extended;
-using MonoGame.Extended.BitmapFonts;
-using Sandbox2D.Gui.MenuElements;
+using OpenTK.Graphics.OpenGL4;
+using OpenTK.Windowing.Common;
+using OpenTK.Windowing.Desktop;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 using Sandbox2D.Maths;
-using Sandbox2D.Registry;
+using Sandbox2D.Maths.BlockMatrix;
 using Sandbox2D.World;
 using Sandbox2D.World.Tiles;
 using static Sandbox2D.Util;
@@ -21,50 +15,36 @@ using static Sandbox2D.Constants;
 
 namespace Sandbox2D;
 
-public class MainWindow : Game
+public class MainWindow : GameWindow
 {
-    
-    // rendering
-    private readonly GraphicsDeviceManager _graphics;
-    private static SpriteBatch _spriteBatch;
-
-    // world/ui
+    // world
     private BlockMatrix<IBlockMatrixTile> _world = new(new Air(), new Vec2Long(WorldWidth, WorldHeight));
-    private readonly List<Menu> _menus = [];
     
     // world editing
     private IBlockMatrixTile _activeBrush = new Stone();
     private static Range2D _brushRange;
     private static bool _isOverlapping;
-    private static Vec2Long _initialMousePos = Vector2.Zero;
+    private static Vec2Long _initialMousePos = new(0);
     
     // camera position
     private static double _scale = 1;
-    private static Vec2Double _translation = Vector2.Zero;
-    private static Vec2Double _prevTranslation = Vector2.Zero;
+    private static Vec2Double _translation = new(0);
+    private static Vec2Double _prevTranslation = new(0);
     private static Vec2Long _gridSize;
     
-    // output/screen
-    private static Vec2Int _screenSize = Vector2.One;
-    
-    
-    
     // controls
-    // private readonly bool[] _prevMouseButtons = new bool[5];
-    private MouseState _prevMouseState;
     private KeyboardState _prevKeyboardState;
-    private Vec2Int _middleMouseCords = Vector2.Zero;
+    private MouseState _prevMouseState;
+    
+    private Vec2Int _middleMouseCords = new(0);
     private int _scrollWheelOffset = -1200;
     
     
-    public MainWindow()
+    public MainWindow(int width, int height, string title) : base(GameWindowSettings.Default,
+    new NativeWindowSettings { ClientSize = (width, height), Title = title })
     {
-        _graphics = new GraphicsDeviceManager(this);
-        Content.RootDirectory = "assets";
-        IsMouseVisible = true;
+        var e = new Vector<int>();
         
-        Window.AllowUserResizing = true;
-        Window.ClientSizeChanged += OnResize;
         
         // "System Checks"
         
@@ -83,97 +63,25 @@ public class MainWindow : Game
         Debug("===============[BEGIN PROGRAM]===============");
     }
 
-    protected override void Initialize()
-    {
-        base.Initialize();
-        
-        Console.WriteLine("Initialized");
-    }
-
-    /// <summary>
-    /// Loads all of the games resources/fonts and initializes some variables
-    /// </summary>
-    protected override void LoadContent()
-    {
-        _spriteBatch = new SpriteBatch(GraphicsDevice);
-        
-        RegisterTextures(new[]
-        {
-            "missing",
-            "dirt",
-            "stone",
-            
-            "gui/center",
-            "gui/corner",
-            "gui/edge"
-        });
-        
-        RegisterFonts(new[]
-        {
-            "consolas"
-        });
-
-        var brushTypes = new List<IBlockMatrixTile>
-        {
-            new Dirt(),
-            new Stone()
-        };
-
-        var brushTypeMenuElements = new MenuElement[brushTypes.Count];
-
-        var i = 0;
-        foreach (var brushType in brushTypes)
-        {
-            brushTypeMenuElements[i] = 
-                new ImageElement(
-                    new ScalableValue2(
-                        new ScalableValue(0, AxisBind.X, 8, 8),
-                        new ScalableValue(0.1f * (i+1), AxisBind.Y)
-                    ),
-                    new ScalableValue2(new Vector2(0), new Vector2(48), new Vector2(48)),
-                    brushType.Texture,
-                    () =>
-                    {
-                        _activeBrush = brushType;
-                        Console.WriteLine(brushType.Name);
-                    }
-                );
-
-            i++;
-        }
-        
-        // debug / testing
-        _menus.Add(new Menu(
-            new ScalableValue2(new Vector2(0, 0.15f)),
-            new ScalableValue2(
-                new ScalableValue(0, AxisBind.X, 56, 56),
-                new ScalableValue(0.7f, AxisBind.Y)
-                ),
-            brushTypeMenuElements
-            )
-        );
-
-
-    }
-
     /// <summary>
     /// The game logic loop
     /// </summary>
-    protected override void Update(GameTime gameTime)
+    protected override void OnUpdateFrame(FrameEventArgs args)
     {
+        if (_prevKeyboardState == null)
+            UpdatePrevKeyboardState(KeyboardState);
+        if (_prevMouseState == null)
+            UpdatePrevMouseState(MouseState);
+        
+        base.OnUpdateFrame(args);
+        
         // only run when focused
-        if (!IsActive)
-            return;
-        
-        // Logic
-        _screenSize = new Vector2(_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight);
-        
+        // if (!IsActive)
+        //     return;
         
         // Controls
-        var keyboardState = Keyboard.GetState();
-        var mouseState = Mouse.GetState();
 
-        if (keyboardState.IsKeyDown(Keys.M) && !_prevKeyboardState.IsKeyDown(Keys.M))
+        if (KeyboardState.IsKeyDown(Keys.M) && !_prevKeyboardState.IsKeyDown(Keys.M))
         {
             var svgMap = _world.GetSvgMap().ToString();
             
@@ -183,7 +91,7 @@ public class MainWindow : Game
             
             Log("BlockMatrix Map Saved");
         }
-        if (keyboardState.IsKeyDown(Keys.S) && !_prevKeyboardState.IsKeyDown(Keys.S))
+        if (KeyboardState.IsKeyDown(Keys.S) && !_prevKeyboardState.IsKeyDown(Keys.S))
         {
             var save = File.Create("save.bm");
 
@@ -192,7 +100,7 @@ public class MainWindow : Game
             save.Close();
             Log("BlockMatrix Saved");
         }
-        if (keyboardState.IsKeyDown(Keys.L) && !_prevKeyboardState.IsKeyDown(Keys.L))
+        if (KeyboardState.IsKeyDown(Keys.L) && !_prevKeyboardState.IsKeyDown(Keys.L))
         {
             var save = File.Open("save.bm", FileMode.Open);
 
@@ -202,7 +110,7 @@ public class MainWindow : Game
             Log("BlockMatrix Loaded");
 
         }
-        if (keyboardState.IsKeyDown(Keys.C) && !_prevKeyboardState.IsKeyDown(Keys.C))
+        if (KeyboardState.IsKeyDown(Keys.C) && !_prevKeyboardState.IsKeyDown(Keys.C))
         {
             _world = new BlockMatrix<IBlockMatrixTile>(
                 new Air(),
@@ -211,43 +119,38 @@ public class MainWindow : Game
             Log("World Cleared");
         }
         
-        var mouseScreenCords = new Vec2Int(mouseState.X, mouseState.Y);
+        // var MousePosition = new Vec2Int(MousePosition, MouseState.Y);
         
         const int min = 1000;
         const int max = 4000;
 
-        _scrollWheelOffset = (mouseState.ScrollWheelValue - _scrollWheelOffset) switch
+        _scrollWheelOffset = (MouseState.Scroll.Y - _scrollWheelOffset) switch
         {
-            > max => mouseState.ScrollWheelValue - max,
-            < min => mouseState.ScrollWheelValue - min,
+            > max => (int)MouseState.Scroll.Y - max,
+            < min => (int)MouseState.Scroll.Y - min,
             _ => _scrollWheelOffset
         };
         
         // only run controls logic when hovered
-        if (mouseScreenCords.X < 0 || mouseScreenCords.X > _screenSize.X || mouseScreenCords.Y < 0 || mouseScreenCords.Y > _screenSize.Y)
+        if (MousePosition.X < 0 || MousePosition.X > ClientSize.X || MousePosition.Y < 0 || MousePosition.Y > ClientSize.Y)
             return;
         
-        var mousePos = Util.ScreenToGameCoords(mouseScreenCords);
-        _scale = Math.Pow((mouseState.ScrollWheelValue - _scrollWheelOffset) / 1024f, 4);
+        var mousePos = ScreenToGameCoords((Vec2Int)MousePosition);
+        _scale = Math.Pow((MouseState.Scroll.Y - _scrollWheelOffset) / 1024f, 4);
         
-        foreach (var menu in _menus)
-        {
-            menu.CheckHover(mouseScreenCords);
-        }
-
-        switch (mouseState.LeftButton)
+        
+        switch (MouseState[MouseButton.Left])
         {
             // lMouse first tick
-            case ButtonState.Pressed when _prevMouseState.LeftButton == ButtonState.Released && _menus.Any(menu => menu.Click()):
-                UpdatePrevMouseState(mouseState);
-                return;
+            case true when _prevMouseState[MouseButton.Left]:
+                break;
             // !lMouse
-            case ButtonState.Released when _prevMouseState.LeftButton == ButtonState.Pressed:
+            case false when !_prevMouseState[MouseButton.Left]:
                 break;
         }
 
         // !lShift
-        if (!keyboardState.IsKeyDown(Keys.LeftShift))
+        if (!KeyboardState.IsKeyDown(Keys.LeftShift))
         {
             if (_brushRange.GetArea() > 1)
             {
@@ -256,7 +159,7 @@ public class MainWindow : Game
         }
         
         // tick after lMouse || !lShift
-        if ((mouseState.LeftButton == ButtonState.Released && _prevMouseState.LeftButton == ButtonState.Released) || !keyboardState.IsKeyDown(Keys.LeftShift))
+        if ((!MouseState[MouseButton.Left] && _prevMouseState[MouseButton.Left]) || !KeyboardState.IsKeyDown(Keys.LeftShift))
         {
             _brushRange = new Range2D(mousePos.X, mousePos.Y, mousePos.X + 1, mousePos.Y + 1);
         }
@@ -265,12 +168,12 @@ public class MainWindow : Game
         _isOverlapping = TileIntersect(_brushRange);
 
         // first tick of lMouse
-        if (mouseState.LeftButton == ButtonState.Pressed && _prevMouseState.LeftButton == ButtonState.Released)
+        if (MouseState[MouseButton.Left] && !_prevMouseState[MouseButton.Left])
         {
             _initialMousePos = mousePos;
 
             // & !overlap & !lShift
-            if (!_isOverlapping && !keyboardState.IsKeyDown(Keys.LeftShift))
+            if (!_isOverlapping && !KeyboardState.IsKeyDown(Keys.LeftShift))
             {
                 // _world[Brush[0].GetPos()] = Brush[0];
 
@@ -282,10 +185,10 @@ public class MainWindow : Game
         }
         
         // tick after lMouse
-        if (mouseState.LeftButton == ButtonState.Released && _prevMouseState.LeftButton == ButtonState.Pressed)
+        if (!MouseState[MouseButton.Left] && _prevMouseState[MouseButton.Left])
         {
             // & lShift
-            if (keyboardState.IsKeyDown(Keys.LeftShift) && !_isOverlapping)
+            if (KeyboardState.IsKeyDown(Keys.LeftShift) && !_isOverlapping)
             {
                 // create the contents of the brush in the world (add to _world)
                 _world.Set(_brushRange, _activeBrush);
@@ -295,10 +198,10 @@ public class MainWindow : Game
         }
 
         // lMouse
-        if (mouseState.LeftButton == ButtonState.Pressed)
+        if (MouseState[MouseButton.Left])
         {
             // & lShift
-            if (keyboardState.IsKeyDown(Keys.LeftShift))
+            if (KeyboardState.IsKeyDown(Keys.LeftShift))
             {
                 _brushRange = new Range2D(
                     (int)_initialMousePos.X,
@@ -309,82 +212,38 @@ public class MainWindow : Game
         }
         
         // mMouse
-        if (mouseState.MiddleButton == ButtonState.Pressed)
+        if (MouseState[MouseButton.Middle])
         {
-            if (_prevMouseState.MiddleButton == ButtonState.Released)
+            if (!_prevMouseState[MouseButton.Middle])
             {
-                _middleMouseCords = mouseScreenCords;
+                _middleMouseCords = (Vec2Int)MousePosition;
                 _prevTranslation = _translation;
             }
             else
             {
-                _translation = _prevTranslation + (Vec2Double)(mouseScreenCords - _middleMouseCords) / _scale;
+                _translation = _prevTranslation + (Vec2Double)((Vec2Int)MousePosition - _middleMouseCords) / _scale;
             }
         }
         
         // rMouse
-        if (mouseState.RightButton == ButtonState.Pressed && _prevMouseState.RightButton == ButtonState.Released)
+        if (MouseState[MouseButton.Right] && _prevMouseState[MouseButton.Right])
         {
             _translation = new Vec2Double(0);
-            _scrollWheelOffset = mouseState.ScrollWheelValue - 1200;
+            _scrollWheelOffset = (int)MouseState.Scroll.Y - 1200;
             
-            _scale = Math.Pow(Math.Min(Math.Max((mouseState.ScrollWheelValue - _scrollWheelOffset) / 1024f, 0e-4), 0e4), 4);
+            _scale = Math.Pow(Math.Min(Math.Max((MouseState.Scroll.Y - _scrollWheelOffset) / 1024f, 0e-4), 0e4), 4);
 
         }
 
-        UpdatePrevMouseState(mouseState);
-        UpdatePrevKeyboardState(keyboardState);
+        UpdatePrevMouseState(MouseState);
+        UpdatePrevKeyboardState(KeyboardState);
 
-        _gridSize = GameToScreenCoords(new Vec2Long(0, 0)) - Util.GameToScreenCoords(new Vec2Long(1, 1));
-
-        base.Update(gameTime);
+        _gridSize = GameToScreenCoords(new Vec2Long(0, 0)) - GameToScreenCoords(new Vec2Long(1, 1));
+        
+        
+        
     }
-
-    /// <summary>
-    /// The draw loop
-    /// </summary>
-    protected override void Draw(GameTime gameTime)
-    {
-        // only run when focused
-        if (!IsActive)
-            return;
-        
-        GraphicsDevice.Clear(Colors.CircuitBackground);
-        
-        _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-        
-        // render tiles (with off-screen culling)
-        
-        // game coords of the top left and bottom right corners of the screen, with a small buffer to prevent culling things still partially within the frame
-        var tlScreen = ScreenToGameCoords(new Vector2(0, 0) - new Vector2(64));
-        var brScreen = ScreenToGameCoords(_screenSize + new Vec2Int(64));
-        
-        _world.InvokeRanged(new Range2D(tlScreen, brScreen), (tile, pos) =>
-        {
-            tile.Render(_spriteBatch, pos);
-            return true;
-        }, ResultComparisons.Or, true);
-        
-        // render brush outline
-
-        var brushScreenCoordsBl = GameToScreenCoords(new Vec2Long(_brushRange.MinX, _brushRange.MinY));
-        var brushScreenCoordsTr = GameToScreenCoords(new Vec2Long(_brushRange.MaxX, _brushRange.MaxY));
-
-        var brushScreenSize = brushScreenCoordsTr - brushScreenCoordsBl;
-        
-        _spriteBatch.DrawRectangle(brushScreenCoordsBl.X, brushScreenCoordsBl.Y, brushScreenSize.X, brushScreenSize.Y,
-            Color.White, 2f);
-
-        foreach (var menu in _menus)
-        {
-            menu.Render(_spriteBatch);
-        }
-        
-        _spriteBatch.End();
-        
-        
-        base.Draw(gameTime);
-    }
+    
 
     /// <summary>
     /// Returns true if the specified rectangle intersects with any tile.
@@ -422,48 +281,14 @@ public class MainWindow : Game
     }
     
     /// <summary>
-    /// Update the program when the size changes.
+    /// Update the viewport when the window is resized
     /// </summary>
-    /// <param name="sender"></param>
     /// <param name="e"></param>
-    private void OnResize(object sender, EventArgs e)
+    protected override void OnResize(ResizeEventArgs e)
     {
-        if (_graphics.PreferredBackBufferWidth == _graphics.GraphicsDevice.Viewport.Width &&
-            _graphics.PreferredBackBufferHeight == _graphics.GraphicsDevice.Viewport.Height)
-            return;
-        
-        _graphics.PreferredBackBufferWidth = _graphics.GraphicsDevice.Viewport.Width;
-        _graphics.PreferredBackBufferHeight = _graphics.GraphicsDevice.Viewport.Height;
-        
-        _graphics.ApplyChanges();
-    }
-    
-    
-    /// <summary>
-    /// Register multiple textures and store them in TextureRegistry.
-    /// </summary>
-    /// <param name="names">An array of the names of the textures to load</param>
-    private void RegisterTextures(IEnumerable<string> names)
-    {
-        foreach (var name in names)
-        {
-            TextureRegistry.RegisterTexture(name, Content.Load<Texture2D>("textures/" + name));
-        }
-    }
-    
-    
-    /// <summary>
-    /// Register multiple fonts and store them in FontRegistry.
-    /// </summary>
-    /// <param name="names">An array of the names of the fonts to load</param>
-    private void RegisterFonts(IEnumerable<string> names)
-    {
-        foreach (var name in names)
-        {
-            var fontName = name[(name.LastIndexOf('/') + 1)..];
-        
-            FontRegistry.RegisterFont(fontName, Content.Load<BitmapFont>("fonts/" + name));
-        }
+        base.OnResize(e);
+
+        GL.Viewport(0, 0, e.Width, e.Height);
     }
     
     
@@ -488,9 +313,9 @@ public class MainWindow : Game
     /// <summary>
     /// Returns the screen size.
     /// </summary>
-    public static Vec2Int GetScreenSize()
+    public Vec2Int GetScreenSize()
     {
-        return _screenSize;
+        return (Vec2Int)ClientSize;
     }
     
     /// <summary>

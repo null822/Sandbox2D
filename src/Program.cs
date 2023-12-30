@@ -1,16 +1,20 @@
-﻿using Microsoft.Xna.Framework;
-
+﻿
 namespace Sandbox2D;
 
 public static class Program
 {
 
-    private static Game _game;
+    private static MainWindow _mainWindow;
 
     private static void Main()
     {
-        _game = new MainWindow();
-        _game.Run();
+        _mainWindow = new MainWindow(800, 600, "Sandbox2D");
+        _mainWindow.Run();
+    }
+
+    public static MainWindow Get()
+    {
+        return _mainWindow;
     }
     
 }
