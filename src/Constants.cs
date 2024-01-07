@@ -1,18 +1,13 @@
-﻿namespace Sandbox2D;
+﻿using OpenTK.Windowing.Common;
+
+namespace Sandbox2D;
 
 public static class Constants
 {
-    public const long WorldWidth = 65536;
-    public const long WorldHeight = 65536;
     
-    public const int MinComponentSize = 8;
-
-    public const int MenuBackgroundTileSize = 8;
-    public const int MenuBackgroundZoom = 4;
-    public const int MenuElementPadding = 4;
-
-    public const string DynamicallyGeneratedUnitMessage = "Dynamically generated unit";
-
+    public const VSyncMode Vsync = VSyncMode.Off;
+    private const bool LargeWorld = true;
+    
     /// <summary>
     /// false = "(-5..5, -5..5)"<br></br>
     /// true = "(-5, -5)..(5, 5)"
@@ -20,4 +15,8 @@ public static class Constants
     public const bool Range2DStringFormat = true;
 
     public const double BlockMatrixSvgScale = 1;
+    
+    public const long WorldWidth  = LargeWorld ? 4611686018427387904 : 65536;
+    public const long WorldHeight = LargeWorld ? 4611686018427387904 : 65536;
+
 }

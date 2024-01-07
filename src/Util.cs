@@ -17,21 +17,45 @@ public static class Util
     /// <summary>
     /// Converts coords from the screen (like mouse pos) into game coords (like positions of objects)
     /// </summary>
-    /// <param name="screenCords">The coords from the screen to convert</param>
-    public static Vec2Long ScreenToGameCoords(Vec2Int screenCords)
+    /// <param name="screenCoords">The coords from the screen to convert</param>
+    public static Vec2Long ScreenToWorldCoords(Vec2Int screenCoords)
     {
         var center = Program.Get().GetScreenSize() / 2;
-        return (Vec2Long)((Vec2Double)(screenCords - center) / MainWindow.GetScale() - MainWindow.GetTranslation() + center);
+        return (Vec2Long)((Vec2Double)(screenCoords - center) / MainWindow.GetScale() - MainWindow.GetTranslation() + center);
     }
     
     /// <summary>
     /// Converts coords from the game (like positions of objects) into screen coords (like mouse pos)
     /// </summary>
-    /// <param name="gameCoords">The coords from the game to convert</param>
-    public static Vec2Long GameToScreenCoords(Vec2Long gameCoords)
+    /// <param name="worldCoords">The coords from the game to convert</param>
+    public static Vec2Int WorldToScreenCoords(Vec2Long worldCoords)
     {
         var center = (Vec2Float)Program.Get().GetScreenSize() / 2f;
-        return (Vec2Long)((gameCoords + MainWindow.GetTranslation() - center) * MainWindow.GetScale() + center);
+        return (Vec2Int)((worldCoords + MainWindow.GetTranslation() - center) * MainWindow.GetScale() + center);
+    }
+
+    public static Vec2Float ScreenToVertexCoords(Vec2Int screenCoords)
+    {
+        // get the screen size
+        var screenSize = Program.Get().GetScreenSize();
+        
+        // cast screenCoords to a float
+        var screenCoordsF = (Vec2Float)screenCoords;
+        
+        // divide screenCoordsF by screenSize, to get it to a 0-1 range
+        screenCoordsF /= (Vec2Float)screenSize;
+        
+        // multiply screenCoordsF by 2, to get it to a 0-2 range
+        screenCoordsF *= 2;
+        
+        // subtract 1 from screenCoordsF, to get it to a (-1)-1 range
+        screenCoordsF -= new Vec2Float(1);
+        
+        // negate the Y axis to flip the coords correctly
+        screenCoordsF = new Vec2Float(screenCoordsF.X, -screenCoordsF.Y);
+        
+        // return screenCoordsF
+        return screenCoordsF;
     }
     
     public static void Error(object text)

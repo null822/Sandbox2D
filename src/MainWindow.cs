@@ -1,11 +1,12 @@
 ﻿using System;
 using System.IO;
-using System.Numerics;
 using System.Text;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
+using Sandbox2D.Graphics;
+using Sandbox2D.Graphics.Registry;
 using Sandbox2D.Maths;
 using Sandbox2D.Maths.BlockMatrix;
 using Sandbox2D.World;
@@ -24,28 +25,22 @@ public class MainWindow : GameWindow
     private IBlockMatrixTile _activeBrush = new Stone();
     private static Range2D _brushRange;
     private static bool _isOverlapping;
-    private static Vec2Long _initialMousePos = new(0);
-    
+    private static Vec2Long _leftMouseWorldCoords = new(0);
+    private Vec2Int _middleMouseScreenCoords = new(0);
+
     // camera position
-    private static double _scale = 1;
+    private static float _scaleBase = 1;
+    private static float _scale;
     private static Vec2Double _translation = new(0);
     private static Vec2Double _prevTranslation = new(0);
-    private static Vec2Long _gridSize;
+    private static Vec2Int _gridSize;
     
     // controls
-    private KeyboardState _prevKeyboardState;
-    private MouseState _prevMouseState;
-    
-    private Vec2Int _middleMouseCords = new(0);
-    private int _scrollWheelOffset = -1200;
     
     
     public MainWindow(int width, int height, string title) : base(GameWindowSettings.Default,
     new NativeWindowSettings { ClientSize = (width, height), Title = title })
     {
-        var e = new Vector<int>();
-        
-        
         // "System Checks"
         
         Debug("===============[SYSTEM CHECKS]===============");
@@ -54,7 +49,7 @@ public class MainWindow : GameWindow
         Debug("debug text");
         Warn("warn text");
         Error("error text");
-
+        
         var r1 = new Range2D(-2, -2, 2, 4);
         var r2 = new Range2D(0, 1, 3, 3);
         
@@ -63,25 +58,101 @@ public class MainWindow : GameWindow
         Debug("===============[BEGIN PROGRAM]===============");
     }
 
+    protected override void OnRenderFrame(FrameEventArgs args)
+    {
+        base.OnRenderFrame(args);
+        
+        // only run when focused
+        if (!IsFocused)
+            return;
+        
+        // clear the color buffer
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+        
+        // [old] shouldn't be a problem anymore
+        // _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+        
+        // render components (with off-screen culling).
+        // get the world pos of the top left and bottom right corners of the screen,
+        // with a small buffer to prevent culling things still partially within the frame
+        var tlScreen = ScreenToWorldCoords(new Vec2Int(0, 0)) - new Vec2Long(64);
+        var brScreen = ScreenToWorldCoords((Vec2Int)ClientSize) + new Vec2Long(64);
+
+        var renderable = Renderables.Test;
+        renderable.ResetGeometry();
+
+        var i = 0;
+        
+        // add all the elements within the range (on screen) to the renderable
+        _world.InvokeRangedBlock(new Range2D(tlScreen, brScreen), (tile, range) =>
+        {
+            tile.AddToRenderable(range, renderable);
+
+            i++;
+            
+            return true;
+        }, ResultComparisons.Or, true);
+        
+        
+        // update the VAO and render
+        renderable.UpdateVao();
+        renderable.Render();
+        
+        Console.WriteLine($"Rendered {i} blocks");
+
+        // render brush outline
+
+        // var brushScreenCoordsBl = WorldToScreenCoords(new Vec2Long(_brushRange.MinX, _brushRange.MinY));
+        // var brushScreenCoordsTr = WorldToScreenCoords(new Vec2Long(_brushRange.MaxX, _brushRange.MaxY));
+        //
+        // var brushScreenSize = brushScreenCoordsTr - brushScreenCoordsBl;
+        //
+        // _spriteBatch.DrawRectangle(brushScreenCoordsBl.X, brushScreenCoordsBl.Y, brushScreenSize.X, brushScreenSize.Y,
+        //     Color.White, 2f);
+        
+        
+        
+        // swap buffers
+        SwapBuffers();
+    }
+
+    /// <summary>
+    /// Initializes everything
+    /// </summary>
+    protected override void OnLoad()
+    {
+        base.OnLoad();
+        
+        // set clear color
+        GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        
+        // create all of the shaders
+        Shaders.Instantiate();
+        
+        // create all of the renderables
+        Renderables.Instantiate();
+        
+    }
+
     /// <summary>
     /// The game logic loop
     /// </summary>
     protected override void OnUpdateFrame(FrameEventArgs args)
     {
-        if (_prevKeyboardState == null)
-            UpdatePrevKeyboardState(KeyboardState);
-        if (_prevMouseState == null)
-            UpdatePrevMouseState(MouseState);
-        
         base.OnUpdateFrame(args);
         
-        // only run when focused
-        // if (!IsActive)
-        //     return;
+        // only run when hovered
+        if (MousePosition.X < 0 || MousePosition.X > ClientSize.X || MousePosition.Y < 0 || MousePosition.Y > ClientSize.Y)
+            return;
         
-        // Controls
-
-        if (KeyboardState.IsKeyDown(Keys.M) && !_prevKeyboardState.IsKeyDown(Keys.M))
+        // only run when focused
+        if (!IsFocused)
+            return;
+        
+        // keyboard-only controls
+        
+        // mapping/saving/loading/clearing
+        if (KeyboardState.IsKeyPressed(Keys.M))
         {
             var svgMap = _world.GetSvgMap().ToString();
             
@@ -91,7 +162,7 @@ public class MainWindow : GameWindow
             
             Log("BlockMatrix Map Saved");
         }
-        if (KeyboardState.IsKeyDown(Keys.S) && !_prevKeyboardState.IsKeyDown(Keys.S))
+        if (KeyboardState.IsKeyPressed(Keys.S))
         {
             var save = File.Create("save.bm");
 
@@ -100,7 +171,7 @@ public class MainWindow : GameWindow
             save.Close();
             Log("BlockMatrix Saved");
         }
-        if (KeyboardState.IsKeyDown(Keys.L) && !_prevKeyboardState.IsKeyDown(Keys.L))
+        if (KeyboardState.IsKeyPressed(Keys.L))
         {
             var save = File.Open("save.bm", FileMode.Open);
 
@@ -110,7 +181,7 @@ public class MainWindow : GameWindow
             Log("BlockMatrix Loaded");
 
         }
-        if (KeyboardState.IsKeyDown(Keys.C) && !_prevKeyboardState.IsKeyDown(Keys.C))
+        if (KeyboardState.IsKeyPressed(Keys.C))
         {
             _world = new BlockMatrix<IBlockMatrixTile>(
                 new Air(),
@@ -119,129 +190,62 @@ public class MainWindow : GameWindow
             Log("World Cleared");
         }
         
-        // var MousePosition = new Vec2Int(MousePosition, MouseState.Y);
+        // zoom
+        _scaleBase = float.Clamp(_scaleBase + MouseState.ScrollDelta.Y / 16f, 0.1f, 10f);
+        _scale = (float)Math.Pow(_scaleBase, 4);
         
-        const int min = 1000;
-        const int max = 4000;
+        // mouse and keyboard controls
+        
+        var mouseWorldCoords = ScreenToWorldCoords((Vec2Int)MousePosition);
+        var mouseScreenCoords = (Vec2Int)MousePosition;
 
-        _scrollWheelOffset = (MouseState.Scroll.Y - _scrollWheelOffset) switch
+        // set the brushRange
+        _brushRange = new Range2D(
+            Math.Min(mouseWorldCoords.X, _leftMouseWorldCoords.X),
+            Math.Min(mouseWorldCoords.Y, _leftMouseWorldCoords.Y),
+            Math.Max(mouseWorldCoords.X, _leftMouseWorldCoords.X) + 1,
+            Math.Max(mouseWorldCoords.Y, _leftMouseWorldCoords.Y) + 1);
+        
+        // if we released lmouse, place the _activeBrush in the _world in the _brushRange
+        if (MouseState.IsButtonReleased(MouseButton.Left))
         {
-            > max => (int)MouseState.Scroll.Y - max,
-            < min => (int)MouseState.Scroll.Y - min,
-            _ => _scrollWheelOffset
-        };
-        
-        // only run controls logic when hovered
-        if (MousePosition.X < 0 || MousePosition.X > ClientSize.X || MousePosition.Y < 0 || MousePosition.Y > ClientSize.Y)
-            return;
-        
-        var mousePos = ScreenToGameCoords((Vec2Int)MousePosition);
-        _scale = Math.Pow((MouseState.Scroll.Y - _scrollWheelOffset) / 1024f, 4);
-        
-        
-        switch (MouseState[MouseButton.Left])
-        {
-            // lMouse first tick
-            case true when _prevMouseState[MouseButton.Left]:
-                break;
-            // !lMouse
-            case false when !_prevMouseState[MouseButton.Left]:
-                break;
-        }
-
-        // !lShift
-        if (!KeyboardState.IsKeyDown(Keys.LeftShift))
-        {
-            if (_brushRange.GetArea() > 1)
-            {
-                _brushRange = new Range2D(mousePos.X, mousePos.Y, mousePos.X + 1, mousePos.Y + 1);
-            }
+            _world[_brushRange] = _activeBrush;
         }
         
-        // tick after lMouse || !lShift
-        if ((!MouseState[MouseButton.Left] && _prevMouseState[MouseButton.Left]) || !KeyboardState.IsKeyDown(Keys.LeftShift))
+        // if we are not currently holding lmouse or not holding lshift, set the _leftMouseWorldCoords to the mouse pos
+        if (!MouseState.IsButtonDown(MouseButton.Left) || !KeyboardState.IsKeyDown(Keys.LeftShift))
         {
-            _brushRange = new Range2D(mousePos.X, mousePos.Y, mousePos.X + 1, mousePos.Y + 1);
+            _leftMouseWorldCoords = mouseWorldCoords;
         }
         
-        // update _isOverlapping by checking if _brushRange intersects with any tile on screen
-        _isOverlapping = TileIntersect(_brushRange);
-
-        // first tick of lMouse
-        if (MouseState[MouseButton.Left] && !_prevMouseState[MouseButton.Left])
+        // if we are currently holding lmouse and not holding lshift, place the brush in the world
+        if (MouseState.IsButtonDown(MouseButton.Left) && !KeyboardState.IsKeyDown(Keys.LeftShift))
         {
-            _initialMousePos = mousePos;
-
-            // & !overlap & !lShift
-            if (!_isOverlapping && !KeyboardState.IsKeyDown(Keys.LeftShift))
-            {
-                // _world[Brush[0].GetPos()] = Brush[0];
-
-                _world[_brushRange] = _activeBrush;
-
-                // _world.Set(Brush[0].GetPos(), Brush[0]);
-                // AddComponent(Brush[0]);
-            }
+            // technically buggy behaviour, but creates cool looking, "smooth" lines
+            _world[_brushRange] = _activeBrush;
         }
         
-        // tick after lMouse
-        if (!MouseState[MouseButton.Left] && _prevMouseState[MouseButton.Left])
+        // if we pressed lmouse, set the _leftMouseWorldCoords to the mouse pos
+        if (MouseState.IsButtonPressed(MouseButton.Left))
         {
-            // & lShift
-            if (KeyboardState.IsKeyDown(Keys.LeftShift) && !_isOverlapping)
-            {
-                // create the contents of the brush in the world (add to _world)
-                _world.Set(_brushRange, _activeBrush);
-            }
-            
-            _brushRange = new Range2D(mousePos.X, mousePos.Y, mousePos.X + 1, mousePos.Y + 1);
-        }
-
-        // lMouse
-        if (MouseState[MouseButton.Left])
-        {
-            // & lShift
-            if (KeyboardState.IsKeyDown(Keys.LeftShift))
-            {
-                _brushRange = new Range2D(
-                    (int)_initialMousePos.X,
-                    (int)_initialMousePos.Y,
-                    (int)mousePos.X + 1,
-                    (int)mousePos.Y + 1);
-            }
+            _leftMouseWorldCoords = mouseWorldCoords;
         }
         
-        // mMouse
-        if (MouseState[MouseButton.Middle])
+        // if we pressed mmouse, set the _middleMouseScreenCoords to the mouse pos
+        if (MouseState.IsButtonPressed(MouseButton.Middle))
         {
-            if (!_prevMouseState[MouseButton.Middle])
-            {
-                _middleMouseCords = (Vec2Int)MousePosition;
-                _prevTranslation = _translation;
-            }
-            else
-            {
-                _translation = _prevTranslation + (Vec2Double)((Vec2Int)MousePosition - _middleMouseCords) / _scale;
-            }
+            _middleMouseScreenCoords = (Vec2Int)MousePosition;
+            _prevTranslation = _translation;
         }
         
-        // rMouse
-        if (MouseState[MouseButton.Right] && _prevMouseState[MouseButton.Right])
+        // if we are currently holding mmouse, set the translation of the world
+        if (MouseState.IsButtonDown(MouseButton.Middle))
         {
-            _translation = new Vec2Double(0);
-            _scrollWheelOffset = (int)MouseState.Scroll.Y - 1200;
-            
-            _scale = Math.Pow(Math.Min(Math.Max((MouseState.Scroll.Y - _scrollWheelOffset) / 1024f, 0e-4), 0e4), 4);
-
+            _translation = _prevTranslation + (Vec2Double)(mouseScreenCoords - _middleMouseScreenCoords) / _scale;
         }
-
-        UpdatePrevMouseState(MouseState);
-        UpdatePrevKeyboardState(KeyboardState);
-
-        _gridSize = GameToScreenCoords(new Vec2Long(0, 0)) - GameToScreenCoords(new Vec2Long(1, 1));
         
         
-        
+        _gridSize = WorldToScreenCoords(new Vec2Long(0, 0)) - WorldToScreenCoords(new Vec2Long(1, 1));
     }
     
 
@@ -268,16 +272,6 @@ public class MainWindow : GameWindow
             pos.X + 1,
             pos.Y + 1
         );
-    }
-    
-    private void UpdatePrevMouseState(MouseState state)
-    {
-        _prevMouseState = state;
-    }
-    
-    private void UpdatePrevKeyboardState(KeyboardState state)
-    {
-        _prevKeyboardState = state;
     }
     
     /// <summary>
@@ -319,9 +313,9 @@ public class MainWindow : GameWindow
     }
     
     /// <summary>
-    /// Returns the screen size.
+    /// Returns the size of a 1x1 in-world area in screen coordinates
     /// </summary>
-    public static Vec2Long GetGridSize()
+    public static Vec2Int GetGridSize()
     {
         return _gridSize;
     }

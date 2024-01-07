@@ -1,6 +1,6 @@
 ﻿using System;
 using System.IO;
-using OpenTK.Graphics.OpenGL4;
+using OpenTK.Graphics.OpenGL;
 
 namespace Sandbox2D.Graphics;
 
@@ -13,11 +13,25 @@ public sealed class Shader : IDisposable
         GL.UseProgram(Handle);
     }
 
+    /// <summary>
+    /// Creates a shader from an already existing shader
+    /// </summary>
+    /// <param name="shader">the handle of the existing shader</param>
+    public Shader(int shader)
+    {
+        Handle = shader;
+    }
+
+    /// <summary>
+    /// Creates a Shader
+    /// </summary>
+    /// <param name="vertexPath">the path to the vertex shader, relative to `assets/shaders/`</param>
+    /// <param name="fragmentPath">the path to the fragment shader, relative to `assets/shaders/`</param>
     public Shader(string vertexPath, string fragmentPath)
     {
         // read the files
-        var vertexShaderSource = File.ReadAllText(vertexPath);
-        var fragmentShaderSource = File.ReadAllText(fragmentPath);
+        var vertexShaderSource = File.ReadAllText("assets/shaders/" + vertexPath);
+        var fragmentShaderSource = File.ReadAllText("assets/shaders/" + fragmentPath);
         
         // generate and bind the vert/frag shaders
         var vertexShader = GL.CreateShader(ShaderType.VertexShader);

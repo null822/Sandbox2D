@@ -78,6 +78,32 @@ public readonly struct Range2D
         return (MaxX - MinX) * (MaxY - MinY);
     }
 
+    public long GetWidth()
+    {
+        return MaxX - MinX;
+    }
+
+    public long GetHeight()
+    {
+        return MaxY - MinY;
+    }
+
+    /// <summary>
+    /// Returns the width and height of the Range2D
+    /// </summary>
+    public Vec2Long GetSize()
+    {
+        return new Vec2Long(GetWidth(), GetHeight());
+    }
+
+    /// <summary>
+    /// Returns the position of the Range2D (min X and min Y coords)
+    /// </summary>
+    public Vec2Long GetPos()
+    {
+        return new Vec2Long(MinX, MinY);
+    }
+    
     /// <summary>
     /// Returns a string representing this range
     /// </summary>

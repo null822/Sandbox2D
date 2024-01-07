@@ -15,9 +15,11 @@
       <PackageReference Include="OpenTK" Version="4.8.2" />
       <PackageReference Include="StbImageSharp" Version="2.27.13" />
     </ItemGroup>
-    
+
     <ItemGroup>
-      <Folder Include="assets\" />
+        <Content Include="assets\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
     
     <Target Name="RestoreDotnetTools" BeforeTargets="Restore">

@@ -8,7 +8,11 @@ namespace Sandbox2D.Graphics;
 public class Texture(int glHandle)
 {
     public readonly int Handle = glHandle;
-    
+
+    /// <summary>
+    /// Loads a texture from an image file
+    /// </summary>
+    /// <param name="path">The path to the image file, relative to `assets/textures`</param>
     public static Texture LoadFromFile(string path)
     {
         // Generate empty texture/handle
@@ -23,16 +27,15 @@ public class Texture(int glHandle)
         StbImage.stbi_set_flip_vertically_on_load(1);
             
         // open a stream to the image, and load it
-        using (Stream stream = File.OpenRead(path))
+        using (Stream stream = File.OpenRead("assets/textures/" + path))
         {
             var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
                 
             // create the texture
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, image.Width, image.Height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, image.Data);
         }
-            
-        // Now that our texture is loaded, we can set a few settings to affect how the image appears on rendering.
-
+        
+        
         // set the min/mag filters
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);

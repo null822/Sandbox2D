@@ -66,6 +66,17 @@ internal abstract class BlockMatrixBlock<T> where T : class, IBlockMatrixElement
         ResultComparison rc, bool excludeDefault = false);
 
     /// <summary>
+    /// Runs the specified lambda for each element residing in the supplied range, running only once for blocks of identical components
+    /// </summary>
+    /// <param name="range">range of positions of elements to run the lambda for</param>
+    /// <param name="run">the lambda to run at each element</param>
+    /// <param name="rc">a ResultComparison to compare the results</param>
+    /// <param name="excludeDefault">whether to exclude all elements with the default value</param>
+    /// <returns>the result of comparing all of the results of the run lambdas</returns>
+    public abstract bool InvokeRangedBlock(Range2D range, Func<T, Range2D, bool> run,
+        ResultComparison rc, bool excludeDefault = false);
+
+    /// <summary>
     /// Creates an SVG representing the current structure of the entire BlockMatrix
     /// </summary>
     /// <param name="nullableSvgString">optional parameter, used internally to pass the SVG around. Will likely break if changed.</param>
@@ -80,13 +91,7 @@ internal abstract class BlockMatrixBlock<T> where T : class, IBlockMatrixElement
     /// <param name="data">a stream containing the data section</param>
     internal virtual void DeserializeBlockMatrix(Stream tree, Stream data)
     {
-        // // write the AbsolutePos,
-        // tree.Write(BitConverter.GetBytes(AbsolutePos.X));
-        // tree.Write(BitConverter.GetBytes(AbsolutePos.Y));
-        //
-        // // and BlockSize to the tree
-        // tree.Write(BitConverter.GetBytes(BlockSize.X));
-        // tree.Write(BitConverter.GetBytes(BlockSize.Y));
+        
     }
 
     /// <summary>
@@ -309,6 +314,29 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
             {
                 retVal = rc.Comparator
                     .Invoke(retVal, subBlock.InvokeRanged(range, run, rc, excludeDefault));
+            }
+            
+        }
+
+        return retVal;
+    }
+    
+    public override bool InvokeRangedBlock(Range2D range, Func<T, Range2D, bool> run, ResultComparison rc, bool excludeDefault = false)
+    {
+        var retVal = rc.StartingValue;
+        
+        foreach (var subBlock in _subBlocks)
+        {
+            var subBlockRect = new Range2D(
+                subBlock.AbsolutePos.X, 
+                subBlock.AbsolutePos.Y, 
+                subBlock.AbsolutePos.X + subBlock.BlockSize.X, 
+                subBlock.AbsolutePos.Y + subBlock.BlockSize.Y);
+            
+            if (range.Overlaps(subBlockRect))
+            {
+                retVal = rc.Comparator
+                    .Invoke(retVal, subBlock.InvokeRangedBlock(range, run, rc, excludeDefault));
             }
             
         }
@@ -642,7 +670,7 @@ internal class BlockMatrixValue<T> : BlockMatrixBlock<T> where T : class, IBlock
             AbsolutePos.X + BlockSize.X, 
             AbsolutePos.Y + BlockSize.Y);
         
-        // if the supplied range overlaps with subBlockRange,
+        // if the supplied range overlaps with blockRange,
         if (range.Overlaps(blockRange))
         {
             // get the overlap rectangle of this BlockMatrixValue, and the supplied range
@@ -667,6 +695,28 @@ internal class BlockMatrixValue<T> : BlockMatrixBlock<T> where T : class, IBlock
         }
         
         return false;
+    }
+    
+    public override bool InvokeRangedBlock(Range2D range, Func<T, Range2D, bool> run, ResultComparison rc, bool excludeDefault = false)
+    {
+        if (excludeDefault && _value == DefaultValue) return false;
+        
+        // get the Range2D of this BlockMatrixValue
+        var blockRange = new Range2D(
+            AbsolutePos.X,
+            AbsolutePos.Y,
+            AbsolutePos.X + BlockSize.X, 
+            AbsolutePos.Y + BlockSize.Y);
+        
+        // if the supplied range does not overlap with blockRange, return false
+        if (!range.Overlaps(blockRange)) return false;
+        
+        // otherwise, get the overlap rectangle of this BlockMatrixValue and the supplied range
+        var overlap = range.Overlap(blockRange);
+            
+        // invoke the run Func for the overlap area, only once.
+        return run.Invoke(_value, overlap);
+
     }
     
     public override StringBuilder GetSvgMap(StringBuilder? nullableSvgString = null)
