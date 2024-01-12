@@ -1,37 +1,33 @@
 ﻿using System;
 using Sandbox2D.Maths.BlockMatrix;
-using Sandbox2D.World.Tiles;
+using Sandbox2D.World.TileTypes;
 
 namespace Sandbox2D.World;
 
 public interface IBlockMatrixTile : IBlockMatrixElement<IBlockMatrixTile>, ITile
 {
     
-    // ITile
-
-
-    // IBlockMatrixElement
-    
-    static bool IBlockMatrixElement<IBlockMatrixTile>.operator !=(IBlockMatrixTile a, IBlockMatrixTile b)
-    {
-        return false;
-    }
-
-    static bool IBlockMatrixElement<IBlockMatrixTile>.operator ==(IBlockMatrixTile a, IBlockMatrixTile b)
-    {
-        return false;
-    }
-
-    
     ReadOnlySpan<byte> IBlockMatrixElement<IBlockMatrixTile>.Serialize()
     {
-        return new Span<byte>([0]);
+        // return the id, as bytes
+        return BitConverter.GetBytes(Id);
     }
     
     static IBlockMatrixTile IBlockMatrixElement<IBlockMatrixTile>.Deserialize(ReadOnlySpan<byte> bytes)
     {
-        return new Air();
+        // get the tile
+        var tile = Tiles.GetTile(BitConverter.ToUInt32(bytes));
+        
+        // if it is an IBlockMatrixTile, return it, otherwise, return air
+        return tile as IBlockMatrixTile ?? new Air();
     }
 
-    static uint IBlockMatrixElement<IBlockMatrixTile>.SerializeLength => 1;
+    static uint IBlockMatrixElement<IBlockMatrixTile>.SerializeLength => sizeof(uint);
+
+
+    bool IBlockMatrixElement<IBlockMatrixTile>.Equals(IBlockMatrixTile a)
+    {
+        return Id == a.Id;
+    }
+    
 }

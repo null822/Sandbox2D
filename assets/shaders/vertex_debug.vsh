@@ -1,8 +1,8 @@
-﻿#version 330
+﻿#version 330 core
 
-in vec2 position;
+in vec3 aPosition;
 
-out vec4 outputColor;
+out vec3 color;
 
 
 // https://stackoverflow.com/a/17479300 (next 4 functions)
@@ -42,19 +42,10 @@ float random( vec2  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 float random( vec3  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 
-float scale(float x)
-{
-    return round(x * 8192) / 8192;
-}
 
-vec2 scale(vec2 v)
+void main(void)
 {
-    return vec2(scale(v.x), scale(v.y));
-}
-
-void main()
-{
-    float randomVal = random(scale(position));
+    color = vec3(random(aPosition.x), random(aPosition.y), random(aPosition.y + 1));
     
-    outputColor = vec4(randomVal, randomVal, randomVal, 1);
+    gl_Position = vec4(aPosition, 1.0);
 }

@@ -12,18 +12,18 @@ internal abstract class BlockMatrixBlock<T> where T : class, IBlockMatrixElement
     /// <summary>
     /// Absolute position of the BlockMatrixBlock
     /// </summary>
-    internal readonly Vec2Long AbsolutePos;
+    internal readonly Vec2<long> AbsolutePos;
     /// <summary>
     /// Size of the BlockMatrixBlock
     /// </summary>
-    internal readonly Vec2Long BlockSize;
+    internal readonly Vec2<long> BlockSize;
     
     /// <summary>
     /// The default value of the BlockMatrix (everything is default by default)
     /// </summary>
     protected readonly T DefaultValue;
 
-    protected BlockMatrixBlock(T defaultValue, Vec2Long? absolutePos, Vec2Long blockSize)
+    protected BlockMatrixBlock(T defaultValue, Vec2<long>? absolutePos, Vec2<long> blockSize)
     {
         DefaultValue = defaultValue;
         BlockSize = blockSize;
@@ -37,7 +37,7 @@ internal abstract class BlockMatrixBlock<T> where T : class, IBlockMatrixElement
     /// <param name="targetPos">the position of the value to set, relative to the BlockMatrix called in</param>
     /// <param name="value">the value to set</param>
     /// <returns>a bool describing if the BlockMatrix was changed (ignoring compression)</returns>
-    internal abstract bool Set(Vec2Long targetPos, T value);
+    internal abstract bool Set(Vec2<long> targetPos, T value);
 
     /// <summary>
     /// Sets an area of values to one single value in the BlockMatrix
@@ -52,7 +52,7 @@ internal abstract class BlockMatrixBlock<T> where T : class, IBlockMatrixElement
     /// </summary>
     /// <param name="targetPos"></param>
     /// <returns></returns>
-    internal abstract T? Get(Vec2Long targetPos);
+    internal abstract T? Get(Vec2<long> targetPos);
 
     /// <summary>
     /// Runs the specified lambda for each element residing in the supplied range
@@ -62,7 +62,7 @@ internal abstract class BlockMatrixBlock<T> where T : class, IBlockMatrixElement
     /// <param name="rc">a ResultComparison to compare the results</param>
     /// <param name="excludeDefault">whether to exclude all elements with the default value</param>
     /// <returns>the result of comparing all of the results of the run lambdas</returns>
-    public abstract bool InvokeRanged(Range2D range, Func<T, Vec2Long, bool> run,
+    public abstract bool InvokeRanged(Range2D range, Func<T, Vec2<long>, bool> run,
         ResultComparison rc, bool excludeDefault = false);
 
     /// <summary>
@@ -101,7 +101,7 @@ internal abstract class BlockMatrixBlock<T> where T : class, IBlockMatrixElement
     /// <param name="tree">a stream containing the tree section</param>
     /// <param name="data">a stream containing the data section</param>
     /// <param name="index">the index within _subBlocks of the element to serialize</param>
-    internal virtual void SerializeBlockMatrix(Stream tree, Stream data, Vec2Long index)
+    internal virtual void SerializeBlockMatrix(Stream tree, Stream data, Vec2<long> index)
     {
         // write the index,
         tree.Write(BitConverter.GetBytes((uint)index.X));
@@ -138,26 +138,26 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
     /// <summary>
     /// Size of one of the contained blocks
     /// </summary>
-    private readonly Vec2Long _subBlockSize;
+    private readonly Vec2<long> _subBlockSize;
 
     /// <summary>
     /// Amount of contained blocks
     /// </summary>
-    private readonly Vec2Long _subBlockCount;
+    private readonly Vec2<long> _subBlockCount;
 
     
-    public BlockMatrix(T defaultValue, Vec2Long blockSize, Vec2Long? blockAbsolutePos = null, T? populateValue = null) : base(defaultValue, blockAbsolutePos, blockSize)
+    public BlockMatrix(T defaultValue, Vec2<long> blockSize, Vec2<long>? blockAbsolutePos = null, T? populateValue = null) : base(defaultValue, blockAbsolutePos, blockSize)
     {
         // calculate largest W/H factors
         var wLargestFactor = LargestFactor(blockSize.X);
         var hLargestFactor = LargestFactor(blockSize.Y);
         
         // instantiate _subBlockSize to be as large as possible, but smaller than the matrix, while keeping the matrix size divisible by it
-        _subBlockSize = new Vec2Long(wLargestFactor, hLargestFactor);
+        _subBlockSize = new Vec2<long>(wLargestFactor, hLargestFactor);
         
         // instantiate _subBlocks to be of size: smallest non-1 (unless matrix size is prime) factor of passed size.
         // also store this value in a field for later use
-        _subBlockCount = new Vec2Long(blockSize.X / wLargestFactor, blockSize.Y / hLargestFactor);
+        _subBlockCount = new Vec2<long>(blockSize.X / wLargestFactor, blockSize.Y / hLargestFactor);
         _subBlocks = new BlockMatrixBlock<T>[_subBlockCount.X, _subBlockCount.Y];
         
         // populate the _subBlocks array with either the defaultValue or the supplied populateValue if it is not null
@@ -167,7 +167,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
         {
             for (var y = 0; y < _subBlockCount.Y; y++)
             {
-                var subBlockAbsolutePos = AbsolutePos + new Vec2Long(x, y) * _subBlockSize;
+                var subBlockAbsolutePos = AbsolutePos + new Vec2<long>(x, y) * _subBlockSize;
                 
                 _subBlocks[x, y] = new BlockMatrixValue<T>(defaultValue, subBlockAbsolutePos, _subBlockSize, value);
             }
@@ -179,7 +179,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
     /// </summary>
     /// <param name="targetPos">the position to get the value from</param>
     /// <returns>the value</returns>
-    internal override T? Get(Vec2Long targetPos)
+    internal override T? Get(Vec2<long> targetPos)
     {
         var nextBlockPos = GetNextBlockPos(targetPos, out var newTargetPos);
         var nextBlock = _subBlocks[nextBlockPos.X, nextBlockPos.Y];
@@ -192,14 +192,14 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
     /// </summary>
     public T? this[long x, long y]
     {
-        get => Get(new Vec2Long(x, y));
-        set => Set(new Vec2Long(x, y), value ?? DefaultValue);
+        get => Get(new Vec2<long>(x, y));
+        set => Set(new Vec2<long>(x, y), value ?? DefaultValue);
     }
     
     /// <summary>
     /// What do you think this does?
     /// </summary>
-    public T? this[Vec2Long pos]
+    public T? this[Vec2<long> pos]
     {
         get => Get(pos);
         set => Set(pos, value ?? DefaultValue);
@@ -216,10 +216,10 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
     
     internal override bool Set(Range2D targetRange, T value)
     {
-        // if the range refers to a single point, use the Set(Vec2Long, T) method instead since it is more efficient for single positions
+        // if the range refers to a single point, use the Set(Vec2<long>, T) method instead since it is more efficient for single positions
         if (targetRange.GetArea() == 1)
         {
-            return Set(new Vec2Long(targetRange.MinX, targetRange.MinY), value);
+            return Set(new Vec2<long>(targetRange.MinX, targetRange.MinY), value);
         }
         
         var success = false;
@@ -236,7 +236,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
                 // check if the supplied targetRange overlaps with the subBlock.
                 if (targetRange.Overlaps(subBlockRange))
                 {
-                    var nextBlockAbsolutePos = AbsolutePos + (new Vec2Long(x, y) * _subBlockSize);
+                    var nextBlockAbsolutePos = AbsolutePos + (new Vec2<long>(x, y) * _subBlockSize);
 
                     // if the supplied targetRange completely contains the subBlock,
                     if (targetRange.Contains(subBlockRange))
@@ -274,7 +274,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
         return success;
     }
     
-    internal override bool Set(Vec2Long targetPos, T value)
+    internal override bool Set(Vec2<long> targetPos, T value)
     {
         var nextBlockPos = GetNextBlockPos(targetPos, out var newTargetPos);
         var nextBlock = _subBlocks[nextBlockPos.X, nextBlockPos.Y] ?? throw new Exception("Block was null");
@@ -282,7 +282,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
         var nextBlockAbsolutePos = AbsolutePos + (nextBlockPos * _subBlockSize);
         
         // if part is a BlockMatrixValue of size > 1, change it to a BlockMatrix
-        if (nextBlock is BlockMatrixValue<T> nextBlockValue && _subBlockSize > new Vec2Long(1))
+        if (nextBlock is BlockMatrixValue<T> nextBlockValue && _subBlockSize > new Vec2<long>(1))
         {
             nextBlock = new BlockMatrix<T>(DefaultValue, _subBlockSize, nextBlockAbsolutePos, nextBlockValue.GetValue());
             
@@ -298,7 +298,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
         return success;
     }
     
-    public override bool InvokeRanged(Range2D range, Func<T, Vec2Long, bool> run, ResultComparison rc, bool excludeDefault = false)
+    public override bool InvokeRanged(Range2D range, Func<T, Vec2<long>, bool> run, ResultComparison rc, bool excludeDefault = false)
     {
         var retVal = rc.StartingValue;
         
@@ -344,7 +344,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
         return retVal;
     }
     
-    private Vec2Long GetNextBlockPos(Vec2Long targetPos, out Vec2Long newTargetPos)
+    private Vec2<long> GetNextBlockPos(Vec2<long> targetPos, out Vec2<long> newTargetPos)
     {
         // get the targetPos of the block the target is in
         var blockPos = BlockMatrixUtil.GetBlockIndexFromPos(targetPos, BlockSize, _subBlockCount);
@@ -354,7 +354,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
             throw new Exception("Position " + targetPos + " is outside BlockMatrix bounds of +/- " + BlockSize.X + "x" + BlockSize.Y);
         
         // calculate the new targetPos
-        var blockSign = new Vec2Long(blockPos.X <= 0 ? -1 : 1, blockPos.Y <= 0 ? -1 : 1);
+        var blockSign = new Vec2<long>(blockPos.X <= 0 ? -1 : 1, blockPos.Y <= 0 ? -1 : 1);
         var nextBlockBlockSize = _subBlockSize / _subBlockCount;
         newTargetPos = targetPos - (nextBlockBlockSize * blockSign);
 
@@ -412,7 +412,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
         {
             for (var y = 0; y < _subBlockCount.Y; y++)
             {
-                _subBlocks[x, y].SerializeBlockMatrix(tree, data, new Vec2Long(x, y));
+                _subBlocks[x, y].SerializeBlockMatrix(tree, data, new Vec2<long>(x, y));
             }
         }
         
@@ -435,7 +435,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
         data.Dispose();
     }
     
-    internal override void SerializeBlockMatrix(Stream tree, Stream data, Vec2Long index)
+    internal override void SerializeBlockMatrix(Stream tree, Stream data, Vec2<long> index)
     {
         // write the identifier for a BlockMatrix to the tree stream
         tree.Write(new byte[]{ 1 });
@@ -448,7 +448,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
         {
             for (var y = 0; y < _subBlockCount.Y; y++)
             {
-                _subBlocks[x, y].SerializeBlockMatrix(tree, data, new Vec2Long(x, y));
+                _subBlocks[x, y].SerializeBlockMatrix(tree, data, new Vec2<long>(x, y));
             }
         }
         
@@ -467,7 +467,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
         var header = ReadStream(stream, 24, "header");
         
         // get values from the header
-        var blockSize = new Vec2Long(BitConverter.ToInt64(header[..8]), BitConverter.ToInt64(header[8..16]));
+        var blockSize = new Vec2<long>(BitConverter.ToInt64(header[..8]), BitConverter.ToInt64(header[8..16]));
         var elementSize = BitConverter.ToUInt32(header[16..20]);
         var dataPointer = BitConverter.ToUInt32(header[20..24]);
         
@@ -528,7 +528,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
             var indexBytes = ReadStream(tree, 8, "BlockMatrix structure");
             
             // get the index
-            var index = new Vec2Long(
+            var index = new Vec2<long>(
                 BitConverter.ToUInt32(indexBytes[..4]),
                 BitConverter.ToUInt32(indexBytes[4..8]));
             
@@ -578,7 +578,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
             for (var y = 0; y < _subBlockCount.Y; y++)
             {
                 // get absolute pos of this block
-                var currentBlockAbsolutePos = AbsolutePos + new Vec2Long(x, y) * _subBlockSize;
+                var currentBlockAbsolutePos = AbsolutePos + new Vec2<long>(x, y) * _subBlockSize;
                 
                 // if it is a BlockMatrix,
                 if (_subBlocks[x, y] is BlockMatrix<T> subBlockMatrix)
@@ -587,7 +587,7 @@ internal class BlockMatrix<T> : BlockMatrixBlock<T> where T : class, IBlockMatri
 
                     var firstValue = subSubBlocks[0, 0] is BlockMatrixValue<T> e ? e.GetValue() : null;
                     
-                    if (firstValue == null)
+                    if (Equals(firstValue, null))
                         continue;
                     
                     // check if all of these subBlocks are equal
@@ -626,14 +626,14 @@ internal class BlockMatrixValue<T> : BlockMatrixBlock<T> where T : class, IBlock
 {
     private T _value;
     
-    public BlockMatrixValue(T defaultValue, Vec2Long absolutePos, Vec2Long blockSize, T value) : base(defaultValue, absolutePos, blockSize)
+    public BlockMatrixValue(T defaultValue, Vec2<long> absolutePos, Vec2<long> blockSize, T value) : base(defaultValue, absolutePos, blockSize)
     {
         _value = value;
     }
 
-    internal override bool Set(Vec2Long targetPos, T? value)
+    internal override bool Set(Vec2<long> targetPos, T? value)
     {
-        if (value == null)
+        if (Equals(value, null))
             return false;
         
         _value = value;
@@ -642,7 +642,7 @@ internal class BlockMatrixValue<T> : BlockMatrixBlock<T> where T : class, IBlock
     
     internal override bool Set(Range2D targetRange, T? value)
     {
-        if (value == null)
+        if (Equals(value, null))
             return false;
 
         if (targetRange.Contains(GetRange()))
@@ -654,14 +654,14 @@ internal class BlockMatrixValue<T> : BlockMatrixBlock<T> where T : class, IBlock
         return false;
     }
 
-    internal override T Get(Vec2Long targetPos)
+    internal override T Get(Vec2<long> targetPos)
     {
         return _value;
     }
     
-    public override bool InvokeRanged(Range2D range, Func<T, Vec2Long, bool> run, ResultComparison rc, bool excludeDefault = false)
+    public override bool InvokeRanged(Range2D range, Func<T, Vec2<long>, bool> run, ResultComparison rc, bool excludeDefault = false)
     {
-        if (excludeDefault && _value == DefaultValue) return false;
+        if (excludeDefault && _value.Equals(DefaultValue)) return false;
         
         // get the Range2D of this BlockMatrixValue
         var blockRange = new Range2D(
@@ -686,7 +686,7 @@ internal class BlockMatrixValue<T> : BlockMatrixBlock<T> where T : class, IBlock
                 {
                     result = rc.Comparator.Invoke(
                         result,
-                        run.Invoke(_value, new Vec2Long(x, y))
+                        run.Invoke(_value, new Vec2<long>(x, y))
                         );
                 }
             }
@@ -699,7 +699,7 @@ internal class BlockMatrixValue<T> : BlockMatrixBlock<T> where T : class, IBlock
     
     public override bool InvokeRangedBlock(Range2D range, Func<T, Range2D, bool> run, ResultComparison rc, bool excludeDefault = false)
     {
-        if (excludeDefault && _value == DefaultValue) return false;
+        if (excludeDefault && _value.Equals(DefaultValue)) return false;
         
         // get the Range2D of this BlockMatrixValue
         var blockRange = new Range2D(
@@ -737,8 +737,8 @@ internal class BlockMatrixValue<T> : BlockMatrixBlock<T> where T : class, IBlock
         
         var fillColor = "#00ff00";
 
-        if (BlockSize == new Vec2Long(1)) fillColor = "#ffff00";
-        if (_value == DefaultValue) fillColor = "#ff0000;fill-opacity:0.1";
+        if (BlockSize == new Vec2<long>(1)) fillColor = "#ffff00";
+        if (_value.Equals(DefaultValue)) fillColor = "#ff0000;fill-opacity:0.1";
 
         var rect = $"<rect style=\"fill:{fillColor};stroke:#000000;stroke-width:{Math.Min(BlockSize.X / 64d, 1)}\" " +
                    $"width=\"{BlockSize.X * scale}\" height=\"{BlockSize.Y * scale}\" " +
@@ -749,10 +749,10 @@ internal class BlockMatrixValue<T> : BlockMatrixBlock<T> where T : class, IBlock
         return svgString;
     }
     
-    internal override void SerializeBlockMatrix(Stream tree, Stream data, Vec2Long index)
+    internal override void SerializeBlockMatrix(Stream tree, Stream data, Vec2<long> index)
     {
         // if the value is default, we don't need to include it in the serialization
-        if (_value == DefaultValue)
+        if (_value.Equals(DefaultValue))
             return;
         
         // write the identifier for a BlockMatrixValue to the tree stream
@@ -769,7 +769,7 @@ internal class BlockMatrixValue<T> : BlockMatrixBlock<T> where T : class, IBlock
         tree.Write(BitConverter.GetBytes(pointer));
     }
 
-    public Vec2Long GetPos()
+    public Vec2<long> GetPos()
     {
         return AbsolutePos;
     }
@@ -785,7 +785,7 @@ internal class BlockMatrixValue<T> : BlockMatrixBlock<T> where T : class, IBlock
         if (Equals(a, null) || Equals(b, null))
             return false;
 
-        return a._value == b._value;
+        return a._value.Equals(b._value);
     }
     
     public static bool operator !=(BlockMatrixValue<T> a, BlockMatrixValue<T> b)
@@ -793,7 +793,7 @@ internal class BlockMatrixValue<T> : BlockMatrixBlock<T> where T : class, IBlock
         if (Equals(a, null) || Equals(b, null))
             return false;
 
-        return a._value != b._value;
+        return !a._value.Equals(b._value);
     }
     
     private bool Equals(BlockMatrixValue<T> other)
@@ -817,9 +817,9 @@ internal class BlockMatrixValue<T> : BlockMatrixBlock<T> where T : class, IBlock
 
 internal static class BlockMatrixUtil
 {
-    internal static Vec2Long GetBlockIndexFromPos(Vec2Long localPos, Vec2Long blockSize, Vec2Long subBlockCount)
+    internal static Vec2<long> GetBlockIndexFromPos(Vec2<long> localPos, Vec2<long> blockSize, Vec2<long> subBlockCount)
     {
-        return new Vec2Long(
+        return new Vec2<long>(
             (long)Math.Floor((double)localPos.X / blockSize.X) + subBlockCount.X/2,
             (long)Math.Floor((double)localPos.Y / blockSize.Y) + subBlockCount.Y/2
         );

@@ -29,7 +29,7 @@ public readonly struct Range2D
         MaxY = maxY;
     }
     
-    public Range2D(Vec2Long tl, Vec2Long br)
+    public Range2D(Vec2<long> tl, Vec2<long> br)
     {
         MinX = tl.X;
         MinY = tl.Y;
@@ -91,17 +91,17 @@ public readonly struct Range2D
     /// <summary>
     /// Returns the width and height of the Range2D
     /// </summary>
-    public Vec2Long GetSize()
+    public Vec2<long> GetSize()
     {
-        return new Vec2Long(GetWidth(), GetHeight());
+        return new Vec2<long>(GetWidth(), GetHeight());
     }
 
     /// <summary>
     /// Returns the position of the Range2D (min X and min Y coords)
     /// </summary>
-    public Vec2Long GetPos()
+    public Vec2<long> GetPos()
     {
-        return new Vec2Long(MinX, MinY);
+        return new Vec2<long>(MinX, MinY);
     }
     
     /// <summary>

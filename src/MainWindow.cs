@@ -5,12 +5,12 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-using Sandbox2D.Graphics;
 using Sandbox2D.Graphics.Registry;
+using Sandbox2D.Graphics.Renderables;
 using Sandbox2D.Maths;
 using Sandbox2D.Maths.BlockMatrix;
 using Sandbox2D.World;
-using Sandbox2D.World.Tiles;
+using Sandbox2D.World.TileTypes;
 using static Sandbox2D.Util;
 using static Sandbox2D.Constants;
 
@@ -19,24 +19,21 @@ namespace Sandbox2D;
 public class MainWindow : GameWindow
 {
     // world
-    private BlockMatrix<IBlockMatrixTile> _world = new(new Air(), new Vec2Long(WorldWidth, WorldHeight));
+    private BlockMatrix<IBlockMatrixTile> _world;
     
     // world editing
-    private IBlockMatrixTile _activeBrush = new Stone();
+    private IBlockMatrixTile _activeBrush;
+    private bool _temporaryBrushToggle;
     private static Range2D _brushRange;
-    private static bool _isOverlapping;
-    private static Vec2Long _leftMouseWorldCoords = new(0);
-    private Vec2Int _middleMouseScreenCoords = new(0);
+    private static Vec2<long> _leftMouseWorldCoords = new(0);
+    private Vec2<int> _middleMouseScreenCoords = new(0);
 
     // camera position
     private static float _scaleBase = 1;
-    private static float _scale;
-    private static Vec2Double _translation = new(0);
-    private static Vec2Double _prevTranslation = new(0);
-    private static Vec2Int _gridSize;
-    
-    // controls
-    
+    private static float _scale = 1;
+    private static Vec2<double> _translation = new(0);
+    private static Vec2<double> _prevTranslation = new(0);
+    private static Vec2<int> _gridSize;
     
     public MainWindow(int width, int height, string title) : base(GameWindowSettings.Default,
     new NativeWindowSettings { ClientSize = (width, height), Title = title })
@@ -55,6 +52,10 @@ public class MainWindow : GameWindow
         
         Debug(r1.Overlap(r2));
         
+        Debug(new Vec2<int>(10, 2) + new Vec2<int>(11, 1));
+        
+        // Debug((IBlockMatrixTile)new Air() == new Stone());
+        
         Debug("===============[BEGIN PROGRAM]===============");
     }
 
@@ -72,45 +73,41 @@ public class MainWindow : GameWindow
         // [old] shouldn't be a problem anymore
         // _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
         
-        // render components (with off-screen culling).
+        // render components (with off-screen culling)
+        
         // get the world pos of the top left and bottom right corners of the screen,
         // with a small buffer to prevent culling things still partially within the frame
-        var tlScreen = ScreenToWorldCoords(new Vec2Int(0, 0)) - new Vec2Long(64);
-        var brScreen = ScreenToWorldCoords((Vec2Int)ClientSize) + new Vec2Long(64);
+        var tlScreen = ScreenToWorldCoords(new Vec2<int>(0, 0)) - new Vec2<long>(64);
+        var brScreen = ScreenToWorldCoords((Vec2<int>)ClientSize) + new Vec2<long>(64);
+        var screenRange = new Range2D(tlScreen, brScreen);
 
-        var renderable = Renderables.Test;
+        const uint renderableId = 2;
+        
+        var renderable = (GameObjectRenderable)Renderables.Get(renderableId);
+        
+        renderable.SetScale(_scale);
+        renderable.SetTranslation(_translation);
+        
         renderable.ResetGeometry();
-
-        var i = 0;
+        
         
         // add all the elements within the range (on screen) to the renderable
-        _world.InvokeRangedBlock(new Range2D(tlScreen, brScreen), (tile, range) =>
+        _world.InvokeRangedBlock(screenRange, (tile, range) =>
         {
-            tile.AddToRenderable(range, renderable);
-
-            i++;
+            tile.AddToRenderable(range, renderableId);
             
             return true;
         }, ResultComparisons.Or, true);
         
+        // re-get the renderable after the new geometry has been set, since we have the object by-value and it is out of data
+        renderable = (GameObjectRenderable)Renderables.Get(renderableId);
+
         
         // update the VAO and render
         renderable.UpdateVao();
         renderable.Render();
         
-        Console.WriteLine($"Rendered {i} blocks");
-
-        // render brush outline
-
-        // var brushScreenCoordsBl = WorldToScreenCoords(new Vec2Long(_brushRange.MinX, _brushRange.MinY));
-        // var brushScreenCoordsTr = WorldToScreenCoords(new Vec2Long(_brushRange.MaxX, _brushRange.MaxY));
-        //
-        // var brushScreenSize = brushScreenCoordsTr - brushScreenCoordsBl;
-        //
-        // _spriteBatch.DrawRectangle(brushScreenCoordsBl.X, brushScreenCoordsBl.Y, brushScreenSize.X, brushScreenSize.Y,
-        //     Color.White, 2f);
-        
-        
+        // TODO: render brush outline
         
         // swap buffers
         SwapBuffers();
@@ -129,8 +126,18 @@ public class MainWindow : GameWindow
         // create all of the shaders
         Shaders.Instantiate();
         
-        // create all of the renderables
+        // create all of the renderables. must be done after creating the shaders
         Renderables.Instantiate();
+        
+        Tiles.Initialize(new ITile[]
+        {
+            new Air(),
+            new Stone(),
+            new Dirt()
+        });
+        
+        // create the world. must be done after creating the renderables
+        _world = new BlockMatrix<IBlockMatrixTile>(new Air(), new Vec2<long>(WorldWidth, WorldHeight));
         
     }
 
@@ -185,7 +192,7 @@ public class MainWindow : GameWindow
         {
             _world = new BlockMatrix<IBlockMatrixTile>(
                 new Air(),
-                new Vec2Long(WorldWidth, WorldHeight));
+                new Vec2<long>(WorldWidth, WorldHeight));
             
             Log("World Cleared");
         }
@@ -196,8 +203,8 @@ public class MainWindow : GameWindow
         
         // mouse and keyboard controls
         
-        var mouseWorldCoords = ScreenToWorldCoords((Vec2Int)MousePosition);
-        var mouseScreenCoords = (Vec2Int)MousePosition;
+        var mouseWorldCoords = ScreenToWorldCoords((Vec2<int>)MousePosition);
+        var mouseScreenCoords = (Vec2<int>)MousePosition;
 
         // set the brushRange
         _brushRange = new Range2D(
@@ -234,18 +241,27 @@ public class MainWindow : GameWindow
         // if we pressed mmouse, set the _middleMouseScreenCoords to the mouse pos
         if (MouseState.IsButtonPressed(MouseButton.Middle))
         {
-            _middleMouseScreenCoords = (Vec2Int)MousePosition;
+            _middleMouseScreenCoords = (Vec2<int>)MousePosition;
             _prevTranslation = _translation;
         }
         
         // if we are currently holding mmouse, set the translation of the world
         if (MouseState.IsButtonDown(MouseButton.Middle))
         {
-            _translation = _prevTranslation + (Vec2Double)(mouseScreenCoords - _middleMouseScreenCoords) / _scale;
+            _translation = _prevTranslation + (Vec2<double>)(mouseScreenCoords - _middleMouseScreenCoords) / _scale;
+        }
+
+        if (MouseState.IsButtonPressed(MouseButton.Right))
+        {
+            _temporaryBrushToggle = !_temporaryBrushToggle;
+
+            _activeBrush = _temporaryBrushToggle ? new Stone() : new Air();
+            
+            Log($"Brush Changed to {_activeBrush.Name}");
         }
         
         
-        _gridSize = WorldToScreenCoords(new Vec2Long(0, 0)) - WorldToScreenCoords(new Vec2Long(1, 1));
+        _gridSize = WorldToScreenCoords(new Vec2<long>(0, 0)) - WorldToScreenCoords(new Vec2<long>(1, 1));
     }
     
 
@@ -264,7 +280,7 @@ public class MainWindow : GameWindow
     /// Returns a rectangle representing the collision of a tile based on its position
     /// </summary>
     /// <param name="pos">the position of the tile to get the collision of</param>
-    private static Range2D GetCollisionRectangle(Vec2Long pos)
+    private static Range2D GetCollisionRectangle(Vec2<long> pos)
     {
         return new Range2D(
             pos.X,
@@ -299,7 +315,7 @@ public class MainWindow : GameWindow
     /// <summary>
     /// Returns the translation (pan) of the world.
     /// </summary>
-    public static Vec2Double GetTranslation()
+    public static Vec2<double> GetTranslation()
     {
         return _translation;
     }
@@ -307,15 +323,15 @@ public class MainWindow : GameWindow
     /// <summary>
     /// Returns the screen size.
     /// </summary>
-    public Vec2Int GetScreenSize()
+    public Vec2<int> GetScreenSize()
     {
-        return (Vec2Int)ClientSize;
+        return (Vec2<int>)ClientSize;
     }
     
     /// <summary>
     /// Returns the size of a 1x1 in-world area in screen coordinates
     /// </summary>
-    public static Vec2Int GetGridSize()
+    public static Vec2<int> GetGridSize()
     {
         return _gridSize;
     }

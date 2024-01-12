@@ -1,6 +1,4 @@
 ﻿
-using OpenTK.Windowing.Common;
-
 namespace Sandbox2D;
 
 public static class Program

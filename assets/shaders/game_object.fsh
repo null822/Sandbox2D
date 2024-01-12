@@ -1,8 +1,9 @@
-﻿#version 330 core
+﻿#version 330
 
-layout(location = 0) in vec3 aPosition;
+in vec2 vertexPos;
+in vec2 pixelWorldPos;
 
-out vec3 color;
+out vec4 outputColor;
 
 
 // https://stackoverflow.com/a/17479300 (next 4 functions)
@@ -43,9 +44,12 @@ float random( vec3  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 
 
-void main(void)
+void main()
 {
-    color = vec3(random(aPosition.x), random(aPosition.y), random(aPosition.y + 1));
+    vec2 worldPosMapped = pixelWorldPos;
     
-    gl_Position = vec4(aPosition, 1.0);
+    worldPosMapped = vec2(floor(worldPosMapped.x), floor(worldPosMapped.y));
+    
+    outputColor = vec4(random(worldPosMapped), random(worldPosMapped + 0.01), random(worldPosMapped + 0.02), 1);
+    
 }
