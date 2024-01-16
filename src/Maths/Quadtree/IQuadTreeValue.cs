@@ -1,9 +1,9 @@
 ﻿#nullable enable
 using System;
 
-namespace Sandbox2D.Maths.BlockMatrix;
+namespace Sandbox2D.Maths.Quadtree;
 
-public interface IBlockMatrixElement<T> where T : IBlockMatrixElement<T>
+public interface IQuadTreeValue<T> where T : IQuadTreeValue<T>
 {
     /// <summary>
     /// Checks if this object is equal to the supplied object
@@ -17,13 +17,13 @@ public interface IBlockMatrixElement<T> where T : IBlockMatrixElement<T>
     public ReadOnlySpan<byte> Serialize();
     
     /// <summary>
-    /// Converts a span of bytes back into an instance of IBlockMatrixElement
+    /// Converts a span of bytes back into an instance of IQuadTreeValue
     /// </summary>
     /// <param name="bytes">the bytes to convert</param>
     public static abstract T Deserialize(ReadOnlySpan<byte> bytes);
     
     /// <summary>
-    /// The size, in bytes, of the serialized IBlockMatrixElement
+    /// The size, in bytes, of the serialized IQuadTreeValue
     /// </summary>
     public static abstract uint SerializeLength { get; }
 }

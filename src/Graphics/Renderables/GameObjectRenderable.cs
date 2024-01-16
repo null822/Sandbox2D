@@ -11,19 +11,12 @@ public class GameObjectRenderable : Renderable
     private Vector2 _translation = Vector2.Zero;
     private float _scale = 1;
 
+    private static Vec2<long> _vertexOffset = new (1024);
+    private static float _renderScale = 1;
+
     // geometry arrays
-    private readonly List<double> _vertices = 
-    [
-        0.5f,  0.5f, // top right
-        0.5f, -0.5f, // bottom right
-        -0.5f, -0.5f, // bottom left
-        -0.5f,  0.5f  // top left
-    ];
-    private readonly List<uint> _indices = 
-    [
-        0, 1, 3,   // first triangle
-        1, 2, 3    // second triangle
-    ];
+    private readonly List<int> _vertices = [];
+    private readonly List<uint> _indices = [];
     
     public GameObjectRenderable(Shader shader, BufferUsageHint hint = BufferUsageHint.StaticDraw) : base(shader, hint)
     {
@@ -33,11 +26,14 @@ public class GameObjectRenderable : Renderable
         // set up vertex coords
         var vertexLocation = Shader.GetAttribLocation("worldPos");
         GL.EnableVertexAttribArray(vertexLocation);
-        GL.VertexAttribPointer(vertexLocation, 2, VertexAttribPointerType.Double, false, 2 * sizeof(double), 0);
+        GL.VertexAttribIPointer(vertexLocation, 2, VertexAttribIntegerType.Int, 2 * sizeof(int), 0);
         
-        // set up scale/translation/screenSize uniforms
+        // set up uniforms
         var scaleLocation = GL.GetUniformLocation(Shader.Handle, "scale");
         GL.Uniform1(scaleLocation, 1, ref _scale);
+        
+        var renderScaleLocation = GL.GetUniformLocation(Shader.Handle, "renderScale");
+        GL.Uniform1(renderScaleLocation, 1, ref _renderScale);
         
         var translationLocation = GL.GetUniformLocation(Shader.Handle, "translation");
         GL.Uniform2(translationLocation, ref _translation);
@@ -55,14 +51,13 @@ public class GameObjectRenderable : Renderable
         
         // set the uniforms
         Shader.SetFloat("scale", _scale);
+        Shader.SetFloat("renderScale", _renderScale);
         Shader.SetVector2("translation", _translation);
         Shader.SetVector2("screenSize", Program.Get().ClientSize);
         
-        Console.WriteLine($"tri: {_indices.Count / 3f}");
-        
         GL.DrawElements(PrimitiveType.Triangles, _indices.Count, DrawElementsType.UnsignedInt, 0);
+        
         var error = GL.GetError();
-
         if (error != ErrorCode.NoError)
         {
             Util.Error($"OpenGL Error {error.ToString()}");
@@ -78,7 +73,7 @@ public class GameObjectRenderable : Renderable
         
         // bind/update vbo
         GL.BindBuffer(BufferTarget.ArrayBuffer, VertexBufferObject);
-        GL.BufferData(BufferTarget.ArrayBuffer, _vertices.Count * sizeof(double), _vertices.ToArray(), Hint);
+        GL.BufferData(BufferTarget.ArrayBuffer, _vertices.Count * sizeof(int), _vertices.ToArray(), Hint);
         
         // bind/update ebo (must be done after vbo)
         GL.BindBuffer(BufferTarget.ElementArrayBuffer, ElementBufferObject);
@@ -96,18 +91,21 @@ public class GameObjectRenderable : Renderable
     /// </summary>
     /// <param name="tl">the top left vertex</param>
     /// <param name="br">the bottom right vertex</param>
-    public void AddQuad(Vec2<double> tl, Vec2<double> br)
+    public void AddQuad(Vec2<long> tl, Vec2<long> br)
     {
+        var tlInt = (Vec2<int>)((Vec2<decimal>)(tl + _vertexOffset) / (decimal)_renderScale);
+        var brInt = (Vec2<int>)((Vec2<decimal>)(br + _vertexOffset) / (decimal)_renderScale);
+        
         // get the next available index in Vertices
         var indexOffset = (uint)(_vertices.Count / 2f);
         
         // add the new vertices
         _vertices.AddRange(new []
         {
-            br.X, tl.Y, // right top
-            br.X, br.Y, // right bottom
-            tl.X, br.Y, // left  bottom
-            tl.X, tl.Y  // left  top
+            brInt.X, tlInt.Y, // right top
+            brInt.X, brInt.Y, // right bottom
+            tlInt.X, brInt.Y, // left  bottom
+            tlInt.X, tlInt.Y  // left  top
         });
         
         // create and add the new indices
@@ -118,14 +116,67 @@ public class GameObjectRenderable : Renderable
         });
     }
 
-    public void SetTranslation(Vec2<double> translation)
+    public void SetTransform(Vec2<decimal> translation, float scale)
     {
-        _translation = translation;
+        var minCorner = Util.ScreenToWorldCoords(new Vec2<int>(0));
+        var maxCorner = Util.ScreenToWorldCoords(Program.Get().GetScreenSize());
+        
+        var regionSize = maxCorner - minCorner;
+
+        var regionSizeX = regionSize.X;
+        var regionSizeY = regionSize.Y;
+        
+        if (minCorner.X == long.MinValue && maxCorner.X == long.MaxValue)
+        {
+            regionSizeX = long.MaxValue;
+        }
+        if (minCorner.Y == long.MinValue && maxCorner.Y == long.MaxValue)
+        {
+            regionSizeY = long.MaxValue;
+        }
+        
+        regionSize = new Vec2<long>(
+            Math.Max(regionSizeX, int.MaxValue / 16),
+            Math.Max(regionSizeY, int.MaxValue / 16));
+        
+        
+        decimal renderScaleX = 1;
+        decimal renderScaleY = 1;
+        
+        if (regionSize.X is > int.MaxValue or < int.MinValue)
+        {
+            renderScaleX = regionSize.X / (decimal)int.MaxValue;
+        }
+        if (regionSize.Y is > int.MaxValue or < int.MinValue)
+        {
+            renderScaleY = regionSize.Y / (decimal)int.MaxValue;
+        }
+        
+        _renderScale = (float)Math.Max(renderScaleX, renderScaleY);
+        
+        // Util.Log($"rs: {_renderScale}");
+        
+        _scale = scale;
+        
+        
+        var renderOffsetX = (long)Math.Round(translation.X / regionSize.X) * regionSize.X;
+        var renderOffsetY = (long)Math.Round(translation.Y / regionSize.Y) * regionSize.Y;
+        _vertexOffset = new Vec2<long>(renderOffsetX, renderOffsetY);
+
+        // calculate the new translation to counteract the offset to the vertices
+        _translation = translation - (Vec2<decimal>)_vertexOffset;
+        
     }
     
-    public void SetScale(float scale)
+    
+    public Vec2<decimal> GetTranslation()
     {
-        _scale = scale;
+        return (Vec2<decimal>)_translation;
+    }
+    
+    public float GetScale()
+    {
+        return _scale;
     }
 
 

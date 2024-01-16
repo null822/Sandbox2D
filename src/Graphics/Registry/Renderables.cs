@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL4;
 using Sandbox2D.Graphics.Renderables;
 
@@ -49,7 +48,6 @@ public static class Renderables
         
         Util.Error($"Id {id} is not valid");
         return ref _renderables[0];
-
     }
     
     public static void Set(uint id, Renderable renderable)
@@ -67,13 +65,12 @@ public static class Renderables
     {
         Set(new Dictionary<string, Renderable>
         {
-            { "b1", new BaseRenderable(Shaders.Noise, BufferUsageHint.StreamDraw) },
-            { "b2", new BaseRenderable(Shaders.VertexDebug, BufferUsageHint.StreamDraw) },
-            { "game_object", new GameObjectRenderable(Shaders.GameObject, BufferUsageHint.StreamDraw) },
-            { "b3", new BaseRenderable(Shaders.Noise, BufferUsageHint.StreamDraw) },
-            { "b4", new BaseRenderable(Shaders.Noise, BufferUsageHint.StreamDraw) }
+            { "vertex_debug", new BaseRenderable(Shaders.VertexDebug, BufferUsageHint.StreamDraw) },
+            { "noise", new BaseRenderable(Shaders.Noise, BufferUsageHint.StreamDraw) },
+            { "go_vertex_debug", new GameObjectRenderable(Shaders.GoVertexDebug, BufferUsageHint.StreamDraw) },
+            { "go_noise", new GameObjectRenderable(Shaders.GoNoise, BufferUsageHint.StreamDraw) },
         });
         
-        Util.Log("Renderables Instantiated");
+        Util.Log("Created Renderables");
     }
 }

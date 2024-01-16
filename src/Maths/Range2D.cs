@@ -5,21 +5,40 @@ namespace Sandbox2D.Maths;
 public readonly struct Range2D
 {
     /// <summary>
-    /// Minimum X, or Left
+    /// Left coordinate.
     /// </summary>
     public readonly long MinX;
     /// <summary>
-    /// Minimum Y, or Bottom
+    /// Right coordinate.
     /// </summary>
     public readonly long MinY;
     /// <summary>
-    /// Maximum X, or Right
+    /// Bottom coordinate.
     /// </summary>
     public readonly long MaxX;
     /// <summary>
-    /// Maximum Y, to Top
+    /// Top coordinate.
     /// </summary>
     public readonly long MaxY;
+    
+    public Vec2<long> BottomLeft => new(MinX, MinY);
+    public Vec2<long> TopLeft => new(MinX, MaxY);
+    public Vec2<long> BottomRight => new(MaxX, MinY);
+    public Vec2<long> TopRight => new(MaxX, MaxY);
+
+    public long Width => MaxX - MinX;
+    public long Height => MaxY - MinY;
+
+    /// <summary>
+    /// The area of the Range2D, in units^2.
+    /// </summary>
+    public long Area => Width * Height;
+    
+    /// <summary>
+    /// The point that resides in the center of the range.
+    /// </summary>
+    public Vec2<double> Center => ((MinX + MaxX) / 2d, (MinY + MaxY) / 2d);
+
 
     public Range2D(long minX, long minY, long maxX, long maxY)
     {
@@ -27,6 +46,14 @@ public readonly struct Range2D
         MinY = minY;
         MaxX = maxX;
         MaxY = maxY;
+    }
+    
+    public Range2D((long X, long Y) min, (long X, long Y) max)
+    {
+        MinX = min.X;
+        MinY = min.Y;
+        MaxX = max.X;
+        MaxY = max.Y;
     }
     
     public Range2D(Vec2<long> tl, Vec2<long> br)
@@ -38,20 +65,18 @@ public readonly struct Range2D
     }
     
     /// <summary>
-    /// Returns true if any part of the supplied range overlaps with this range
+    /// Returns true if any part of the supplied Range2D overlaps with this Range2D
     /// </summary>
-    /// <param name="range">the supplied range</param>
-    /// <returns></returns>
+    /// <param name="range">the supplied Range2D</param>
     public bool Overlaps(Range2D range)
     {
         return MinX < range.MaxX && MaxX > range.MinX && MaxY > range.MinY && MinY < range.MaxY;
     }
     
     /// <summary>
-    /// Returns the overlap of this range and the supplied range
+    /// Returns the overlap of this Range2D and the supplied Range2D as a new Range2D
     /// </summary>
-    /// <param name="range">the supplied range</param>
-    /// <returns></returns>
+    /// <param name="range">the supplied Range2D</param>
     public Range2D Overlap(Range2D range)
     {
         var x1 = Math.Max(MinX, range.MinX);
@@ -63,54 +88,30 @@ public readonly struct Range2D
     }
     
     /// <summary>
-    /// Returns true if this range fully contains the supplied range
+    /// Returns true if this Range2D fully contains the supplied Range2D
     /// </summary>
-    /// <param name="range">the supplied range</param>
-    /// <returns></returns>
+    /// <param name="range">the supplied Range2D</param>
     public bool Contains(Range2D range)
     {
         // true if the overlap of this range and the supplied range equals the supplied range
         return Overlap(range) == range;
     }
-
-    public long GetArea()
-    {
-        return (MaxX - MinX) * (MaxY - MinY);
-    }
-
-    public long GetWidth()
-    {
-        return MaxX - MinX;
-    }
-
-    public long GetHeight()
-    {
-        return MaxY - MinY;
-    }
-
+    
     /// <summary>
-    /// Returns the width and height of the Range2D
+    /// Returns true if the supplied point resides within the Range2D
     /// </summary>
-    public Vec2<long> GetSize()
+    /// <param name="point">the point to check</param>
+    public bool Contains(Vec2<long> point)
     {
-        return new Vec2<long>(GetWidth(), GetHeight());
-    }
-
-    /// <summary>
-    /// Returns the position of the Range2D (min X and min Y coords)
-    /// </summary>
-    public Vec2<long> GetPos()
-    {
-        return new Vec2<long>(MinX, MinY);
+        return point.X >= MinX && point.X <= MaxX && point.Y >= MinY && point.Y <= MaxY;
     }
     
     /// <summary>
-    /// Returns a string representing this range
+    /// Returns a string representing this Range2D, in the format (top left coord)..(bottom right coord).
     /// </summary>
-    /// <returns></returns>
     public override string ToString()
     {
-        return Constants.Range2DStringFormat ? $"({MinX}, {MinY})..({MaxX}, {MaxY})" : $"({MinX}..{MaxX}, {MinY}..{MaxY})";
+        return $"{TopLeft}..{BottomRight}";
     }
 
     public static bool operator ==(Range2D r1, Range2D r2)

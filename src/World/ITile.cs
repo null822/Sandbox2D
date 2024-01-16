@@ -38,8 +38,9 @@ public interface ITile
             {
                 // create and add the new quad to the renderable
                 gameObjectRenderable.AddQuad(
-                    new Vec2<double>(worldRange.MaxX, worldRange.MaxY),
-                    new Vec2<double>(worldRange.MinX, worldRange.MinY));
+                    new Vec2<long>(worldRange.MaxX, worldRange.MaxY),
+                    new Vec2<long>(worldRange.MinX, worldRange.MinY)
+                    );
                 
                 return;
             }

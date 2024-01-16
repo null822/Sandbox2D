@@ -6,7 +6,7 @@ In this notes section, `<description>` denotes a required item in the syntax, an
 Any other characters are required in the syntax (including spaces).
 
 Each value stored will have the following syntax in this file:  
-`[<original type>] (<size in bytes>): <name / description>`.  
+`[<original type>] (<size in bytes>): <name / description OR a constant value>`.  
 Note that these values will also always be in code blocks.  
 
 Comments are denoted with `// <comment>`.  
@@ -22,11 +22,10 @@ The structure is layed out as follows, and in this order:
 ## [ Header Section ]
 
 These values exist only once in a file, right at the beginning, and exist as metadata for the file/Block Matrix.
-This structure will always be exactly `24` bytes in size.
+This structure will always be exactly `9` bytes in size.
 
 ```
-long (8): width of the entire BlockMatrix
-long (8): height of the entire BlockMatrix
+byte (1): depth of the entire blockMatrix
 
 uint (4): size (bytes) of one element [denoted as `T` in this file]
 
@@ -35,47 +34,37 @@ uint (4): pointer to the start of the `[ Data Section ]`
 
 ## [ Tree Section ]
 
-There are 2 types of structures in the `[Tree Section]`: one for a `BlockMatrix`, and one for a `BlockMatrixValue`.
+There are 2 types of structures in the `[Tree Section]`: one for a `QuadTree`, and one for a `QuadTreeLeaf`.
 
-The structure of a `BlockMatrix` is as follows.  
-This structure will always be `10` bytes in size, excluding the `_subBlocks` value  
+The structure of a `QuadTree` is as follows.  
+This structure will always be `3` bytes in size, excluding the `_subBlocks` array  
 
 ```
 {
-    byte (1): 1 // this will be stored in binary, to tell the deserializer that this is a BlockMatrix
+    byte (1): 1 // this will be stored in binary, to tell the deserializer that this is a QuadTree
 
-    // index within _subBlocks
-    uint (4): xIndex
-    uint (4): yIndex
+    // 1D index within _subBlocks
+    byte (1): index
 
-    // // `BlockSize` field
-    // long (8): xSize
-    // long (8): ySize
-
-    // an array containing all of the sub blocks of this BlockMatrix (`_subBlocks` field)
+    // an array containing all of the sub blocks of this QuadTree (`_subBlocks` field)
     // really, this is just all of the sub blocks written one after the other
     []
     
-    byte (1): 0 // this will be stored in binary, to tell the deserializer that this is the end of the BlockMatrix
+    byte (1): 0 // this will be stored in binary, to tell the deserializer that this is the end of the QuadTree
 }
 ```
 
 
 
-The structure of a `BlockMatrixValue` is as follows.  
-This structure will always be exactly `13` bytes in size.  
+The structure of a `QuadTreeLeaf` is as follows.  
+This structure will always be exactly `6` bytes in size.  
 
 ```
 {
-    byte (1): 2 // this will be stored in binary, to tell the deserializer that this is a BlockMatrixValue
+    byte (1): 2 // this will be stored in binary, to tell the deserializer that this is a QuadTreeLeaf
 
-    // index within _subBlocks
-    uint (4): xIndex
-    uint (4): yIndex
-
-    // // `BlockSize` field
-    // long (8): xSize
-    // long (8): ySize
+    // 1D index within _subBlocks
+    byte (1): index
 
     // `_value` field
     uint (4): index to the value
@@ -88,9 +77,10 @@ This structure will always be exactly `13` bytes in size.
 
 ## [ Data Section ]
 
-This section contains all of the values from the `BlockMatrixValue`s stored in the `[Tree Section]`.
+This section contains all of the values from the `QuadTreeLeaf`s stored in the `[Tree Section]`.
 
 There is no character/symbol to denote a new value, since all of the values have the same size: `T`.
 The order does not matter here either, so long as the pointers in the `[Tree Section]` line up correctly.  
 
-Note that this section can be compressed by merging identical values and linking the pointers correctly, though this may be expensive and slow down save speeds.
+Note that this section can be compressed by merging identical values and linking the pointers correctly,
+though this may be expensive and slow down save speeds, especially for large saves.

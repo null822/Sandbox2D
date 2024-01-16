@@ -18,16 +18,16 @@ public static class Tiles
         return IdTile[0];
     }
     
-    public static void Initialize(IEnumerable<ITile> tiles)
+    public static void Instantiate(IEnumerable<ITile> tiles)
     {
         uint id = 0;
         foreach (var tile in tiles)
         {
             IdTile.Add(id, tile);
             
-            Console.WriteLine(tile.Name);
-
             id++;
         }
+        
+        Util.Log("Created Tiles");
     }
 }

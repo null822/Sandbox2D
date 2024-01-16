@@ -8,6 +8,6 @@ public class Stone : IBlockMatrixTile
     
     public uint Id => 1;
 
-    public uint Renderable { get; } = Renderables.GetId("game_object");
+    public uint Renderable { get; } = Renderables.GetId("go_noise");
     
 }

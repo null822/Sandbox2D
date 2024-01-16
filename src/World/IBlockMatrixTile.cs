@@ -1,19 +1,19 @@
 ﻿using System;
-using Sandbox2D.Maths.BlockMatrix;
+using Sandbox2D.Maths.Quadtree;
 using Sandbox2D.World.TileTypes;
 
 namespace Sandbox2D.World;
 
-public interface IBlockMatrixTile : IBlockMatrixElement<IBlockMatrixTile>, ITile
+public interface IBlockMatrixTile : IQuadTreeValue<IBlockMatrixTile>, ITile
 {
     
-    ReadOnlySpan<byte> IBlockMatrixElement<IBlockMatrixTile>.Serialize()
+    ReadOnlySpan<byte> IQuadTreeValue<IBlockMatrixTile>.Serialize()
     {
         // return the id, as bytes
         return BitConverter.GetBytes(Id);
     }
     
-    static IBlockMatrixTile IBlockMatrixElement<IBlockMatrixTile>.Deserialize(ReadOnlySpan<byte> bytes)
+    static IBlockMatrixTile IQuadTreeValue<IBlockMatrixTile>.Deserialize(ReadOnlySpan<byte> bytes)
     {
         // get the tile
         var tile = Tiles.GetTile(BitConverter.ToUInt32(bytes));
@@ -22,10 +22,10 @@ public interface IBlockMatrixTile : IBlockMatrixElement<IBlockMatrixTile>, ITile
         return tile as IBlockMatrixTile ?? new Air();
     }
 
-    static uint IBlockMatrixElement<IBlockMatrixTile>.SerializeLength => sizeof(uint);
+    static uint IQuadTreeValue<IBlockMatrixTile>.SerializeLength => sizeof(uint);
 
 
-    bool IBlockMatrixElement<IBlockMatrixTile>.Equals(IBlockMatrixTile a)
+    bool IQuadTreeValue<IBlockMatrixTile>.Equals(IBlockMatrixTile a)
     {
         return Id == a.Id;
     }

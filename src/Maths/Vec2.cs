@@ -18,6 +18,11 @@ public readonly struct Vec2<T>(T x, T y)
     {
     }
     
+    public Vec2((T X, T Y) vec) : this(vec.X, vec.Y)
+    {
+        
+    }
+    
     public static Vec2<T> operator +(Vec2<T> a, Vec2<T> b)
     {
         return new Vec2<T>(a.X + b.X, a.Y + b.Y);
@@ -91,8 +96,17 @@ public readonly struct Vec2<T>(T x, T y)
     }
     
     // casts
+
+    public static implicit operator Vec2<T>((T X, T Y) a)
+    {
+        return new Vec2<T>(a.X, a.Y);
+    }
     
-    // to other
+    public static explicit operator (T X, T Y)(Vec2<T> a)
+    {
+        return (a.X, a.Y);
+    }
+    
     public static implicit operator Vector2(Vec2<T> a)
     {
         return new Vector2(Convert.ToSingle(a.X), Convert.ToSingle(a.Y));
@@ -167,60 +181,6 @@ public readonly struct Vec2<T>(T x, T y)
     {
         return new Vec2<double>(Convert.ToDouble(a.X), Convert.ToDouble(a.Y));
     }
-    
-    
-    
-    // from other
-    
-    // public static implicit operator Vec2<T>(Vec2<byte> a)
-    // {
-    //     return new Vec2<T>((T)NumberConvert.To(new T(), a.X), (T)NumberConvert.To(new T(), a.Y));
-    // }
-    // public static implicit operator Vec2<T>(Vec2<sbyte> a)
-    // {
-    //     return new Vec2<T>((T)NumberConvert.To(new T(), a.X), (T)NumberConvert.To(new T(), a.Y));
-    // }
-    // public static implicit operator Vec2<T>(Vec2<char> a)
-    // {
-    //     return new Vec2<T>((T)NumberConvert.To(new T(), a.X), (T)NumberConvert.To(new T(), a.Y));
-    // }
-    // public static implicit operator Vec2<T>(Vec2<short> a)
-    // {
-    //     return new Vec2<T>((T)NumberConvert.To(new T(), a.X), (T)NumberConvert.To(new T(), a.Y));
-    // }
-    // public static implicit operator Vec2<T>(Vec2<ushort> a)
-    // {
-    //     return new Vec2<T>((T)NumberConvert.To(new T(), a.X), (T)NumberConvert.To(new T(), a.Y));
-    // }
-    // public static implicit operator Vec2<T>(Vec2<int> a)
-    // {
-    //     return new Vec2<T>((T)NumberConvert.To(new T(), a.X), (T)NumberConvert.To(new T(), a.Y));
-    // }
-    // public static implicit operator Vec2<T>(Vec2<uint> a)
-    // {
-    //     return new Vec2<T>((T)NumberConvert.To(new T(), a.X), (T)NumberConvert.To(new T(), a.Y));
-    // }
-    // public static implicit operator Vec2<T>(Vec2<long> a)
-    // {
-    //     return new Vec2<T>((T)NumberConvert.To(new T(), a.X), (T)NumberConvert.To(new T(), a.Y));
-    // }
-    // public static implicit operator Vec2<T>(Vec2<ulong> a)
-    // {
-    //     return new Vec2<T>((T)NumberConvert.To(new T(), a.X), (T)NumberConvert.To(new T(), a.Y));
-    // }
-    // public static implicit operator Vec2<T>(Vec2<decimal> a)
-    // {
-    //     return new Vec2<T>((T)NumberConvert.To(new T(), a.X), (T)NumberConvert.To(new T(), a.Y));
-    // }
-    // public static implicit operator Vec2<T>(Vec2<float> a)
-    // {
-    //     return new Vec2<T>((T)NumberConvert.To(new T(), a.X), (T)NumberConvert.To(new T(), a.Y));
-    // }
-    // public static implicit operator Vec2<T>(Vec2<double> a)
-    // {
-    //     return new Vec2<T>((T)NumberConvert.To(new T(), a.X), (T)NumberConvert.To(new T(), a.Y));
-    // }
-    
     
     public override string ToString()
     {

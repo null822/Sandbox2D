@@ -1,28 +1,29 @@
-﻿#version 330 core
+﻿#version 400 core
 
-in vec2 worldPos;
+in ivec2 worldPos;
 
 out vec2 pixelWorldPos;
 out vec2 vertexPos;
 
 uniform float scale;
+uniform float renderScale;
 uniform vec2 translation;
 uniform vec2 screenSize;
 
 void main(void)
 {
-    
     // calculate center
     vec2 center = screenSize / 2f;
-
-    // calulate screenPos
-    vec2 screenPos = (worldPos - 0.5 + translation - center) * scale + center;
+    
+    // calculate screenPos
+    vec2 screenPos = (((worldPos + 1) * renderScale) + translation - center) * scale + center;
+    screenPos = vec2(screenPos.x, screenSize.y - screenPos.y);
 
     // calculate vertexPos
     vertexPos = screenPos / screenSize * 2 - 1;
     vertexPos.y = -vertexPos.y;
     
-    pixelWorldPos = worldPos;
+    pixelWorldPos = worldPos + 1;
     
     gl_Position = vec4(vertexPos, 0.0, 1.0);
     

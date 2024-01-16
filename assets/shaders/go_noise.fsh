@@ -1,4 +1,4 @@
-﻿#version 330
+﻿#version 400
 
 in vec2 vertexPos;
 in vec2 pixelWorldPos;
@@ -6,7 +6,7 @@ in vec2 pixelWorldPos;
 out vec4 outputColor;
 
 
-// https://stackoverflow.com/a/17479300 (next 4 functions)
+// https://stackoverflow.com/a/17479300 (next 4 groups of functions (9 total))
 
 // A single iteration of Bob Jenkins' One-At-A-Time hashing algorithm.
 uint hash( uint x ) {
@@ -46,9 +46,8 @@ float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 
 void main()
 {
-    vec2 worldPosMapped = pixelWorldPos;
     
-    worldPosMapped = vec2(floor(worldPosMapped.x), floor(worldPosMapped.y));
+    vec2 worldPosMapped = vec2(floor(pixelWorldPos.x), floor(pixelWorldPos.y));
     
     outputColor = vec4(random(worldPosMapped), random(worldPosMapped + 0.01), random(worldPosMapped + 0.02), 1);
     
