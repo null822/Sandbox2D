@@ -11,7 +11,7 @@ public class GameObjectRenderable : Renderable
     private Vector2 _translation = Vector2.Zero;
     private float _scale = 1;
 
-    private static Vec2<long> _vertexOffset = new (1024);
+    private static Vec2<long> _vertexOffset = new (0);
     private static float _renderScale = 1;
 
     // geometry arrays
@@ -54,6 +54,8 @@ public class GameObjectRenderable : Renderable
         Shader.SetFloat("renderScale", _renderScale);
         Shader.SetVector2("translation", _translation);
         Shader.SetVector2("screenSize", Program.Get().ClientSize);
+        
+        // Util.Log($"{_indices.Count / 3f} Triangles");
         
         GL.DrawElements(PrimitiveType.Triangles, _indices.Count, DrawElementsType.UnsignedInt, 0);
         

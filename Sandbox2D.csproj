@@ -13,6 +13,7 @@
     
     <ItemGroup>
       <PackageReference Include="OpenTK" Version="4.8.2" />
+      <PackageReference Include="SixLabors.ImageSharp" Version="3.1.2" />
       <PackageReference Include="StbImageSharp" Version="2.27.13" />
     </ItemGroup>
 
@@ -21,7 +22,12 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
     </ItemGroup>
-    
+
+    <PropertyGroup>
+        <ApplicationIcon>assets/icon.ico</ApplicationIcon>
+    </PropertyGroup>
+
+
     <Target Name="RestoreDotnetTools" BeforeTargets="Restore">
         <Message Text="Restoring dotnet tools" Importance="High"/>
         <Exec Command="dotnet tool restore"/>

@@ -67,10 +67,12 @@ public static class Renderables
         {
             { "vertex_debug", new BaseRenderable(Shaders.VertexDebug, BufferUsageHint.StreamDraw) },
             { "noise", new BaseRenderable(Shaders.Noise, BufferUsageHint.StreamDraw) },
-            { "go_vertex_debug", new GameObjectRenderable(Shaders.GoVertexDebug, BufferUsageHint.StreamDraw) },
-            { "go_noise", new GameObjectRenderable(Shaders.GoNoise, BufferUsageHint.StreamDraw) },
+            // { "go_vertex_debug", new GameObjectRenderable(Shaders.GoVertexDebug, BufferUsageHint.StreamDraw) },
+            // { "go_noise", new GameObjectRenderable(Shaders.GoNoise, BufferUsageHint.StreamDraw) },
         });
         
         Util.Log("Created Renderables");
+        
+        GameObjectRenderableManager.Instantiate();
     }
 }

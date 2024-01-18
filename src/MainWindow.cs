@@ -6,8 +6,8 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
+using Sandbox2D.Graphics;
 using Sandbox2D.Graphics.Registry;
-using Sandbox2D.Graphics.Renderables;
 using Sandbox2D.Maths;
 using Sandbox2D.Maths.QuadTree;
 using Sandbox2D.World;
@@ -24,8 +24,9 @@ public class MainWindow : GameWindow
     
     // world editing
     private IBlockMatrixTile _activeBrush;
-    private bool _temporaryBrushToggle;
+    private uint _brushId;
     private static Range2D _brushRange;
+    private static Vec2<long> _prevMouseCoords = new(0);
     private static Vec2<long> _leftMouseWorldCoords = new(0);
     private Vec2<int> _middleMouseScreenCoords = new(0);
     private bool _worldUpdatedSinceLastFrame = true;
@@ -35,12 +36,13 @@ public class MainWindow : GameWindow
     private static float _scale = 1;
     private static Vec2<decimal> _translation = new(0);
     private static Vec2<decimal> _prevTranslation = new(0);
-    private static Vec2<int> _gridSize;
+
+    private readonly string _savePath;
     
-    public MainWindow(int width, int height, string title) : base(GameWindowSettings.Default,
+    public MainWindow(int width, int height, string title, string savePath = null) : base(GameWindowSettings.Default,
     new NativeWindowSettings { ClientSize = (width, height), Title = title })
     {
-        
+        _savePath = savePath;
     }
 
     private static void SystemChecks()
@@ -86,17 +88,12 @@ public class MainWindow : GameWindow
         GL.Clear(ClearBufferMask.ColorBufferBit);
         
         // render components (with off-screen culling)
-        const uint renderableId = 2;
-        
-        var renderable = (GameObjectRenderable)Renderables.Get(renderableId);
-
-        // temporarily disabled if statement, for debugging
         
         // if the world or translation/scale (for culling reasons) has updated, reupload the world to the gpu
-        if (_worldUpdatedSinceLastFrame || Math.Abs(renderable.GetScale() - _scale) > float.Epsilon || renderable.GetTranslation() != _translation)
+        if (_worldUpdatedSinceLastFrame)
         {
-            // update scale/translation
-            renderable.SetTransform(_translation, _scale);
+            // reset the world geometry
+            GameObjectRenderableManager.ResetGeometry();
 
             // get the world pos of the top left and bottom right corners of the screen,
             // with a small buffer to prevent culling things still partially within the frame
@@ -104,27 +101,20 @@ public class MainWindow : GameWindow
             var brScreen = ScreenToWorldCoords((ClientSize.X, 0)) + new Vec2<long>(64);
             var screenRange = new Range2D(tlScreen, brScreen);
             
-            // reset renderable geometry
-            renderable.ResetGeometry();
-
-
             // add all the elements within the range (on screen) to the renderable
             _world.InvokeLeaf(screenRange, (tile, range) =>
             {
-                tile.AddToRenderable(range, renderableId);
+                tile.AddToRenderable(range);
                 
                 return true;
             }, ResultComparisons.Or, true);
-
-            // update the VAO
-            renderable.UpdateVao();
             
             // reset worldUpdated flag
             _worldUpdatedSinceLastFrame = false;
         }
         
         // render the world
-        renderable.Render();
+        GameObjectRenderableManager.Render(_translation, _scale);
         
         
         // TODO: render brush outline
@@ -159,7 +149,17 @@ public class MainWindow : GameWindow
         });
         
         // create the world. must be done after creating the renderables
-        _world = new QuadTree<IBlockMatrixTile>(new Air(), WorldDepth);
+        if (_savePath != null)
+        {
+            var save = File.Open(_savePath, FileMode.Open);
+
+            _world = QuadTree<IBlockMatrixTile>.Deserialize(save);
+        }
+        else
+        {
+            _world = new QuadTree<IBlockMatrixTile>(new Air(), WorldDepth);
+        }
+        
         
         // run the system checks
 
@@ -198,7 +198,7 @@ public class MainWindow : GameWindow
         }
         if (KeyboardState.IsKeyPressed(Keys.S))
         {
-            var save = File.Create("save.qt");
+            var save = File.Create("save.qdt");
 
             _world.Serialize(save);
 
@@ -207,7 +207,7 @@ public class MainWindow : GameWindow
         }
         if (KeyboardState.IsKeyPressed(Keys.L))
         {
-            var save = File.Open("save.bm", FileMode.Open);
+            var save = File.Open("save.qdt", FileMode.Open);
 
             _world = QuadTree<IBlockMatrixTile>.Deserialize(save);
             
@@ -233,7 +233,15 @@ public class MainWindow : GameWindow
         _scaleBase += MouseState.ScrollDelta.Y / 256f;
         _scaleBase = float.Clamp(_scaleBase, 0.00390625f, 10f);
         
-        _scale = (float)Math.Pow(_scaleBase, 8);
+        var newScale = (float)Math.Pow(_scaleBase, 8);
+        
+        // if the scale has changed
+        if (Math.Abs(_scale - newScale) > float.Epsilon)
+        {
+            // update _scale, and set the _worldUpdatedSinceLastFrame flag for culling reasons
+            _scale = newScale;
+            _worldUpdatedSinceLastFrame = true;
+        }
         
         // Log("====[Scale/Translation]====");
         // Log(_scale);
@@ -247,16 +255,16 @@ public class MainWindow : GameWindow
         
         // Log(mouseWorldCoords);
 
-        // create the brush range, adding 1 to the max values if they are not already long.MaxValue
+        // create the brush range, subtracting 1 from the max values if they are not already long.MaxValue
         var minX = Math.Min(mouseWorldCoords.X, _leftMouseWorldCoords.X);
         var minY = Math.Min(mouseWorldCoords.Y, _leftMouseWorldCoords.Y);
         var maxX = Math.Max(mouseWorldCoords.X, _leftMouseWorldCoords.X);
         var maxY = Math.Max(mouseWorldCoords.Y, _leftMouseWorldCoords.Y);
         maxX = maxX == long.MaxValue ? maxX : maxX - 1;
         maxY = maxY == long.MaxValue ? maxY : maxY - 1;
-
+        
         const int worldSize = 0x1 << WorldDepth;
-
+        
         // set the brushRange, clamping it within the world size
         _brushRange = new Range2D(
             Math.Clamp(minX, -worldSize, worldSize),
@@ -265,8 +273,8 @@ public class MainWindow : GameWindow
             Math.Clamp(maxY, -worldSize, worldSize)
         );
         
-        // if we released lmouse, place the _activeBrush in the _world in the _brushRange
-        if (MouseState.IsButtonReleased(MouseButton.Left))
+        // if we released lmouse while holding lshift, place the _activeBrush in the _world in the _brushRange
+        if (MouseState.IsButtonReleased(MouseButton.Left) && KeyboardState.IsKeyDown(Keys.LeftShift))
         {
             _world[_brushRange] = _activeBrush;
             _worldUpdatedSinceLastFrame = true;
@@ -280,15 +288,18 @@ public class MainWindow : GameWindow
             _leftMouseWorldCoords = mouseWorldCoords;
         }
         
-        // if we are currently holding lmouse and not holding lshift, place the brush in the world
+        // if we are currently holding lmouse and are not holding lshift, place the brush in the world
         if (MouseState.IsButtonDown(MouseButton.Left) && !KeyboardState.IsKeyDown(Keys.LeftShift))
         {
             // technically buggy behaviour, but creates cool looking, "smooth" lines
+            
+            Log($"Replaced {_world[_brushRange.BottomLeft]}");
+            
             _world[_brushRange] = _activeBrush;
             _worldUpdatedSinceLastFrame = true;
             
             Log($"Placed at {_brushRange}");
-
+            
         }
         
         // if we pressed lmouse, set the _leftMouseWorldCoords to the mouse pos
@@ -311,22 +322,41 @@ public class MainWindow : GameWindow
 
             worldTranslationOffset = (worldTranslationOffset.X, -worldTranslationOffset.Y);
 
-            _translation = _prevTranslation + worldTranslationOffset;
+            var newTranslation = _prevTranslation + worldTranslationOffset;
 
-            // _translation = (_translation.X, -_translation.Y);
+            if (_translation != newTranslation)
+            {
+                _translation = newTranslation;
+                _worldUpdatedSinceLastFrame = true;
+            }
+            
         }
 
         if (MouseState.IsButtonPressed(MouseButton.Right))
         {
-            _temporaryBrushToggle = !_temporaryBrushToggle;
+            _brushId = (_brushId + 1) % 3;
 
-            _activeBrush = _temporaryBrushToggle ? new Stone() : new Air();
+            _activeBrush = _brushId switch
+            {
+                0 => new Air(),
+                1 => new Stone(),
+                2 => new Dirt(),
+                _ => new Air()
+            };
+                
             
             Log($"Brush Changed to {_activeBrush.Name}");
         }
         
         
-        _gridSize = WorldToScreenCoords(new Vec2<long>(0, 0)) - WorldToScreenCoords(new Vec2<long>(1, 1));
+        if (KeyboardState.IsKeyPressed(Keys.LeftControl))
+        {
+            Log($"Mouse Position: {mouseWorldCoords}");
+            _worldUpdatedSinceLastFrame = true;
+        }
+
+        _prevMouseCoords = mouseWorldCoords;
+
     }
     
 
@@ -408,14 +438,6 @@ public class MainWindow : GameWindow
     public Vec2<int> GetScreenSize()
     {
         return (Vec2<int>)ClientSize;
-    }
-    
-    /// <summary>
-    /// Returns the size of a 1x1 in-world area in screen coordinates
-    /// </summary>
-    public static Vec2<int> GetGridSize()
-    {
-        return _gridSize;
     }
     
 }

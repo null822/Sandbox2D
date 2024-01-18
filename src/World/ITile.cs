@@ -1,4 +1,5 @@
 ﻿using System;
+using Sandbox2D.Graphics;
 using Sandbox2D.Graphics.Registry;
 using Sandbox2D.Graphics.Renderables;
 using Sandbox2D.Maths;
@@ -30,7 +31,14 @@ public interface ITile
     /// <param name="renderableId">[optional] the id of the renderable to add this tile to instead of the default for this tile</param>
     public void AddToRenderable(Range2D worldRange, uint? renderableId = null)
     {
-        ref var renderable = ref Renderables.Get(renderableId ?? Renderable);
+        GameObjectRenderableManager.AddQuad(
+            renderableId ?? Renderable,
+            new Vec2<long>(worldRange.MaxX, worldRange.MaxY),
+            new Vec2<long>(worldRange.MinX, worldRange.MinY)
+        );
+        
+        /*
+        ref var renderable = ref GameObjectRenderableManager.Get(renderableId ?? Renderable);
         
         switch (renderable)
         {
@@ -59,7 +67,8 @@ public interface ITile
                 
                 return;
             }
-        }
+        }*/
+        
     }
     
 }

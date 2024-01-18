@@ -450,8 +450,6 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
         stream.Write(BitConverter.GetBytes(T.SerializeLength)); // element size (bytes)
         stream.Write(BitConverter.GetBytes((uint)(tree.Length + 9))); // pointer to the start of the data section
         
-        Console.WriteLine((uint)(tree.Length + 9));
-        
         // reset tree/data stream positions
         tree.Position = 0;
         data.Position = 0;

@@ -64,6 +64,7 @@ public class BaseRenderable : Renderable
     /// <param name="br">the bottom right vertex</param>
     public void AddQuad(Vec2<float> tl, Vec2<float> br)
     {
+        
         // get the next available index in _vertices
         var indexOffset = (uint)(_vertices.Count / 3f);
         

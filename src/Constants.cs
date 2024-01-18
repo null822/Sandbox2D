@@ -7,7 +7,7 @@ public static class Constants
     
     private const bool LargeWorld = false;
     
-    public const VSyncMode Vsync = VSyncMode.On;
+    public const VSyncMode Vsync = VSyncMode.Off;
 
     /// <summary>
     /// false = "(-5..5, -5..5)"<br></br>
