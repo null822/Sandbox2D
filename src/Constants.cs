@@ -5,9 +5,9 @@ namespace Sandbox2D;
 public static class Constants
 {
     
-    private const bool LargeWorld = false;
+    private const bool LargeWorld = true;
     
-    public const VSyncMode Vsync = VSyncMode.Off;
+    public const VSyncMode Vsync = VSyncMode.On;
 
     /// <summary>
     /// false = "(-5..5, -5..5)"<br></br>

@@ -58,16 +58,6 @@ public class MainWindow : GameWindow
         Debug(r1.Overlap(r2));
         
         Debug(new Vec2<int>(10, 2) + new Vec2<int>(11, 1));
-
-        Debug("===========================================");
-
-        var qt = new QuadTree<IBlockMatrixTile>(new Air(), 8);
-        
-        qt[92, -42] = new Stone();
-        
-        Debug(qt[092, -42] ?? new Dirt());
-        // Debug(qt[237, 432] ?? new Dirt());
-        
     }
 
     protected override void OnRenderFrame(FrameEventArgs args)
@@ -411,6 +401,9 @@ public class MainWindow : GameWindow
         base.OnResize(e);
 
         GL.Viewport(0, 0, e.Width, e.Height);
+
+        // re-render the world
+        _worldUpdatedSinceLastFrame = true;
     }
     
     

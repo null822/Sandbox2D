@@ -46,15 +46,32 @@ float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 
 void main()
 {
+
+    vec2 worldPos1 = vec2(floor(pixelWorldPos.x * 1), floor(pixelWorldPos.y * 1));
+    vec2 worldPos2 = vec2(floor(pixelWorldPos.x * 0.5), floor(pixelWorldPos.y * 0.5));
+    vec2 worldPos3 = vec2(floor(pixelWorldPos.x * 0.25), floor(pixelWorldPos.y * 0.25));
+    vec2 worldPos4 = vec2(floor(pixelWorldPos.x * 0.125), floor(pixelWorldPos.y * 0.125));
+    vec2 worldPos5 = vec2(floor(pixelWorldPos.x * 0.0625), floor(pixelWorldPos.y * 0.0625));
+    vec2 worldPos6 = vec2(floor(pixelWorldPos.x * 0.03125), floor(pixelWorldPos.y * 0.03125));
+    vec2 worldPos7 = vec2(floor(pixelWorldPos.x * 0.015625), floor(pixelWorldPos.y * 0.015625));
+    vec2 worldPos8 = vec2(floor(pixelWorldPos.x * 0.0078125), floor(pixelWorldPos.y * 0.0078125));
     
-    vec2 worldPosMapped = vec2(floor(pixelWorldPos.x), floor(pixelWorldPos.y));
+    vec4 baseColor = vec4(0.31, 0.243, 0.13, 1);
+
+    float valueOc1 = random(worldPos1);
+    float valueOc2 = random(worldPos2);
+    float valueOc3 = random(worldPos3);
+    float valueOc4 = random(worldPos4);
+    float valueOc5 = random(worldPos5);
+    float valueOc6 = random(worldPos6);
+    float valueOc7 = random(worldPos7);
+    float valueOc8 = random(worldPos8);
     
-    float value = random(worldPosMapped);
     
-    if (value < 0.5) {
-        outputColor = vec4(0.31, 0.243, 0.13, 1);
-    } else {
-        outputColor = vec4(0.341, 0.267, 0.145, 1);
-    }
+    
+    float value = (valueOc1 + valueOc2 + valueOc3 + valueOc4 + valueOc5 + valueOc6 + valueOc7 + valueOc8) * 0.125;
+    
+    
+    outputColor = baseColor * value;
     
 }
