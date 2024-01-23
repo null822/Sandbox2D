@@ -55,22 +55,22 @@ public static class Util
         var screenSize = Program.Get().GetScreenSize();
         
         // cast screenCoords to a float
-        var screenCoordsF = (Vec2<float>)screenCoords;
+        var vertexCoords = (Vec2<float>)screenCoords;
         
-        // divide screenCoordsF by screenSize, to get it to a 0-1 range
-        screenCoordsF /= (Vec2<float>)screenSize;
+        // divide vertexCoords by screenSize, to get it to a 0-1 range
+        vertexCoords /= (Vec2<float>)screenSize;
         
-        // multiply screenCoordsF by 2, to get it to a 0-2 range
-        screenCoordsF *= 2;
+        // multiply vertexCoords by 2, to get it to a 0-2 range
+        vertexCoords *= 2;
         
-        // subtract 1 from screenCoordsF, to get it to a (-1)-1 range
-        screenCoordsF -= new Vec2<float>(1);
+        // subtract 1 from vertexCoords, to get it to a (-1)-1 range
+        vertexCoords -= new Vec2<float>(1);
         
         // negate the Y axis to flip the coords correctly
-        screenCoordsF = new Vec2<float>(screenCoordsF.X, -screenCoordsF.Y);
+        vertexCoords = new Vec2<float>(vertexCoords.X, -vertexCoords.Y);
         
         // return screenCoordsF
-        return screenCoordsF;
+        return vertexCoords;
     }
     
     public static void Error(object text)

@@ -1,5 +1,5 @@
-﻿using Sandbox2D.Graphics;
-using Sandbox2D.Graphics.Registry;
+﻿using Sandbox2D.Graphics.Registry;
+using Sandbox2D.Graphics.Renderables;
 
 namespace Sandbox2D.World.TileTypes;
 
@@ -8,7 +8,7 @@ public class Dirt : IBlockMatrixTile
     public string Name => "Dirt";
     
     public uint Id => 2;
-
-    public uint Renderable { get; } = GameObjectRenderableManager.GetId("dirt");
     
+    public ref TileRenderable Renderable => ref Renderables.Dirt;
+
 }

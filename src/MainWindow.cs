@@ -6,8 +6,9 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-using Sandbox2D.Graphics;
 using Sandbox2D.Graphics.Registry;
+using Sandbox2D.Graphics.Renderables;
+using Sandbox2D.GUI;
 using Sandbox2D.Maths;
 using Sandbox2D.Maths.QuadTree;
 using Sandbox2D.World;
@@ -26,7 +27,6 @@ public class MainWindow : GameWindow
     private IBlockMatrixTile _activeBrush;
     private uint _brushId;
     private static Range2D _brushRange;
-    private static Vec2<long> _prevMouseCoords = new(0);
     private static Vec2<long> _leftMouseWorldCoords = new(0);
     private Vec2<int> _middleMouseScreenCoords = new(0);
     private bool _worldUpdatedSinceLastFrame = true;
@@ -38,6 +38,7 @@ public class MainWindow : GameWindow
     private static Vec2<decimal> _prevTranslation = new(0);
 
     private readonly string _savePath;
+    private bool _isPaused;
     
     public MainWindow(int width, int height, string title, string savePath = null) : base(GameWindowSettings.Default,
     new NativeWindowSettings { ClientSize = (width, height), Title = title })
@@ -62,28 +63,31 @@ public class MainWindow : GameWindow
 
     protected override void OnRenderFrame(FrameEventArgs args)
     {
+        base.OnRenderFrame(args);
+
+        // only render when the game is active
         if (!CheckActive())
         {
             Thread.Sleep(CheckActiveDelay);
             return;
         }
-
-        base.OnRenderFrame(args);
         
-        // only run when focused
-        if (!IsFocused)
-            return;
         
         // clear the color buffer
         GL.Clear(ClearBufferMask.ColorBufferBit);
         
         // render components (with off-screen culling)
         
-        // if the world or translation/scale (for culling reasons) has updated, reupload the world to the gpu
-        if (_worldUpdatedSinceLastFrame)
+        // if the world or translation/scale (for culling reasons) has updated and the game is not paused,
+        // reupload the world to the gpu
+        if (_worldUpdatedSinceLastFrame && !_isPaused)
         {
+            // update the translation and scale
+            TileRenderable.SetTransform(_translation, _scale);
+            
             // reset the world geometry
-            GameObjectRenderableManager.ResetGeometry();
+            // TileRenderableManager.ResetGeometry();
+            Renderables.ResetGeometry(RenderableCategory.Tile);
 
             // get the world pos of the top left and bottom right corners of the screen,
             // with a small buffer to prevent culling things still partially within the frame
@@ -103,11 +107,30 @@ public class MainWindow : GameWindow
             _worldUpdatedSinceLastFrame = false;
         }
         
-        // render the world
-        GameObjectRenderableManager.Render(_translation, _scale);
+        // render all of the tile renderables
+        Renderables.Render(RenderableCategory.Tile);
         
         
         // TODO: render brush outline
+        
+        
+        // Text test
+        ref var renderable = ref Renderables.Font;
+        
+        var center = GetScreenSize() / 2;
+        
+        renderable.SetText((1 / args.Time).ToString("0.0 FPS"), -center + (30,10), 1f);
+        
+        
+        renderable.UpdateVao();
+        renderable.Render();
+        renderable.ResetGeometry();
+        
+        // render the GUIs
+        GuiManager.UpdateGuis();
+        Renderables.Render(RenderableCategory.Gui);
+        
+        
         
         // swap buffers
         SwapBuffers();
@@ -128,9 +151,16 @@ public class MainWindow : GameWindow
         // create all of the shaders
         Shaders.Instantiate();
         
-        // create all of the renderables. must be done after creating the shaders
+        // create the textures
+        Textures.Instantiate();
+        
+        // create the renderables. must be done after creating the shaders
         Renderables.Instantiate();
         
+        // create the GUIs. must be done after creating the renderables
+        GuiManager.Instantiate();
+        
+        // create tiles. must be done after creating the renderables
         Tiles.Instantiate(new ITile[]
         {
             new Air(),
@@ -138,7 +168,7 @@ public class MainWindow : GameWindow
             new Dirt()
         });
         
-        // create the world. must be done after creating the renderables
+        // create the world. must be done after creating the tiles
         if (_savePath != null)
         {
             var save = File.Open(_savePath, FileMode.Open);
@@ -172,6 +202,28 @@ public class MainWindow : GameWindow
             Thread.Sleep(CheckActiveDelay);
             return;
         }
+        
+        var mouseScreenCoords = (Vec2<int>)MousePosition;
+        var mouseWorldCoords = ScreenToWorldCoords(mouseScreenCoords);
+        var center = GetScreenSize() / 2;
+        
+        if (KeyboardState.IsKeyPressed(Keys.Escape))
+        {
+            _isPaused = !_isPaused;
+            GuiManager.SetVisibility(0, _isPaused);
+        }
+        
+        
+        if (_isPaused)
+        {
+            // if the game is paused, update only the pause menu
+            GuiManager.MouseOver(mouseScreenCoords - center, 0);
+            return;
+        }
+        
+        // update GUIs
+        GuiManager.MouseOver(mouseScreenCoords - center);
+
         
         // keyboard-only controls
         
@@ -226,7 +278,7 @@ public class MainWindow : GameWindow
         var newScale = (float)Math.Pow(_scaleBase, 8);
         
         // if the scale has changed
-        if (Math.Abs(_scale - newScale) > float.Epsilon)
+        if (MouseState.ScrollDelta.Y != 0)
         {
             // update _scale, and set the _worldUpdatedSinceLastFrame flag for culling reasons
             _scale = newScale;
@@ -239,9 +291,6 @@ public class MainWindow : GameWindow
         
         
         // mouse and keyboard controls
-        
-        var mouseScreenCoords = (Vec2<int>)MousePosition;
-        var mouseWorldCoords = ScreenToWorldCoords(mouseScreenCoords);
         
         // Log(mouseWorldCoords);
 
@@ -344,9 +393,7 @@ public class MainWindow : GameWindow
             Log($"Mouse Position: {mouseWorldCoords}");
             _worldUpdatedSinceLastFrame = true;
         }
-
-        _prevMouseCoords = mouseWorldCoords;
-
+        
     }
     
 
@@ -404,6 +451,10 @@ public class MainWindow : GameWindow
 
         // re-render the world
         _worldUpdatedSinceLastFrame = true;
+        
+        // Update the GUIs, since the vertex coords are calculated on creation,
+        // and need to be updated with the new screen size
+        GuiManager.UpdateGuis();
     }
     
     

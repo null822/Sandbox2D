@@ -40,12 +40,12 @@ public readonly struct Range2D
     public Vec2<double> Center => ((MinX + MaxX) / 2d, (MinY + MaxY) / 2d);
 
 
-    public Range2D(long minX, long minY, long maxX, long maxY)
+    public Range2D(long x1, long y1, long x2, long y2)
     {
-        MinX = minX;
-        MinY = minY;
-        MaxX = maxX;
-        MaxY = maxY;
+        MinX = Math.Min(x1, x2);
+        MinY = Math.Min(y1, y2);
+        MaxX = Math.Max(x1, x2);
+        MaxY = Math.Max(y1, y2);
     }
     
     public Range2D((long X, long Y) min, (long X, long Y) max)

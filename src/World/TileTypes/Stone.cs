@@ -1,5 +1,5 @@
-﻿using Sandbox2D.Graphics;
-using Sandbox2D.Graphics.Registry;
+﻿using Sandbox2D.Graphics.Registry;
+using Sandbox2D.Graphics.Renderables;
 
 namespace Sandbox2D.World.TileTypes;
 
@@ -9,6 +9,6 @@ public class Stone : IBlockMatrixTile
     
     public uint Id => 1;
 
-    public uint Renderable { get; } = GameObjectRenderableManager.GetId("stone");
+    public ref TileRenderable Renderable => ref Renderables.Stone;
     
 }

@@ -9,12 +9,9 @@ public static class Constants
     
     public const VSyncMode Vsync = VSyncMode.On;
 
-    /// <summary>
-    /// false = "(-5..5, -5..5)"<br></br>
-    /// true = "(-5, -5)..(5, 5)"
-    /// </summary>
-    public const bool Range2DStringFormat = true;
 
+    public const float GuiScale = 1;
+    
     public const int CheckActiveDelay = 100;
     
 

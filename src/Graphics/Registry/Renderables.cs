@@ -1,78 +1,110 @@
-﻿using System.Collections.Generic;
+﻿using System;
 using OpenTK.Graphics.OpenGL4;
 using Sandbox2D.Graphics.Renderables;
+using Sandbox2D.Graphics.Renderables.GuiRenderables;
 
 namespace Sandbox2D.Graphics.Registry;
 
 public static class Renderables
 {
-    private static Renderable[] _renderables = [];
-    private static readonly Dictionary<string, uint> RenderableNames = [];
-    
-    public static uint GetId(string name)
-    {
-        return RenderableNames.TryGetValue(name, out var value) ? value : NoId(name);
-    }
 
-    private static uint NoId(string name)
-    {
-        Util.Error($"Renderable \"{name}\" does not exist");
-        return 0;
-    }
-
-    private static void Set(Dictionary<string, Renderable> items)
-    {
-        uint i = 0;
-        _renderables = new Renderable[items.Count];
-        RenderableNames.Clear();
-        
-        foreach (var item in items)
-        {
-            if (RenderableNames.ContainsKey(item.Key))
-            {
-                Util.Error($"Renderable of the same name ({item.Key}) already exists");
-                continue;
-            }
-            
-            _renderables[i] = item.Value;
-            RenderableNames.Add(item.Key, i);
-            
-            i++;
-        }
-    }
+    private static BaseRenderable _vertexDebug;
+    private static BaseRenderable _noise;
+    private static FontRenderable _font;
+    private static GuiRenderable _guiBase;
+    private static GuiCheckboxRenderable _guiCheckbox;
+    private static TileRenderable _air;
+    private static TileRenderable _dirt;
+    private static TileRenderable _stone;
     
-    public static ref Renderable Get(uint id)
-    {
-        if (_renderables.Length > id)
-            return ref _renderables[id];
-        
-        Util.Error($"Id {id} is not valid");
-        return ref _renderables[0];
-    }
     
-    public static void Set(uint id, Renderable renderable)
-    {
-        if (_renderables.Length > id)
-        {
-            _renderables[id] = renderable;
-            return;
-        }
-
-        Util.Error($"Id {id} is not valid");
-    }
+    public static ref BaseRenderable VertexDebug => ref _vertexDebug;
+    public static ref BaseRenderable Noise => ref _noise;
+    public static ref FontRenderable Font => ref _font;
+    public static ref GuiRenderable GuiBase => ref _guiBase;
+    public static ref GuiCheckboxRenderable GuiCheckbox => ref _guiCheckbox;
+    public static ref TileRenderable Air => ref _air;
+    public static ref TileRenderable Dirt => ref _dirt;
+    public static ref TileRenderable Stone => ref _stone;
+    
     
     public static void Instantiate()
     {
-        Set(new Dictionary<string, Renderable>
-        {
-            { "vertex_debug", new BaseRenderable(Shaders.VertexDebug, BufferUsageHint.StreamDraw) },
-            { "noise", new BaseRenderable(Shaders.Noise, BufferUsageHint.StreamDraw) },
-            // { "go_vertex_debug", new GameObjectRenderable(Shaders.GoVertexDebug, BufferUsageHint.StreamDraw) },
-            // { "go_noise", new GameObjectRenderable(Shaders.GoNoise, BufferUsageHint.StreamDraw) },
-        });
+        
+        _vertexDebug = new BaseRenderable(Shaders.VertexDebug, BufferUsageHint.StreamDraw);
+        _noise = new BaseRenderable(Shaders.Noise, BufferUsageHint.StreamDraw);
+        
+        _font = new FontRenderable(Shaders.Font, BufferUsageHint.DynamicDraw);
+        
+        _guiBase = new GuiRenderable(Shaders.GuiBase, BufferUsageHint.DynamicDraw);
+        _guiCheckbox = new GuiCheckboxRenderable(Shaders.GuiCheckbox, BufferUsageHint.DynamicDraw);
+
+        _air = new TileRenderable(Shaders.Noise);
+        _dirt = new TileRenderable(Shaders.Dirt, BufferUsageHint.StreamDraw);
+        _stone = new TileRenderable(Shaders.Stone, BufferUsageHint.StreamDraw);
         
         Util.Log("Created Renderables");
-        
-        GameObjectRenderableManager.Instantiate();
     }
+
+    private static void Run(Func<Renderable, bool> lambda)
+    {
+        lambda.Invoke(_vertexDebug);
+        lambda.Invoke(_noise);
+        
+        lambda.Invoke(_font);
+
+        lambda.Invoke(_guiBase);
+        lambda.Invoke(_guiCheckbox);
+
+        lambda.Invoke(_air);
+        lambda.Invoke(_dirt);
+        lambda.Invoke(_stone);
+    }
+    
+    /// <summary>
+    /// Calls the render function of every renderable in the category supplied.
+    /// </summary>
+    public static void Render(RenderableCategory category = RenderableCategory.All)
+    {
+        Run(renderable =>
+        {
+            renderable.Render(category);
+            return true;
+        });
+    }
+    
+    /// <summary>
+    /// Resets the geometry of every renderable in the category supplied.
+    /// </summary>
+    public static void ResetGeometry(RenderableCategory category = RenderableCategory.All)
+    {
+        Run(renderable =>
+        {
+            renderable.ResetGeometry(category);
+            return true;
+        });
+    }
+    
+    /// <summary>
+    /// Resets the geometry of every renderable in the category supplied.
+    /// </summary>
+    public static void UpdateVao(RenderableCategory category = RenderableCategory.All)
+    {
+        Run(renderable =>
+        {
+            renderable.UpdateVao(category:category);
+            return true;
+        });
+    }
+    
+}
+
+public enum RenderableCategory
+{
+    All,
+    Base,
+    Tile,
+    Font,
+    Gui,
+    Checkbox,
 }

@@ -122,7 +122,20 @@ namespace Sandbox2D.Graphics
             return -1;
             
         }
-
+        
+        /// <summary>
+        /// Set a uniform float on this shader.
+        /// </summary>
+        /// <param name="name">the name of the uniform</param>
+        /// <param name="data">the data to set</param>
+        public void SetUInt(string name, uint data)
+        {
+            var location = GetUniformLocation(name);
+            if (location == -1) return;
+            
+            GL.UseProgram(Handle);
+            GL.Uniform1(location, data);
+        }
         
         /// <summary>
         /// Set a uniform int on this shader.

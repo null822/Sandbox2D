@@ -1,24 +1,37 @@
 ﻿using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL4;
+using Sandbox2D.Graphics.Registry;
 using Sandbox2D.Maths;
 using Vector2 = OpenTK.Mathematics.Vector2;
 
 namespace Sandbox2D.Graphics.Renderables;
 
-public class GameObjectRenderable : Renderable
+public class TileRenderable : Renderable
 {
-    private Vector2 _translation = Vector2.Zero;
-    private float _scale = 1;
+    private static Vector2 _translation = Vector2.Zero;
+    private static float _scale = 1;
 
     private static Vec2<long> _vertexOffset = new (0);
     private static float _renderScale = 1;
+
+    /// <summary>
+    /// Describes if ALL TileRenderables have been updated.
+    /// If set to true, the VAO will automatically update upon render for every TileRenderable.
+    /// </summary>
+    private static bool _globalUpdatedSinceLastFrame;
+    
+    /// <summary>
+    /// Describes if ALL TileRenderables have been updated.
+    /// If set to true, the VAO will automatically update upon render for every TileRenderable.
+    /// </summary>
+    private static bool _prevFrameGlobalUpdatedSinceLastFrame;
 
     // geometry arrays
     private readonly List<int> _vertices = [];
     private readonly List<uint> _indices = [];
     
-    public GameObjectRenderable(Shader shader, BufferUsageHint hint = BufferUsageHint.StaticDraw) : base(shader, hint)
+    public TileRenderable(Shader shader, BufferUsageHint hint = BufferUsageHint.StaticDraw) : base(shader, hint)
     {
         // update the vao (creates it, in this case)
         UpdateVao(hint);
@@ -44,8 +57,21 @@ public class GameObjectRenderable : Renderable
         
     }
 
-    public override void Render()
+    public override void Render(RenderableCategory category = RenderableCategory.All)
     {
+        if (!IsInCategory(category) || !ShouldRender)
+            return;
+
+        if (_prevFrameGlobalUpdatedSinceLastFrame)
+            _globalUpdatedSinceLastFrame = false;
+        
+        
+        // update the VAO of all TileRenderables if necessary
+        if (_globalUpdatedSinceLastFrame)
+            UpdateVao();
+        
+        base.Render(category);
+        
         GL.BindVertexArray(VertexArrayObject);
         Shader.Use();
         
@@ -55,7 +81,7 @@ public class GameObjectRenderable : Renderable
         Shader.SetVector2("translation", _translation);
         Shader.SetVector2("screenSize", Program.Get().ClientSize);
         
-        // Util.Log($"{_indices.Count / 3f} Triangles");
+        // Util.Log($"{Indices.Count / 3f} Triangles");
         
         GL.DrawElements(PrimitiveType.Triangles, _indices.Count, DrawElementsType.UnsignedInt, 0);
         
@@ -64,11 +90,17 @@ public class GameObjectRenderable : Renderable
         {
             Util.Error($"OpenGL Error {error.ToString()}");
         }
+
+
+        _prevFrameGlobalUpdatedSinceLastFrame = _globalUpdatedSinceLastFrame;
     }
 
-    public sealed override void UpdateVao(BufferUsageHint? hint = null)
+    public sealed override void UpdateVao(BufferUsageHint? hint = null, RenderableCategory category = RenderableCategory.All)
     {
-        base.UpdateVao(hint);
+        if (!IsInCategory(category))
+            return;
+
+        base.UpdateVao(hint, category);
         
         // bind vao
         GL.BindVertexArray(VertexArrayObject);
@@ -80,12 +112,6 @@ public class GameObjectRenderable : Renderable
         // bind/update ebo (must be done after vbo)
         GL.BindBuffer(BufferTarget.ElementArrayBuffer, ElementBufferObject);
         GL.BufferData(BufferTarget.ElementArrayBuffer, _indices.Count * sizeof(uint), _indices.ToArray(), Hint);
-    }
-
-    public override void ResetGeometry()
-    {
-        _vertices.Clear();
-        _indices.Clear();
     }
 
     /// <summary>
@@ -116,9 +142,11 @@ public class GameObjectRenderable : Renderable
             indexOffset + 0, indexOffset + 1, indexOffset + 3,   // first triangle
             indexOffset + 1, indexOffset + 2, indexOffset + 3    // second triangle
         });
+        
+        GeometryAdded();
     }
 
-    public void SetTransform(Vec2<decimal> translation, float scale)
+    public static void SetTransform(Vec2<decimal> translation, float scale)
     {
         var minCorner = Util.ScreenToWorldCoords(new Vec2<int>(0));
         var maxCorner = Util.ScreenToWorldCoords(Program.Get().GetScreenSize());
@@ -167,18 +195,24 @@ public class GameObjectRenderable : Renderable
 
         // calculate the new translation to counteract the offset to the vertices
         _translation = translation - (Vec2<decimal>)_vertexOffset;
+
+        _globalUpdatedSinceLastFrame = true;
+    }
+    
+    public override void ResetGeometry(RenderableCategory category = RenderableCategory.All)
+    {
+        if (!IsInCategory(category))
+            return;
         
+        base.ResetGeometry(category);
+        
+        _vertices.Clear();
+        _indices.Clear();
     }
-    
-    
-    public Vec2<decimal> GetTranslation()
+
+    protected override bool IsInCategory(RenderableCategory category)
     {
-        return (Vec2<decimal>)_translation;
-    }
-    
-    public float GetScale()
-    {
-        return _scale;
+        return base.IsInCategory(category) || category == RenderableCategory.Tile;
     }
 
 

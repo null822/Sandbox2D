@@ -14,6 +14,10 @@ public readonly struct Vec2<T>(T x, T y)
     public readonly T X = x;
     public readonly T Y = y;
 
+    public Vec2() : this(new T(), new T())
+    {
+    }
+    
     public Vec2(T a) : this(a, a)
     {
     }
