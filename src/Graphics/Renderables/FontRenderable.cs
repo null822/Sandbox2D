@@ -36,7 +36,6 @@ public class FontRenderable : Renderable
         // update the vao (creates it, in this case)
         UpdateVao(hint);
         
-        
         // set up vertex coords
         var vertexLocation = Shader.GetAttribLocation("aPosition");
         GL.EnableVertexAttribArray(vertexLocation);
@@ -99,14 +98,15 @@ public class FontRenderable : Renderable
         GL.BindBuffer(BufferTarget.ElementArrayBuffer, ElementBufferObject);
         GL.BufferData(BufferTarget.ElementArrayBuffer, _indices.Count * sizeof(uint), _indices.ToArray(), Hint);
     }
-    
+
     /// <summary>
     /// Sets the text. Does not update the VAO
     /// </summary>
     /// <param name="text">text to display</param>
     /// <param name="tl">the top left vertex, in screen coordinates</param>
     /// <param name="size">the size of the text</param>
-    public void SetText(string text, Vec2<int> tl, float size)
+    /// <param name="center"></param>
+    public void SetText(string text, Vec2<int> tl, float size, bool center = true)
     {
         _scale = size;
         
@@ -115,7 +115,10 @@ public class FontRenderable : Renderable
 
         var textScreenSize = new Vec2<float>(text.Length * (GlyphSize.X + 1) * size, GlyphSize.Y * size);
         
-        var tlScreen = (Vec2<int>)((Vec2<float>)tl / size) + screenCenter + new Vec2<int>((int)(-textScreenSize.X / 2f), (int)(textScreenSize.Y / 2f));
+        var tlScreen = (Vec2<int>)((Vec2<float>)tl / size) + screenCenter + 
+                       (center 
+                           ? new Vec2<int>((int)(-textScreenSize.X / 2f), (int)(textScreenSize.Y / 2f)) 
+                           : new Vec2<int>(0));
 
         // flip coordinate the correct way
         tlScreen = new Vec2<int>(tlScreen.X, screenSize.Y-tlScreen.Y);

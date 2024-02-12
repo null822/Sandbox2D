@@ -10,6 +10,7 @@ public static class Renderables
 
     private static BaseRenderable _vertexDebug;
     private static BaseRenderable _noise;
+    private static PathTracedRenderable _pt;
     private static FontRenderable _font;
     private static GuiRenderable _guiBase;
     private static GuiCheckboxRenderable _guiCheckbox;
@@ -20,6 +21,7 @@ public static class Renderables
     
     public static ref BaseRenderable VertexDebug => ref _vertexDebug;
     public static ref BaseRenderable Noise => ref _noise;
+    public static ref PathTracedRenderable Pt => ref _pt;
     public static ref FontRenderable Font => ref _font;
     public static ref GuiRenderable GuiBase => ref _guiBase;
     public static ref GuiCheckboxRenderable GuiCheckbox => ref _guiCheckbox;
@@ -33,6 +35,8 @@ public static class Renderables
         
         _vertexDebug = new BaseRenderable(Shaders.VertexDebug, BufferUsageHint.StreamDraw);
         _noise = new BaseRenderable(Shaders.Noise, BufferUsageHint.StreamDraw);
+        
+        _pt = new PathTracedRenderable(Shaders.Pt, BufferUsageHint.StreamDraw);
         
         _font = new FontRenderable(Shaders.Font, BufferUsageHint.DynamicDraw);
         
@@ -50,6 +54,8 @@ public static class Renderables
     {
         lambda.Invoke(_vertexDebug);
         lambda.Invoke(_noise);
+
+        lambda.Invoke(_pt);
         
         lambda.Invoke(_font);
 
@@ -104,6 +110,7 @@ public enum RenderableCategory
     All,
     Base,
     Tile,
+    Pt,
     Font,
     Gui,
     Checkbox,

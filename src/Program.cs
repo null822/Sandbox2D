@@ -1,6 +1,5 @@
 ﻿
 using System;
-using System.IO;
 using OpenTK.Windowing.Common.Input;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -15,6 +14,8 @@ public static class Program
     
     private static void Main(string[] args)
     {
+        Console.Clear();
+
         _mainWindow = args.Length >= 1 ?
             new MainWindow(800, 600, "Sandbox2D", args[0]) :
             new MainWindow(800, 600, "Sandbox2D");

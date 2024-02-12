@@ -23,6 +23,8 @@ public interface IBlockMatrixTile : IQuadTreeValue<IBlockMatrixTile>, ITile
     }
 
     static uint IQuadTreeValue<IBlockMatrixTile>.SerializeLength => sizeof(uint);
+    
+    uint IQuadTreeValue<IBlockMatrixTile>.LinearSerializeId => Id;
 
 
     bool IQuadTreeValue<IBlockMatrixTile>.Equals(IBlockMatrixTile a)

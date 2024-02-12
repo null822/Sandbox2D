@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using Sandbox2D.Exceptions;
+using Sandbox2D.Graphics.Renderables;
 using Sandbox2D.Maths.Quadtree;
 using static Sandbox2D.Maths.QuadTree.QuadTreeUtil;
 
@@ -10,39 +12,77 @@ namespace Sandbox2D.Maths.QuadTree;
 
 internal abstract class QuadTreePart<T> where T : class, IQuadTreeValue<T>
 {
+   
     /// <summary>
-    /// The absolute position of the QuadTreePart within the entire tree.
+    /// The range this QuadTreePart covers, relative to the center of the entire tree.
     /// </summary>
-    /// <remarks>
-    /// This is technically a cache that is very hard to recalculate,
-    /// but never has to be updated as the value always stays the same.
-    /// </remarks>
-    internal readonly Vec2<long> AbsolutePos;
+    internal readonly Range2D AbsoluteRange;
+
+    /// <summary>
+    /// The range this QuadTreePart covers, relative to the center of it.
+    /// </summary>
+    internal Range2D RelativeRange => new Range2D((0, 0), Size);
     
     /// <summary>
-    /// The size of the QuadTreePart.
+    /// The total width/height of the QuadTreePart.
     /// </summary>
     internal readonly long Size;
     
     /// <summary>
-    /// The depth of the QuadTreePart.
+    /// The maximum depth of parts within this QuadTreePart.
     /// </summary>
-    internal readonly byte Depth;
+    internal readonly byte MaxDepth;
+    
+    /// <summary>
+    /// The depth within the entire QuadTree.
+    /// </summary>
+    internal byte Depth => (byte)(Constants.WorldDepth - MaxDepth);
     
     /// <summary>
     /// The default value of the QuadTree (everything is default by default)
     /// </summary>
     protected readonly T DefaultValue;
-
-    protected QuadTreePart(T defaultValue, Vec2<long>? absolutePos, byte depth)
+    
+    protected QuadTreePart(T defaultValue, byte maxDepth, Range2D absoluteRange)
     {
         DefaultValue = defaultValue;
-        Depth = depth;
-        Size = (long)0x1 << depth;
+        Size = absoluteRange.Width;
+        MaxDepth = maxDepth;
         
-        AbsolutePos = absolutePos ?? -new Vec2<long>(Size)/2;
+        AbsoluteRange = absoluteRange;
     }
+    
+    protected QuadTreePart(T defaultValue, Range2D absoluteRange)
+    {
+        DefaultValue = defaultValue;
+        Size = absoluteRange.Width;
 
+        byte msb = 0;
+        
+        while (Size >> msb != 0) {
+            msb++;
+        }
+        
+        MaxDepth = msb;
+
+        AbsoluteRange = absoluteRange;
+    }
+    
+    /// <summary>
+    /// Constructs a QuadTreePart from only a defaultValue and a maxDepth
+    /// </summary>
+    /// <remarks>
+    /// This constructor should only be used when creating an entirely new QuadTree
+    /// </remarks>
+    protected QuadTreePart(T defaultValue, byte maxDepth)
+    {
+        DefaultValue = defaultValue;
+        Size = (long)0x1 << maxDepth;
+        MaxDepth = maxDepth;
+        
+        AbsoluteRange = new Range2D((0, 0), Size);
+    }
+    
     /// <summary>
     /// Sets a single value in the QuadTree
     /// </summary>
@@ -66,7 +106,7 @@ internal abstract class QuadTreePart<T> where T : class, IQuadTreeValue<T>
     /// </summary>
     /// <param name="targetPos">the position to get the value from</param>
     /// <returns>the value at that position</returns>
-    internal abstract T? Get(Vec2<long> targetPos);
+    internal abstract T Get(Vec2<long> targetPos);
     
     /// <summary>
     /// Runs the specified lambda for each element residing in the supplied range.
@@ -87,9 +127,10 @@ internal abstract class QuadTreePart<T> where T : class, IQuadTreeValue<T>
     /// <param name="run">the lambda to run at each element</param>
     /// <param name="rc">a ResultComparison to compare the results</param>
     /// <param name="excludeDefault">whether to exclude all elements with the default value</param>
+    /// <param name="index">the index of the QuadTreePart within the parent QuadTree</param>
     /// <returns>the result of comparing all of the results of the run lambdas</returns>
-    public abstract bool InvokeLeaf(Range2D range, Func<T, Range2D, bool> run,
-        ResultComparison rc, bool excludeDefault = false);
+    public abstract bool InvokeLeaf(Range2D range, Func<T, Range2D, Vec2<byte>, bool> run,
+        ResultComparison rc, bool excludeDefault = false, Vec2<byte>? index = null);
 
     /// <summary>
     /// Creates an SVG string representing the current structure of the entire QuadTree
@@ -97,6 +138,16 @@ internal abstract class QuadTreePart<T> where T : class, IQuadTreeValue<T>
     /// <param name="nullableSvgString">optional parameter, used internally to pass the SVG recursively. Will likely break if changed.</param>
     /// <returns>the contents of an SVG file, ready to be saved in a .svg file</returns>
     public abstract StringBuilder GetSvgMap(StringBuilder? nullableSvgString = null);
+    
+    /// <summary>
+    /// Serializes the QuadTree into a Linear QuadTree
+    /// <param name="lqt">a reference to a list in which the lqt should be added to</param>
+    /// <param name="screenRange">the currently visible portion of the world, relative to the world's center</param>
+    /// <param name="uploadRange">the (absolute) range of the resulting Linear QuadTree. Used internally</param>
+    /// </summary>
+    /// <returns>the absolute range of the resulting Linear QuadTree</returns>
+    public abstract Range2D SerializeToLinear(ref List<QuadTreeStruct> lqt, Range2D screenRange,
+        Range2D uploadRange = default);
     
     /// <summary>
     /// Deserializes a serialized QuadTreePart. See:
@@ -122,17 +173,6 @@ internal abstract class QuadTreePart<T> where T : class, IQuadTreeValue<T>
         tree.Write(new []{Index2DTo1D(index)});
     }
 
-    /// <summary>
-    /// Returns the QuadTreePart represented as a Range2D
-    /// </summary>
-    internal Range2D GetRange()
-    {
-        return new Range2D(
-            AbsolutePos.X, 
-            AbsolutePos.Y,
-            AbsolutePos.X + Size,
-            AbsolutePos.Y + Size);
-    }
     
 }
 
@@ -148,18 +188,10 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
     /// </summary>
     private readonly byte _subPartDepth;
 
-    
-    /// <summary>
-    /// Creates a new instance of the QuadTree.
-    /// </summary>
-    /// <param name="defaultValue">the value to set the contents to by default</param>
-    /// <param name="depth">the amount of QuadTreeParts deep the quadtree is (eg. a depth of 4 means the width/height of the blockMatrix is 2^4</param>
-    /// <param name="blockAbsolutePos"></param>
-    /// <param name="populateValue"></param>
-    public QuadTree(T defaultValue, byte depth, Vec2<long>? blockAbsolutePos = null, T? populateValue = null) : base(defaultValue, blockAbsolutePos, depth)
+    public QuadTree(T defaultValue, byte maxDepth, T? populateValue = null) : base(defaultValue, maxDepth)
     {
         // calculate the new _subPartDepth
-        _subPartDepth = (byte)(Depth - 1);
+        _subPartDepth = (byte)(MaxDepth - 1);
         
         // instantiate _subParts
         _subParts = new QuadTreePart<T>[4];
@@ -171,25 +203,57 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
         {
             for (byte y = 0; y < 2; y++)
             {
-                var subPartAbsolutePos = GetSubPartAbsolutePos((x, y));
+                var subPartAbsoluteRange = GetSubPartAbsoluteRange((x, y));
                 
                 SetSubPart(x, y,
-                    new QuadTreeLeaf<T>(defaultValue, subPartAbsolutePos, _subPartDepth, value));
+                    new QuadTreeLeaf<T>(defaultValue, _subPartDepth, subPartAbsoluteRange, value));
+            }
+        }
+        
+    }
+    
+    /// <summary>
+    /// Creates a new instance of the QuadTree.
+    /// </summary>
+    /// <param name="defaultValue">the value to set the contents to by default</param>
+    /// <param name="maxDepth">the amount of QuadTreeParts deep the quadtree is (eg. a maxDepth of 4 means the width/height of the blockMatrix is 2^4</param>
+    /// <param name="absoluteRange">the absolute range of the QuadTree</param>
+    /// <param name="populateValue">[optional] the value to populate the QuadTree with</param>
+    private QuadTree(T defaultValue, byte maxDepth, Range2D absoluteRange, T? populateValue = null) : base(defaultValue, maxDepth, absoluteRange)
+    {
+        // calculate the new _subPartDepth
+        _subPartDepth = (byte)(MaxDepth - 1);
+        
+        // instantiate _subParts
+        _subParts = new QuadTreePart<T>[4];
+
+        // populate the _subParts array with either the defaultValue or the supplied populateValue if it is not null
+        var value = populateValue ?? defaultValue;
+        
+        for (byte x = 0; x < 2; x++)
+        {
+            for (byte y = 0; y < 2; y++)
+            {
+                var subPartAbsoluteRange = GetSubPartAbsoluteRange((x, y));
+                
+                SetSubPart(x, y, new QuadTreeLeaf<T>(defaultValue, _subPartDepth, subPartAbsoluteRange, value));
             }
         }
     }
+    
 
     private ref QuadTreePart<T> GetSubPart(Vec2<byte> position)
     {
         var index = Index2DTo1D(position);
-        CheckIndex(index);
+        CheckIndex1D(index);
         
         return ref _subParts[index];
     }
+    
     private ref QuadTreePart<T> GetSubPart(byte x, byte y)
     {
         var index = Index2DTo1D(x, y);
-        CheckIndex(index);
+        CheckIndex1D(index);
 
         return ref _subParts[index];
     }
@@ -197,22 +261,16 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
     private void SetSubPart(Vec2<byte> position, QuadTreePart<T> part)
     {
         var index = Index2DTo1D(position);
-        CheckIndex(index);
+        CheckIndex1D(index);
 
         _subParts[index] = part;
     }
     private void SetSubPart(byte x, byte y, QuadTreePart<T> part)
     {
         var index = Index2DTo1D(x, y);
-        CheckIndex(index);
+        CheckIndex1D(index);
         
         _subParts[index] = part;
-    }
-
-    private static void CheckIndex(byte index)
-    {
-        if (index > 3) throw new IndexOutOfRangeException(
-            $"SubPart coordinate {new Vec2<int>(index % 2, (int)Math.Floor(index / 2f))} out of bounds for size of 2x2.");
     }
     
     /// <summary>
@@ -220,36 +278,36 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
     /// </summary>
     /// <param name="targetPos">the position to get the value from</param>
     /// <returns>the value</returns>
-    internal override T? Get(Vec2<long> targetPos)
+    internal override T Get(Vec2<long> targetPos)
     {
-        var nextBlockPos = GetIndex2DFromCoords(targetPos, out var newTargetPos);
-        var nextBlock = GetSubPart(nextBlockPos);
+        var nextPartPos = GetIndex2DFromCoords(targetPos, out var newTargetPos);
+        var nextPart = GetSubPart(nextPartPos);
         
-        return nextBlock.Get(newTargetPos);
+        return nextPart.Get(newTargetPos);
     }
     
-    public T? this[long x, long y]
+    public T this[long x, long y]
     {
         get => Get(new Vec2<long>(x, y));
-        set => Set(new Vec2<long>(x, y), value ?? DefaultValue);
+        set => Set(new Vec2<long>(x, y), value);
     }
     
-    public T? this[Vec2<long> pos]
+    public T this[Vec2<long> pos]
     {
         get => Get(pos);
-        set => Set(pos, value ?? DefaultValue);
+        set => Set(pos, value);
     }
     
-    public T? this[Range2D range]
+    public T this[Range2D range]
     {
-        set => Set(range, value ?? DefaultValue);
+        set => Set(range, value);
     }
     
     internal override bool Set(Range2D targetRange, T value)
     {
         // if the range refers to a single point, use the Set(Vec2<long>, T) method instead since it is more efficient for single positions
         if (targetRange.Area == 1)
-            return Set(targetRange.BottomLeft, value);
+            return Set(targetRange.MaxXMaxY, value);
         
         var modified = false;
         
@@ -260,19 +318,19 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
             {
                 ref var subPart = ref GetSubPart(x, y);
                 
-                var subPartRange = subPart.GetRange();
+                var subPartRange = subPart.AbsoluteRange;
 
                 // if the supplied targetRange does not overlap with this subPart, continue to the next subPart.
                 if (!targetRange.Overlaps(subPartRange)) continue;
                 
                 // get the absolute pos of this subPart
-                var subPartAbsolutePos = GetSubPartAbsolutePos((x, y));
+                var subPartAbsoluteRange = GetSubPartAbsoluteRange((x, y));
 
                 // if the supplied targetRange completely contains the subPart,
                 if (targetRange.Contains(subPartRange))
                 {
                     // set the subPart to a new QuadTreeLeaf, with the supplied value,
-                    subPart = new QuadTreeLeaf<T>(DefaultValue, subPartAbsolutePos, _subPartDepth, value);
+                    subPart = new QuadTreeLeaf<T>(DefaultValue, _subPartDepth, subPartAbsoluteRange, value);
                     
                     // and continue to the next subPart
                     modified = true;
@@ -285,7 +343,7 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
                 {
                     // split the QuadTreeLeaf into a QuadTree, keeping the same value,
                     SetSubPart(x, y,
-                        new QuadTree<T>(DefaultValue, _subPartDepth, subPartAbsolutePos, subPartValue.GetValue()));
+                        new QuadTree<T>(DefaultValue, _subPartDepth, subPartAbsoluteRange, subPartValue.GetValue()));
                 }
 
                 // pass the call downwards, into it.
@@ -302,20 +360,21 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
     internal override bool Set(Vec2<long> targetPos, T value)
     {
         var nextIndex = GetIndex2DFromCoords(targetPos, out var newTargetPos);
-        var nextBlock = GetSubPart(nextIndex);
+        var nextPart = GetSubPart(nextIndex);
         
-        var subPartAbsolutePos = GetSubPartAbsolutePos(nextIndex);
+        var subPartAbsoluteRange = GetSubPartAbsoluteRange(nextIndex);
         
-        // if part is a QuadTreeLeaf of depth > 0, change it to a QuadTree
-        if (nextBlock is QuadTreeLeaf<T> nextBlockValue && _subPartDepth > 0)
+        // splitting QuadTreeLeaves apart into 4 QuadTrees
+        // if nextPart is a QuadTreeLeaf of maxDepth > 0, change it to a QuadTree populated with the value stored in it
+        if (nextPart is QuadTreeLeaf<T> nextPartValue && _subPartDepth > 0)
         {
-            nextBlock = new QuadTree<T>(DefaultValue, _subPartDepth, subPartAbsolutePos, nextBlockValue.GetValue());
+            nextPart = new QuadTree<T>(DefaultValue, _subPartDepth, subPartAbsoluteRange, nextPartValue.GetValue());
             
-            SetSubPart(nextIndex, nextBlock);
+            SetSubPart(nextIndex, nextPart);
         }
         
         // recursively add the value
-        var success = nextBlock.Set(newTargetPos, value);
+        var success = nextPart.Set(newTargetPos, value);
         
         // compression
         Compress();
@@ -329,11 +388,7 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
         
         foreach (var subPart in _subParts)
         {
-            var subPartRect = new Range2D(
-                subPart.AbsolutePos.X, 
-                subPart.AbsolutePos.Y, 
-                subPart.AbsolutePos.X + subPart.Size, 
-                subPart.AbsolutePos.Y + subPart.Size);
+            var subPartRect = subPart.AbsoluteRange;
             
             if (range.Overlaps(subPartRect))
             {
@@ -346,22 +401,18 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
         return retVal;
     }
     
-    public override bool InvokeLeaf(Range2D range, Func<T, Range2D, bool> run, ResultComparison rc, bool excludeDefault = false)
+    public override bool InvokeLeaf(Range2D range, Func<T, Range2D, Vec2<byte>, bool> run, ResultComparison rc, bool excludeDefault = false, Vec2<byte>? index = null)
     {
         var retVal = rc.StartingValue;
         
         foreach (var subPart in _subParts)
         {
-            var subPartRect = new Range2D(
-                subPart.AbsolutePos.X, 
-                subPart.AbsolutePos.Y, 
-                subPart.AbsolutePos.X + subPart.Size, 
-                subPart.AbsolutePos.Y + subPart.Size);
+            var subPartRect = subPart.AbsoluteRange;
             
             if (range.Overlaps(subPartRect))
             {
                 retVal = rc.Comparator
-                    .Invoke(retVal, subPart.InvokeLeaf(range, run, rc, excludeDefault));
+                    .Invoke(retVal, subPart.InvokeLeaf(range, run, rc, excludeDefault, index));
             }
             
         }
@@ -369,30 +420,53 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
         return retVal;
     }
     
-    private Vec2<byte> GetIndex2DFromCoords(Vec2<long> targetPos, out Vec2<long> newTargetPos)
+    public override Range2D SerializeToLinear(ref List<QuadTreeStruct> lqt, Range2D screenRange, Range2D uploadRange = default)
     {
-        var range = GetRange();
-        
-        // throw exception if the targetPos is out of bounds
-        if (!range.Contains((Vec2<double>)targetPos + range.Center))
-            throw new IndexOutOfRangeException($"Position {targetPos} is outside QuadTree bounds of {GetRange()}");
-        
-        // get the index of the block the target is in
-        var index2D = GetIndex2DFromPos(targetPos);
-        
-        // calculate the new targetPos
-        var blockSign = new Vec2<long>(
-            index2D.X == 0 ? -1 : 1,
-            index2D.Y == 0 ? 1 : -1);
-        
-        newTargetPos = targetPos + new Vec2<long>(Size / 4) * -blockSign;
+        if (uploadRange == default)
+        {
+            var uploadSize = Math.Max((long)Util.NextPowerOf2((ulong)Math.Max(screenRange.Width, screenRange.Height)), 0x1<<Constants.RenderDepth);
 
-        return index2D;
+            var halfUs = uploadSize / 2;
+            
+            // calculate the uploadCenter, rounding the screenRange's center to the nearest `uploadSize`
+            // note that screenRange.Center (when this method is run on the root QuadTree) is equal to the current translation.
+            var uploadCenterF = screenRange.CenterF / halfUs;
+            var uploadCenter = new Vec2<long>((long)Math.Round(uploadCenterF.X), (long)Math.Round(uploadCenterF.Y)) * halfUs;
+            
+            uploadRange = new Range2D(uploadCenter, uploadSize);
+        }
+        
+        // for each subPart
+        for (byte index1D = 0; index1D < 4; index1D++)
+        {
+            var index2D = Index1DTo2D(index1D);
+            
+            // get its range, relative to this QuadTree
+            var subPartRange = GetSubPartRelativeRange(index2D);
+            
+            // if the subPart is fully or partially on screen
+            if (screenRange.Overlaps(subPartRange))
+            {
+                // get the subPart
+                var subPart = GetSubPart(index2D);
+                
+                // calculate relative screen/upload ranges
+                var relScreenRange = GetRange2DAtIndex(screenRange, index2D);
+                
+                // recursively call this method
+                subPart.SerializeToLinear(ref lqt, relScreenRange, uploadRange);
+            }
+            
+        }
+        
+        // return the uploadRange's center
+        return uploadRange;
     }
+    
     
     public override StringBuilder GetSvgMap(StringBuilder? nullableSvgString = null)
     {
-        const double scale = Constants.BlockMatrixSvgScale;
+        const double scale = Constants.QuadTreeSvgScale;
         
         var svgString = nullableSvgString ?? new StringBuilder(
             $"<svg " +
@@ -407,7 +481,7 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
         
         var rect = $"<rect style=\"fill:#ffffff;fill-opacity:0;stroke:#000000;stroke-width:{Math.Min(Size / 64d, 1)}\" " +
                    $"width=\"{Size * scale}\" height=\"{Size * scale}\" " +
-                   $"x=\"{AbsolutePos.X * scale}\" y=\"{AbsolutePos.Y * scale}\"/>";
+                   $"x=\"{AbsoluteRange.MinX * scale}\" y=\"{AbsoluteRange.MinY * scale}\"/>";
         
         // insert the rectangle into the svg string, 6 characters before the end (taking into account the closing `</svg>` tag)
         svgString.Insert(svgString.Length-6, rect);
@@ -446,7 +520,7 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
         }
         
         // write the header values to the output stream
-        stream.Write( new []{Depth}); // depth
+        stream.Write( new []{MaxDepth}); // maxDepth
         stream.Write(BitConverter.GetBytes(T.SerializeLength)); // element size (bytes)
         stream.Write(BitConverter.GetBytes((uint)(tree.Length + 9))); // pointer to the start of the data section
         
@@ -558,8 +632,8 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
             // get the index2D
             var index2D = Index1DTo2D(index1D);
             
-            // calculate the absolutePos at the index
-            var indexAbsolutePos = GetSubPartAbsolutePos(index2D);
+            // calculate the absoluteRange of the index
+            var indexAbsoluteRange = GetSubPartAbsoluteRange(index2D);
 
             switch (id)
             {
@@ -567,7 +641,7 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
                 case 1:
                 {
                     // create a new QuadTree and add it to the _subParts array
-                    SetSubPart(index2D, new QuadTree<T>(DefaultValue, _subPartDepth, indexAbsolutePos));
+                    SetSubPart(index2D, new QuadTree<T>(DefaultValue, _subPartDepth, indexAbsoluteRange));
                     
                     // and pass the call downwards, into it.
                     GetSubPart(index2D).DeserializeQuadTree(tree, data);
@@ -586,7 +660,7 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
                     var value = T.Deserialize(valueBytes);
                     
                     // and create a new QuadTreeLeaf and add it to the _subParts array
-                    SetSubPart(index2D, new QuadTreeLeaf<T>(DefaultValue, indexAbsolutePos, _subPartDepth, value));
+                    SetSubPart(index2D, new QuadTreeLeaf<T>(DefaultValue, _subPartDepth, indexAbsoluteRange, value));
                     
                     // and finally, continue in the loop without recursively passing a call downwards.
                     break;
@@ -605,7 +679,7 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
             for (byte y = 0; y < 2; y++)
             {
                 // get absolute pos of this block
-                var currentBlockAbsolutePos = GetSubPartAbsolutePos((x, y));
+                var currentBlockAbsoluteRange = GetSubPartAbsoluteRange((x, y));
                 
                 // if it is a QuadTree,
                 if (GetSubPart(x, y) is QuadTree<T> subPartMatrix)
@@ -639,28 +713,151 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
                     if (allEqual)
                     {
                         // replace the entire subPart with a QuadTreeLeaf of the correct size
-                        SetSubPart(x, y, new QuadTreeLeaf<T>(DefaultValue, currentBlockAbsolutePos, _subPartDepth, firstValue));
+                        SetSubPart(x, y, new QuadTreeLeaf<T>(DefaultValue, _subPartDepth, currentBlockAbsoluteRange, firstValue));
                     }
                 }
             }
         }
     }
-
-    private Vec2<long> GetSubPartAbsolutePos(Vec2<byte> index)
+    
+    /// <summary>
+    /// Calculates the index2D of a subPart, based off of coordinates that lie within it.
+    /// </summary>
+    /// <param name="targetPos">the coords that lie within the subPart</param>
+    /// <param name="newTargetPos">[out] the new targetPos, relative to the subPart at the index2D returned</param>
+    /// <returns>the index2D of a subPart</returns>
+    private Vec2<byte> GetIndex2DFromCoords(Vec2<long> targetPos, out Vec2<long> newTargetPos)
     {
-        index = new Vec2<byte>(index.X, (byte)(1 - index.Y));
+        // throw exception if the targetPos is out of bounds
+        if (!RelativeRange.Contains((Vec2<double>)targetPos))
+            throw new CoordOutOfBoundsException(targetPos, RelativeRange);
         
-        return AbsolutePos + (Vec2<long>)index * (Size / 2);
+        // get the index of the part the targetPos is in
+        var index2D = GetIndex2DFromPos(targetPos);
+        
+        // calculate the sign
+        Vec2<long> blockSign = index2D switch
+        {
+            (0, 0) => (-1,  1),
+            (1, 0) => ( 1,  1),
+            (0, 1) => (-1, -1),
+            (1, 1) => ( 1, -1),
+            _ => throw new InvalidIndexException(index2D)
+        };
+        
+        // calculate the new targetPos
+        newTargetPos = targetPos - blockSign * new Vec2<long>(Size / 4);
+        
+        return index2D;
+    }
+
+    /// <summary>
+    /// Calculates the range relative to a subPart, provided the original range and the subPart's index2D.
+    /// </summary>
+    /// <remarks>
+    /// If the supplied range is fully or partially out of the bounds of the subPart,
+    /// the range will NOT get clamped to its boundaries.
+    /// </remarks>
+    /// <param name="range">the original range</param>
+    /// <param name="index2D">the subParts index2D</param>
+    /// <returns>the index2D of a subPart</returns>
+    private Range2D GetRange2DAtIndex(Range2D range, Vec2<byte> index2D)
+    {
+        // calculate the sign
+        Vec2<long> blockSign = index2D switch
+        {
+            (0, 0) => (-1,  1),
+            (1, 0) => ( 1,  1),
+            (0, 1) => (-1, -1),
+            (1, 1) => ( 1, -1),
+            _ => throw new InvalidIndexException(index2D)
+        };
+        
+        // calculate the new center
+        var newCenter = range.Center - blockSign * new Vec2<long>(Size / 4);
+        
+        // calculate and return the new range
+        return new Range2D(newCenter, range.Width, range.Height);
     }
     
+    /// <summary>
+    /// Returns the range of the subPart at the specified index, relative to the root QuadTree
+    /// </summary>
+    /// <remarks>
+    /// Does not access the subPart, so this method can be used if the subPart is uninitialized.
+    /// </remarks>
+    private Range2D GetSubPartAbsoluteRange(Vec2<byte> index)
+    {
+        // calculate the direction of the top left corner of the part at the supplied index,
+        // relative to the center of this QuadTree
+        Vec2<long> direction = index switch
+        {
+            (0, 0) => (-1,  1),
+            (1, 0) => ( 0,  1),
+            (0, 1) => (-1,  0),
+            (1, 1) => ( 0,  0),
+            _ => throw new InvalidIndexException(index)
+        };
+        
+        // calculate the size of the subPart
+        var subSize = Size / 2;
+        
+        // calculate the top left coordinate of the subPart, from the direction
+        var tl = AbsoluteRange.Center + direction * subSize;
+        
+        // create and return the range, calculating the bottom right coordinate using the subSize
+        return new Range2D(tl, tl + (subSize, -subSize));
+    }
+    
+    /// <summary>
+    /// Returns the range of the subPart at the specified index, relative to this QuadTreePart
+    /// </summary>
+    /// <remarks>
+    /// Does not access the subPart, so this method can be used if the subPart is uninitialized.
+    /// </remarks>
+    private Range2D GetSubPartRelativeRange(Vec2<byte> index)
+    {
+        var halfSize = Size / 2;
+        var quartSize = Size / 4;
+        
+        return index switch
+        {
+            (0, 0) => new Range2D((-quartSize, quartSize), halfSize),
+            (1, 0) => new Range2D((quartSize, quartSize), halfSize),
+            (0, 1) => new Range2D((-quartSize, -quartSize), halfSize),
+            (1, 1) => new Range2D((quartSize, -quartSize), halfSize),
+            _ => throw new InvalidIndexException(index)
+        };
+        
+    }
     
 }
 
-internal class QuadTreeLeaf<T>(T defaultValue, Vec2<long> absolutePos, byte depth, T value) 
-    : QuadTreePart<T>(defaultValue, absolutePos, depth)
+internal class QuadTreeLeaf<T> : QuadTreePart<T>
+    
     where T : class, IQuadTreeValue<T>
 {
-    private T _value = value;
+    private T _value;
+    
+    /// <summary>
+    /// Constructs a QuadTreeLeaf, provided the defaultValue, a maxDepth, a range, and a value.
+    /// </summary>
+    internal QuadTreeLeaf(T defaultValue, byte maxDepth, Range2D range, T value) : base(defaultValue, maxDepth, range)
+    {
+        _value = value;
+    }
+    
+    /// <summary>
+    /// Constructs a QuadTreeLeaf, provided the defaultValue, a range, and a value.
+    /// </summary>
+    /// <remarks>
+    /// This constructor is slower than the QuadTreeLeaf(T, byte, Range2D, T) constructor,
+    /// due to having to calculate the maxDepth from the range.
+    /// </remarks>
+    internal QuadTreeLeaf(T defaultValue, Range2D range, T value) : base(defaultValue, range)
+    {
+        _value = value;
+    }
 
     internal override bool Set(Vec2<long> targetPos, T? value)
     {
@@ -676,7 +873,7 @@ internal class QuadTreeLeaf<T>(T defaultValue, Vec2<long> absolutePos, byte dept
         if (Equals(value, null))
             return false;
 
-        if (targetRange.Contains(GetRange()))
+        if (targetRange.Contains(AbsoluteRange))
         {
             _value = value;
             return true;
@@ -695,11 +892,7 @@ internal class QuadTreeLeaf<T>(T defaultValue, Vec2<long> absolutePos, byte dept
         if (excludeDefault && _value.Equals(DefaultValue)) return false;
         
         // get the Range2D of this QuadTreeLeaf
-        var blockRange = new Range2D(
-            AbsolutePos.X,
-            AbsolutePos.Y, 
-            AbsolutePos.X + Size, 
-            AbsolutePos.Y + Size);
+        var blockRange = AbsoluteRange;
         
         // if the supplied range overlaps with blockRange,
         if (range.Overlaps(blockRange))
@@ -728,31 +921,47 @@ internal class QuadTreeLeaf<T>(T defaultValue, Vec2<long> absolutePos, byte dept
         return false;
     }
     
-    public override bool InvokeLeaf(Range2D range, Func<T, Range2D, bool> run, ResultComparison rc, bool excludeDefault = false)
+    public override bool InvokeLeaf(Range2D range, Func<T, Range2D, Vec2<byte>, bool> run, ResultComparison rc, bool excludeDefault = false, Vec2<byte>? index = null)
     {
         if (excludeDefault && _value.Equals(DefaultValue)) return false;
         
         // get the Range2D of this QuadTreeLeaf
-        var blockRange = new Range2D(
-            AbsolutePos.X,
-            AbsolutePos.Y,
-            AbsolutePos.X + Size, 
-            AbsolutePos.Y + Size);
+        var blockRange = AbsoluteRange;
         
         // if the supplied range does not overlap with blockRange, return false
         if (!range.Overlaps(blockRange)) return false;
         
         // otherwise, get the overlap rectangle of this QuadTreeLeaf and the supplied range
         var overlap = range.Overlap(blockRange);
-            
+        
         // invoke the run Func for the overlap area, only once.
-        return run.Invoke(_value, overlap);
+        return run.Invoke(_value, overlap, index ?? (0, 0));
 
     }
     
+    
+    public override Range2D SerializeToLinear(ref List<QuadTreeStruct> lqt, Range2D screenRange,
+        Range2D uploadRange = default)
+    {
+        var depth = Math.Clamp(Depth - (Constants.WorldDepth - 16), 0, 16);
+        
+        // calculate the position of the top left corner of this QuadTreeLeaf, relative to the top left of the uploadRange,
+        // and flip the Y axis
+        var relPos = (AbsoluteRange.Overlap(uploadRange).TopLeft - uploadRange.TopLeft) * (1, -1);
+        
+        var code = Util.Interleave(relPos);
+        
+        // assemble a QuadTreeStruct with the code, maxDepth, and id, and add it to the lqt
+        lqt.Add(new QuadTreeStruct(code, (byte)depth, _value.LinearSerializeId));
+        
+        
+        // the relative center of this QuadTreeLeaf is always at (0, 0), so return that
+        return uploadRange;
+    }
+
     public override StringBuilder GetSvgMap(StringBuilder? nullableSvgString = null)
     {
-        const double scale = Constants.BlockMatrixSvgScale;
+        const double scale = Constants.QuadTreeSvgScale;
 
         var svgString = nullableSvgString ?? new StringBuilder(
             $"<svg " +
@@ -773,7 +982,7 @@ internal class QuadTreeLeaf<T>(T defaultValue, Vec2<long> absolutePos, byte dept
 
         var rect = $"<rect style=\"fill:{fillColor};stroke:#000000;stroke-width:{Math.Min(Size / 64d, 1)}\" " +
                    $"width=\"{Size * scale}\" height=\"{Size * scale}\" " +
-                   $"x=\"{AbsolutePos.X * scale}\" y=\"{AbsolutePos.Y * scale}\"/>";
+                   $"x=\"{AbsoluteRange.MinX * scale}\" y=\"{AbsoluteRange.MinY * scale}\"/>";
         
         svgString.Insert(svgString.Length-6, rect);
 
@@ -800,49 +1009,9 @@ internal class QuadTreeLeaf<T>(T defaultValue, Vec2<long> absolutePos, byte dept
         tree.Write(BitConverter.GetBytes(pointer));
     }
 
-    public Vec2<long> GetPos()
-    {
-        return AbsolutePos;
-    }
-    
     public T GetValue()
     {
         return _value;
-    }
-    
-    // overrides
-    public static bool operator ==(QuadTreeLeaf<T> a, QuadTreeLeaf<T> b)
-    {
-        if (Equals(a, null) || Equals(b, null))
-            return false;
-
-        return a._value.Equals(b._value);
-    }
-    
-    public static bool operator !=(QuadTreeLeaf<T> a, QuadTreeLeaf<T> b)
-    {
-        if (Equals(a, null) || Equals(b, null))
-            return false;
-
-        return !a._value.Equals(b._value);
-    }
-    
-    private bool Equals(QuadTreeLeaf<T> other)
-    {
-        return EqualityComparer<T>.Default.Equals(_value, other._value);
-    }
-
-    public override bool Equals(object? obj)
-    {
-        if (ReferenceEquals(null, obj)) return false;
-        if (ReferenceEquals(this, obj)) return true;
-        if (obj.GetType() != this.GetType()) return false;
-        return Equals((QuadTreeLeaf<T>)obj);
-    }
-
-    public override int GetHashCode()
-    {
-        return EqualityComparer<T>.Default.GetHashCode(_value);
     }
 }
 
@@ -855,6 +1024,16 @@ internal static class QuadTreeUtil
             (byte)(localPos.Y > 0 ? 0 : 1)
         );
         return index;
+    }
+    
+    internal static void CheckIndex1D(byte index)
+    {
+        if (index > 3) throw new InvalidIndexException(new Vec2<int>(index % 2, (int)Math.Floor(index / 2f)));
+    }
+    
+    private static void CheckIndex2D(Vec2<byte> index2D)
+    {
+        if (index2D.X is not (1 or 0) || index2D.Y is not (1 or 0)) throw new InvalidIndexException(index2D);
     }
 
     internal static byte Index2DTo1D(Vec2<byte> index2D)
@@ -871,7 +1050,7 @@ internal static class QuadTreeUtil
     {
         return new Vec2<byte>((byte)(index % 2), (byte)Math.Floor(index / 2f));
     }
-
+    
     /// <summary>
     /// Reads a stream, advancing the position in the stream by the number of bytes read
     /// </summary>

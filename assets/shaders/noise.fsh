@@ -44,7 +44,7 @@ float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 
 float scale(float x)
 {
-    return round(x * 8192) / 8192;
+    return round(x * 8192.0) / 8192.0;
 }
 
 vec2 scale(vec2 v)

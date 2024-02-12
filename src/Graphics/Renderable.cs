@@ -20,7 +20,7 @@ public abstract class Renderable
     /// <summary>
     /// Describes if rendering the Renderable will do anything (e.g. set to false if the geometry is empty).
     /// </summary>
-    protected bool ShouldRender;
+    protected bool ShouldRender = true;
 
     // rendering arrays/buffers
     protected readonly int VertexArrayObject = GL.GenVertexArray();

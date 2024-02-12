@@ -26,4 +26,9 @@ public interface IQuadTreeValue<T> where T : IQuadTreeValue<T>
     /// The size, in bytes, of the serialized IQuadTreeValue
     /// </summary>
     public static abstract uint SerializeLength { get; }
+    
+    /// <summary>
+    /// The size, in bytes, of the serialized IQuadTreeValue
+    /// </summary>
+    public uint LinearSerializeId { get; }
 }

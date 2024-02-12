@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -37,10 +38,10 @@ public class MainWindow : GameWindow
     private static Vec2<decimal> _translation = new(0);
     private static Vec2<decimal> _prevTranslation = new(0);
 
-    private readonly string _savePath;
+    private readonly string? _savePath;
     private bool _isPaused;
     
-    public MainWindow(int width, int height, string title, string savePath = null) : base(GameWindowSettings.Default,
+    public MainWindow(int width, int height, string title, string? savePath = null) : base(GameWindowSettings.Default,
     new NativeWindowSettings { ClientSize = (width, height), Title = title })
     {
         _savePath = savePath;
@@ -59,6 +60,12 @@ public class MainWindow : GameWindow
         Debug(r1.Overlap(r2));
         
         Debug(new Vec2<int>(10, 2) + new Vec2<int>(11, 1));
+
+        var e = new QuadTree<IBlockMatrixTile>(new Air(), 3);
+
+        e[1, 1] = new Stone();
+        
+        Debug(e[1, 1].Id);
     }
 
     protected override void OnRenderFrame(FrameEventArgs args)
@@ -75,19 +82,24 @@ public class MainWindow : GameWindow
         
         // clear the color buffer
         GL.Clear(ClearBufferMask.ColorBufferBit);
-        
+
         // render components (with off-screen culling)
+
+        ref var pt = ref Renderables.Pt;
+        
+        // pt.Render();
+        
         
         // if the world or translation/scale (for culling reasons) has updated and the game is not paused,
         // reupload the world to the gpu
-        if (_worldUpdatedSinceLastFrame && !_isPaused)
+        // if (_worldUpdatedSinceLastFrame && !_isPaused)
         {
             // update the translation and scale
-            TileRenderable.SetTransform(_translation, _scale);
+            // TileRenderable.SetTransform(_translation, _scale);
             
             // reset the world geometry
             // TileRenderableManager.ResetGeometry();
-            Renderables.ResetGeometry(RenderableCategory.Tile);
+            Renderables.ResetGeometry(RenderableCategory.Pt);
 
             // get the world pos of the top left and bottom right corners of the screen,
             // with a small buffer to prevent culling things still partially within the frame
@@ -95,46 +107,70 @@ public class MainWindow : GameWindow
             var brScreen = ScreenToWorldCoords((ClientSize.X, 0)) + new Vec2<long>(64);
             var screenRange = new Range2D(tlScreen, brScreen);
             
-            // add all the elements within the range (on screen) to the renderable
-            _world.InvokeLeaf(screenRange, (tile, range) =>
-            {
-                tile.AddToRenderable(range);
-                
-                return true;
-            }, ResultComparisons.Or, true);
+            // Log($"screenRange: {screenRange}");
+
+            // Error("Frame");
+
+            var lqtList = new List<QuadTreeStruct>();
+            
+            
+            var uploadRange = _world.SerializeToLinear(ref lqtList, screenRange);
+            
+            var lqt = lqtList.ToArray();
+            
+            
+            // foreach (var element in lqt)
+            // {
+            //     Console.WriteLine($"{element.code:b32}, {element.depth}, {element.id}");
+            // }
+            
+            // Debug($"of: {uploadRange}, tr: {_translation}");
+            
+            pt.SetTransform(_translation - (Vec2<decimal>)uploadRange.Center, _scale);
+            
+            pt.SetGeometry(lqt);
             
             // reset worldUpdated flag
             _worldUpdatedSinceLastFrame = false;
         }
         
+        pt.Render();
+        
         // render all of the tile renderables
-        Renderables.Render(RenderableCategory.Tile);
+        // Renderables.Render(RenderableCategory.Pt);
         
         
         // TODO: render brush outline
         
-        
-        // Text test
-        ref var renderable = ref Renderables.Font;
-        
-        var center = GetScreenSize() / 2;
-        
-        renderable.SetText((1 / args.Time).ToString("0.0 FPS"), -center + (30,10), 1f);
-        
-        
-        renderable.UpdateVao();
-        renderable.Render();
-        renderable.ResetGeometry();
         
         // render the GUIs
         GuiManager.UpdateGuis();
         Renderables.Render(RenderableCategory.Gui);
         
         
+        // FPS display
+        ref var renderable = ref Renderables.Font;
+        
+        var center = GetScreenSize() / 2;
+        
+        renderable.SetText((1 / args.Time).ToString("0.0 FPS"), -center + (0,10), 1f, false);
+        
+        renderable.UpdateVao();
+        renderable.Render();
+        renderable.ResetGeometry();
+        
+        
+        renderable.SetText(ScreenToWorldCoords((Vec2<int>)MousePosition).ToString(), -center + (0,30), 1f, false);
+        
+        renderable.UpdateVao();
+        renderable.Render();
+        renderable.ResetGeometry();
+        
         
         // swap buffers
         SwapBuffers();
     }
+    
 
     /// <summary>
     /// Initializes everything
@@ -168,6 +204,7 @@ public class MainWindow : GameWindow
             new Dirt()
         });
         
+        
         // create the world. must be done after creating the tiles
         if (_savePath != null)
         {
@@ -180,6 +217,7 @@ public class MainWindow : GameWindow
             _world = new QuadTree<IBlockMatrixTile>(new Air(), WorldDepth);
         }
         
+        Log("Created World");
         
         // run the system checks
 
@@ -203,7 +241,7 @@ public class MainWindow : GameWindow
             return;
         }
         
-        var mouseScreenCoords = (Vec2<int>)MousePosition;
+        var mouseScreenCoords = new Vec2<int>((int)Math.Floor(MousePosition.X), (int)Math.Floor(MousePosition.Y));
         var mouseWorldCoords = ScreenToWorldCoords(mouseScreenCoords);
         var center = GetScreenSize() / 2;
         
@@ -315,10 +353,10 @@ public class MainWindow : GameWindow
         // if we released lmouse while holding lshift, place the _activeBrush in the _world in the _brushRange
         if (MouseState.IsButtonReleased(MouseButton.Left) && KeyboardState.IsKeyDown(Keys.LeftShift))
         {
+            Log($"Placing at {_brushRange}");
+
             _world[_brushRange] = _activeBrush;
             _worldUpdatedSinceLastFrame = true;
-            
-            Log($"Placed at {_brushRange}");
         }
         
         // if we are not currently holding lmouse or not holding lshift, set the _leftMouseWorldCoords to the mouse pos
@@ -332,12 +370,11 @@ public class MainWindow : GameWindow
         {
             // technically buggy behaviour, but creates cool looking, "smooth" lines
             
-            Log($"Replaced {_world[_brushRange.BottomLeft]}");
-            
+            Log($"Replaced {_world[_brushRange.MaxXMaxY]}");
+            Log($"Placing at {_brushRange}");
+
             _world[_brushRange] = _activeBrush;
             _worldUpdatedSinceLastFrame = true;
-            
-            Log($"Placed at {_brushRange}");
             
         }
         
@@ -357,10 +394,10 @@ public class MainWindow : GameWindow
         // if we are currently holding mmouse, set the translation of the world
         if (MouseState.IsButtonDown(MouseButton.Middle))
         {
-            var worldTranslationOffset = (Vec2<decimal>)((Vec2<double>)(mouseScreenCoords - _middleMouseScreenCoords) / _scale);
-
+            var worldTranslationOffset = (Vec2<decimal>)((Vec2<double>)(_middleMouseScreenCoords - mouseScreenCoords) / _scale);
+            
             worldTranslationOffset = (worldTranslationOffset.X, -worldTranslationOffset.Y);
-
+            
             var newTranslation = _prevTranslation + worldTranslationOffset;
 
             if (_translation != newTranslation)
@@ -368,7 +405,6 @@ public class MainWindow : GameWindow
                 _translation = newTranslation;
                 _worldUpdatedSinceLastFrame = true;
             }
-            
         }
 
         if (MouseState.IsButtonPressed(MouseButton.Right))

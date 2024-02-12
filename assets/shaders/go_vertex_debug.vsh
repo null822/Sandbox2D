@@ -52,7 +52,7 @@ float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 void main(void)
 {
     // calculate center
-    vec2 center = screenSize / 2f;
+    vec2 center = screenSize / 2.0;
     
     // calculate screenPos
     vec2 screenPos = (((worldPos + 1) * renderScale) + translation - center) * scale + center;

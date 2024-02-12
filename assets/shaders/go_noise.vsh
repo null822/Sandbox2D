@@ -2,7 +2,7 @@
 
 in ivec2 worldPos;
 
-out vec2 pixelWorldPos;
+out ivec2 pixelWorldPos;
 out vec2 vertexPos;
 
 uniform float scale;
@@ -13,7 +13,7 @@ uniform vec2 screenSize;
 void main(void)
 {
     // calculate center
-    vec2 center = screenSize / 2f;
+    vec2 center = screenSize / 2.0;
     
     // calculate screenPos
     vec2 screenPos = (((worldPos + 1) * renderScale) + translation - center) * scale + center;

@@ -82,7 +82,7 @@ namespace Sandbox2D.Graphics
             {
                 // if there was an error, log it
                 var infoLog = GL.GetShaderInfoLog(shader);
-                Util.Error($"Error occurred whilst compiling Shader({shader}).\n\n{infoLog}");
+                Util.Error($"Error occurred whilst compiling Shader({shader}): {infoLog[..^2]}");
             }
         }
 
@@ -96,7 +96,7 @@ namespace Sandbox2D.Graphics
             if (code != (int)All.True)
             {
                 // if there was an error, log it
-                Util.Error($"Error occurred whilst linking Program({program})");
+                Util.Error($"Error occurred whilst linking Program ({program}): {code}");
             }
         }
 

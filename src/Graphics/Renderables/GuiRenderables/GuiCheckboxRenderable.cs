@@ -21,7 +21,6 @@ public class GuiCheckboxRenderable : GuiElementRenderable
         
         GL.BindVertexArray(VertexArrayObject);
         Shader.Use();
-        
         GL.DrawElements(PrimitiveType.Triangles, Indices.Count, DrawElementsType.UnsignedInt, 0);
     }
 

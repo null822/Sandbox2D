@@ -190,7 +190,12 @@ public readonly struct Vec2<T>(T x, T y)
     {
         return $"({X}, {Y})";
     }
-    
+
+    public void Deconstruct(out T x, out T y)
+    {
+        x = X;
+        y = Y;
+    }
 }
 
 internal static class NumberConvert
