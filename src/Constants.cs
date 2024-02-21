@@ -33,9 +33,9 @@ public static class Constants
     /// The depth of the world QuadTree.
     /// </summary>
     /// <remarks>
-    /// The maximum value is 62
+    /// The maximum value is 63
     /// </remarks>
-    public const byte WorldDepth  = LargeWorld ? 62 : 3;
+    public const byte WorldDepth  = LargeWorld ? 63 : 3;
     
     /// <summary>
     /// The depth of Linear QuadTree that gets uploaded to the GPU.
@@ -46,7 +46,7 @@ public static class Constants
     public const byte RenderDepth = 16;
 
 
-    // weather to print 
+    // whether to print outputs
     public const bool Log = true;
     public const bool Debug = true;
     public const bool Warn = true;

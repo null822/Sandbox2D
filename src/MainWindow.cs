@@ -33,8 +33,8 @@ public class MainWindow : GameWindow
     private bool _worldUpdatedSinceLastFrame = true;
 
     // camera position
-    private static float _scaleBase = 1;
-    private static float _scale = 1;
+    private static float _scrollPos = 1;
+    private static decimal _scale = 1;
     private static Vec2<decimal> _translation = new(0);
     private static Vec2<decimal> _prevTranslation = new(0);
 
@@ -66,6 +66,8 @@ public class MainWindow : GameWindow
         e[1, 1] = new Stone();
         
         Debug(e[1, 1].Id);
+        
+        Debug(new Range2D((0, 0), ~0ul).Width);
     }
 
     protected override void OnRenderFrame(FrameEventArgs args)
@@ -91,7 +93,7 @@ public class MainWindow : GameWindow
         
         
         // if the world or translation/scale (for culling reasons) has updated and the game is not paused,
-        // reupload the world to the gpu
+        // rerender the world to the gpu
         // if (_worldUpdatedSinceLastFrame && !_isPaused)
         {
             // update the translation and scale
@@ -103,32 +105,27 @@ public class MainWindow : GameWindow
 
             // get the world pos of the top left and bottom right corners of the screen,
             // with a small buffer to prevent culling things still partially within the frame
-            var tlScreen = ScreenToWorldCoords((0, ClientSize.Y)) - new Vec2<long>(64);
-            var brScreen = ScreenToWorldCoords((ClientSize.X, 0)) + new Vec2<long>(64);
+            var tlScreen = ScreenToWorldCoords((0, ClientSize.Y));
+            var brScreen = ScreenToWorldCoords((ClientSize.X, 0));
             var screenRange = new Range2D(tlScreen, brScreen);
             
-            // Log($"screenRange: {screenRange}");
-
-            // Error("Frame");
-
-            var lqtList = new List<QuadTreeStruct>();
+            var lqtList = new List<QuadTreeStruct>(1024);
             
-            
-            var uploadRange = _world.SerializeToLinear(ref lqtList, screenRange);
+            var renderRange = _world.SerializeToLinear(ref lqtList, screenRange);
             
             var lqt = lqtList.ToArray();
             
             
-            // foreach (var element in lqt)
-            // {
-            //     Console.WriteLine($"{element.code:b32}, {element.depth}, {element.id}");
-            // }
             
-            // Debug($"of: {uploadRange}, tr: {_translation}");
+            var renderScale = (decimal)renderRange.Width / (0x1 << RenderDepth);
+            var translation = (Vec2<float>)((_translation - (Vec2<decimal>)renderRange.Center) / renderScale);
+            var scale = (float)(_scale * renderScale);
             
-            pt.SetTransform(_translation - (Vec2<decimal>)uploadRange.Center, _scale);
+            pt.SetTransform(translation, scale);
             
             pt.SetGeometry(lqt);
+            
+            lqtList.Clear();
             
             // reset worldUpdated flag
             _worldUpdatedSinceLastFrame = false;
@@ -309,28 +306,38 @@ public class MainWindow : GameWindow
             Log("World Cleared");
         }
         
-        // zoom
-        _scaleBase += MouseState.ScrollDelta.Y / 256f;
-        _scaleBase = float.Clamp(_scaleBase, 0.00390625f, 10f);
-        
-        var newScale = (float)Math.Pow(_scaleBase, 8);
-        
-        // if the scale has changed
+        // if the scroll wheel has moved
         if (MouseState.ScrollDelta.Y != 0)
         {
+            // zoom
+            
+            var yDelta = -MouseState.ScrollDelta.Y;
+            _scrollPos += yDelta;
+            
+            var scale = (decimal)Math.Pow(1.1, -_scrollPos) * 1024;
+            
+            const decimal min = 400m / (0x1uL << WorldDepth);
+            const decimal max = 32m;
+            
+            switch (scale)
+            {
+                case < min:
+                    _scrollPos --;
+                    break;
+                case > max:
+                    _scrollPos ++;
+                    break;
+                default:
+                    _scale = scale;
+                    break;
+            }
+            
             // update _scale, and set the _worldUpdatedSinceLastFrame flag for culling reasons
-            _scale = newScale;
+            // _scale = newScale;
             _worldUpdatedSinceLastFrame = true;
         }
-        
-        // Log("====[Scale/Translation]====");
-        // Log(_scale);
-        // Log(_translation);
-        
-        
         // mouse and keyboard controls
         
-        // Log(mouseWorldCoords);
 
         // create the brush range, subtracting 1 from the max values if they are not already long.MaxValue
         var minX = Math.Min(mouseWorldCoords.X, _leftMouseWorldCoords.X);
@@ -340,14 +347,14 @@ public class MainWindow : GameWindow
         maxX = maxX == long.MaxValue ? maxX : maxX - 1;
         maxY = maxY == long.MaxValue ? maxY : maxY - 1;
         
-        const int worldSize = 0x1 << WorldDepth;
+        const long worldRadius = 0x1L << (WorldDepth - 1);
         
         // set the brushRange, clamping it within the world size
         _brushRange = new Range2D(
-            Math.Clamp(minX, -worldSize, worldSize),
-            Math.Clamp(minY, -worldSize, worldSize),
-            Math.Clamp(maxX, -worldSize, worldSize),
-            Math.Clamp(maxY, -worldSize, worldSize)
+            Math.Clamp(minX, -worldRadius, worldRadius),
+            Math.Clamp(minY, -worldRadius, worldRadius),
+            Math.Clamp(maxX, -worldRadius, worldRadius),
+            Math.Clamp(maxY, -worldRadius, worldRadius)
         );
         
         // if we released lmouse while holding lshift, place the _activeBrush in the _world in the _brushRange
@@ -394,7 +401,7 @@ public class MainWindow : GameWindow
         // if we are currently holding mmouse, set the translation of the world
         if (MouseState.IsButtonDown(MouseButton.Middle))
         {
-            var worldTranslationOffset = (Vec2<decimal>)((Vec2<double>)(_middleMouseScreenCoords - mouseScreenCoords) / _scale);
+            var worldTranslationOffset = (Vec2<decimal>)((Vec2<double>)(_middleMouseScreenCoords - mouseScreenCoords) / (double)_scale);
             
             worldTranslationOffset = (worldTranslationOffset.X, -worldTranslationOffset.Y);
             
@@ -499,7 +506,7 @@ public class MainWindow : GameWindow
     /// <summary>
     /// Returns zoom scale multiplier.
     /// </summary>
-    public static float GetScale()
+    public static decimal GetScale()
     {
         return _scale;
     }

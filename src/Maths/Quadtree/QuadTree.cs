@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Sandbox2D.Exceptions;
 using Sandbox2D.Graphics.Renderables;
@@ -26,7 +27,7 @@ internal abstract class QuadTreePart<T> where T : class, IQuadTreeValue<T>
     /// <summary>
     /// The total width/height of the QuadTreePart.
     /// </summary>
-    internal readonly long Size;
+    internal readonly ulong Size;
     
     /// <summary>
     /// The maximum depth of parts within this QuadTreePart.
@@ -77,7 +78,7 @@ internal abstract class QuadTreePart<T> where T : class, IQuadTreeValue<T>
     protected QuadTreePart(T defaultValue, byte maxDepth)
     {
         DefaultValue = defaultValue;
-        Size = (long)0x1 << maxDepth;
+        Size = 0x1ul << maxDepth;
         MaxDepth = maxDepth;
         
         AbsoluteRange = new Range2D((0, 0), Size);
@@ -140,14 +141,21 @@ internal abstract class QuadTreePart<T> where T : class, IQuadTreeValue<T>
     public abstract StringBuilder GetSvgMap(StringBuilder? nullableSvgString = null);
     
     /// <summary>
-    /// Serializes the QuadTree into a Linear QuadTree
+    /// Serializes the QuadTree into a Linear QuadTree.
     /// <param name="lqt">a reference to a list in which the lqt should be added to</param>
     /// <param name="screenRange">the currently visible portion of the world, relative to the world's center</param>
-    /// <param name="uploadRange">the (absolute) range of the resulting Linear QuadTree. Used internally</param>
+    /// <param name="renderRange">the (absolute) range of the resulting Linear QuadTree. Used internally</param>
     /// </summary>
     /// <returns>the absolute range of the resulting Linear QuadTree</returns>
     public abstract Range2D SerializeToLinear(ref List<QuadTreeStruct> lqt, Range2D screenRange,
-        Range2D uploadRange = default);
+        Range2D renderRange = default);
+    
+    /// <summary>
+    /// Returns the most common value stored within the QuadTreePart.
+    /// </summary>
+    /// <returns>the absolute range of the resulting Linear QuadTree</returns>
+    public abstract T AverageValue();
+    
     
     /// <summary>
     /// Deserializes a serialized QuadTreePart. See:
@@ -171,6 +179,48 @@ internal abstract class QuadTreePart<T> where T : class, IQuadTreeValue<T>
     {
         // write the index to the tree
         tree.Write(new []{Index2DTo1D(index)});
+    }
+
+    protected void AddToLinearQuadTree(ref List<QuadTreeStruct> lqt, Range2D renderRange, T value)
+    {
+        // if this QuadTreePart is not in the renderRange, don't try to add it to the lqt
+        if (!AbsoluteRange.Overlaps(renderRange))
+            return;
+        
+        // calculate the depth within the lqt of the new QuadTreeStruct
+        var depth = (byte)Math.Clamp(Depth - (Constants.WorldDepth - Constants.RenderDepth), 1, Constants.RenderDepth);
+        
+        // clamp the AbsoluteRange to be within the renderRange
+        var partRange = renderRange.Overlap(AbsoluteRange);
+        
+        // if this single QuadTreeStruct covers the entire lqt, split it into quarters
+        // otherwise, split it into as many squares as needed
+        var parts = partRange == renderRange ? partRange.SplitIntoQuarters() : partRange.SplitIntoSquares();
+        
+        // add each square to the lqt
+        // note that all of the squares will be of the same size due to the nature of the dimensions of `partRange`
+        foreach (var part in parts)
+        {
+            AddToLinearQuadTree(ref lqt, renderRange, part, depth, value);
+        }
+        
+    }
+
+    private static void AddToLinearQuadTree(ref List<QuadTreeStruct> lqt, Range2D renderRange, Range2D partRange, byte depth, T value)
+    {
+        // calculate the position of the top left corner of this QuadTreeLeaf, relative to the top left of the renderRange,
+        // and flip the Y axis
+        var relPosTl = (partRange.TopLeft - renderRange.TopLeft) * (1, -1);
+        
+        // scale the position to always fit into the lqt (required for extremely large-spanning lqts)
+        var renderScale = (float)renderRange.Width / (0x1 << Constants.RenderDepth);
+        var renderPos = (Vec2<uint>)((Vec2<decimal>)relPosTl / (decimal)renderScale);
+        
+        // calculate the code
+        var code = Util.Interleave(renderPos, depth);
+        
+        // assemble a QuadTreeStruct with the code, depth, and id, and add it to the lqt
+        lqt.Add(new QuadTreeStruct(code, depth, value.LinearSerializeId));
     }
 
     
@@ -420,61 +470,123 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
         return retVal;
     }
     
-    public override Range2D SerializeToLinear(ref List<QuadTreeStruct> lqt, Range2D screenRange, Range2D uploadRange = default)
+    public override Range2D SerializeToLinear(ref List<QuadTreeStruct> lqt, Range2D screenRange, Range2D renderRange = default)
     {
-        if (uploadRange == default)
+        // calculate renderRange if it is not set
+        if (renderRange == default)
         {
-            var uploadSize = Math.Max((long)Util.NextPowerOf2((ulong)Math.Max(screenRange.Width, screenRange.Height)), 0x1<<Constants.RenderDepth);
-
-            var halfUs = uploadSize / 2;
+            const ulong full64 = (ulong)long.MaxValue + 1;
             
-            // calculate the uploadCenter, rounding the screenRange's center to the nearest `uploadSize`
-            // note that screenRange.Center (when this method is run on the root QuadTree) is equal to the current translation.
-            var uploadCenterF = screenRange.CenterF / halfUs;
-            var uploadCenter = new Vec2<long>((long)Math.Round(uploadCenterF.X), (long)Math.Round(uploadCenterF.Y)) * halfUs;
+            // calculate size of the renderRange
+            var maxSize = Math.Max(screenRange.Width, screenRange.Height);
+            var next2 = Util.NextPowerOf2(maxSize);
+            var size = Math.Clamp(next2 == full64 ? next2 : next2 * 2, 0x1L << Constants.RenderDepth, Size);
+            var snapDistance = (long)(size / 2);
             
-            uploadRange = new Range2D(uploadCenter, uploadSize);
+            // calculate the center, snapping it to the nearest `snapDistance`
+            var centerF = (Vec2<decimal>)screenRange.Center;
+            var center = new Vec2<long>(
+                (long)Math.Round(centerF.X / snapDistance) * snapDistance,
+                (long)Math.Round(centerF.Y / snapDistance) * snapDistance
+            );
+            
+            // calculate min/max center positions
+            var min = RelativeRange.MinX + snapDistance;
+            var max = RelativeRange.MaxX - snapDistance;
+            
+            // clamp the center to remain within the world
+            center = new Vec2<long>(Math.Clamp(center.X, min, max), Math.Clamp(center.Y, min, max));
+            
+            // assemble renderRange, using the `center` and `size`
+            renderRange = new Range2D(center, size);
+        }
+        
+        // calculate the depth of the contained subParts
+        var subPartDepth = Math.Max(Depth+1 - (Constants.WorldDepth - Constants.RenderDepth), 0);
+        
+        // if the subParts are too deep to be added to the lqt
+        if (subPartDepth > Constants.RenderDepth)
+        {
+            // get the average of the subPart
+            var avg = AverageValue();
+            
+            // and add it to the lqt
+            AddToLinearQuadTree(ref lqt, renderRange, avg);
+            
+            // exit
+            return renderRange;
         }
         
         // for each subPart
         for (byte index1D = 0; index1D < 4; index1D++)
         {
+            // get the index2D
             var index2D = Index1DTo2D(index1D);
             
-            // get its range, relative to this QuadTree
-            var subPartRange = GetSubPartRelativeRange(index2D);
+            // get the subPart's range, relative to this QuadTree
+            var subPartRange = GetSubPartAbsoluteRange(index2D);
             
-            // if the subPart is fully or partially on screen
-            if (screenRange.Overlaps(subPartRange))
+            // if the subPart is not fully or partially on screen, ignore it and go to the next one
+            if (!screenRange.Overlaps(subPartRange))
             {
-                // get the subPart
-                var subPart = GetSubPart(index2D);
-                
-                // calculate relative screen/upload ranges
-                var relScreenRange = GetRange2DAtIndex(screenRange, index2D);
-                
-                // recursively call this method
-                subPart.SerializeToLinear(ref lqt, relScreenRange, uploadRange);
+                continue;
             }
+            
+            
+            // get the subPart
+            var subPart = GetSubPart(index2D);
+            
+            // recursively call this method
+            subPart.SerializeToLinear(ref lqt, screenRange, renderRange);
             
         }
         
-        // return the uploadRange's center
-        return uploadRange;
+        // exit
+        return renderRange;
+    }
+
+    public override T AverageValue()
+    {
+        var values = new T[4];
+        
+        // get all of the values
+        for (byte index1D = 0; index1D < 4; index1D++)
+        {
+            // get the index2D and the subPart
+            var index2D = Index1DTo2D(index1D);
+            var subPart = GetSubPart(index2D);
+
+            values[index1D] = subPart.AverageValue();
+        }
+        
+        var qty0 = values.Count(s => s == values[0]);
+        
+        if (qty0 == 4)
+            return values[0];
+        
+        var qty1 = values.Count(s => s == values[1]);
+        var qty2 = values.Count(s => s == values[2]);
+        var qty3 = values.Count(s => s == values[3]);
+        
+        var max = new [] { qty0, qty1, qty2, qty3 }.Max();
+        
+        return values[max];
     }
     
     
     public override StringBuilder GetSvgMap(StringBuilder? nullableSvgString = null)
     {
         const double scale = Constants.QuadTreeSvgScale;
+
+        var halfSize = (long)(Size / 2);
         
         var svgString = nullableSvgString ?? new StringBuilder(
             $"<svg " +
                 $"viewBox=\"" +
-                    $"{-Size/2f * scale} " +
-                    $"{-Size/2f * scale} " +
-                    $"{Size/2f * scale} " +
-                    $"{Size/2f * scale}" +
+                    $"{-halfSize * scale} " +
+                    $"{-halfSize * scale} " +
+                    $"{ halfSize * scale} " +
+                    $"{ halfSize * scale}" +
                 $"\">" +
             $"<svg/>"
             );
@@ -729,7 +841,7 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
     private Vec2<byte> GetIndex2DFromCoords(Vec2<long> targetPos, out Vec2<long> newTargetPos)
     {
         // throw exception if the targetPos is out of bounds
-        if (!RelativeRange.Contains((Vec2<double>)targetPos))
+        if (!RelativeRange.Contains(targetPos))
             throw new CoordOutOfBoundsException(targetPos, RelativeRange);
         
         // get the index of the part the targetPos is in
@@ -746,7 +858,7 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
         };
         
         // calculate the new targetPos
-        newTargetPos = targetPos - blockSign * new Vec2<long>(Size / 4);
+        newTargetPos = targetPos - blockSign * new Vec2<long>((long)(Size / 4));
         
         return index2D;
     }
@@ -774,7 +886,7 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
         };
         
         // calculate the new center
-        var newCenter = range.Center - blockSign * new Vec2<long>(Size / 4);
+        var newCenter = range.Center - blockSign * new Vec2<long>((long)(Size / 4));
         
         // calculate and return the new range
         return new Range2D(newCenter, range.Width, range.Height);
@@ -800,7 +912,7 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
         };
         
         // calculate the size of the subPart
-        var subSize = Size / 2;
+        var subSize = (long)(Size / 2);
         
         // calculate the top left coordinate of the subPart, from the direction
         var tl = AbsoluteRange.Center + direction * subSize;
@@ -818,7 +930,7 @@ internal class QuadTree<T> : QuadTreePart<T> where T : class, IQuadTreeValue<T>
     private Range2D GetSubPartRelativeRange(Vec2<byte> index)
     {
         var halfSize = Size / 2;
-        var quartSize = Size / 4;
+        var quartSize = (long)(Size / 4);
         
         return index switch
         {
@@ -941,35 +1053,28 @@ internal class QuadTreeLeaf<T> : QuadTreePart<T>
     
     
     public override Range2D SerializeToLinear(ref List<QuadTreeStruct> lqt, Range2D screenRange,
-        Range2D uploadRange = default)
+        Range2D renderRange = default)
     {
-        var depth = Math.Clamp(Depth - (Constants.WorldDepth - 16), 0, 16);
+        // add this QuadTreeLeaf to the lqt
+        AddToLinearQuadTree(ref lqt, renderRange, _value);
         
-        // calculate the position of the top left corner of this QuadTreeLeaf, relative to the top left of the uploadRange,
-        // and flip the Y axis
-        var relPos = (AbsoluteRange.Overlap(uploadRange).TopLeft - uploadRange.TopLeft) * (1, -1);
-        
-        var code = Util.Interleave(relPos);
-        
-        // assemble a QuadTreeStruct with the code, maxDepth, and id, and add it to the lqt
-        lqt.Add(new QuadTreeStruct(code, (byte)depth, _value.LinearSerializeId));
-        
-        
-        // the relative center of this QuadTreeLeaf is always at (0, 0), so return that
-        return uploadRange;
+        // return the renderRange
+        return renderRange;
     }
 
     public override StringBuilder GetSvgMap(StringBuilder? nullableSvgString = null)
     {
         const double scale = Constants.QuadTreeSvgScale;
 
+        var halfSize = (long)(Size/2);
+        
         var svgString = nullableSvgString ?? new StringBuilder(
             $"<svg " +
             $"viewBox=\"" +
-            $"{-Size/2f * scale} " +
-            $"{-Size/2f * scale} " +
-            $"{Size/2f * scale} " +
-            $"{Size/2f * scale}" +
+            $"{-halfSize * scale} " +
+            $"{-halfSize * scale} " +
+            $"{ halfSize * scale} " +
+            $"{ halfSize * scale}" +
             $"\">" +
             $"<svg/>"
         );
@@ -1008,7 +1113,12 @@ internal class QuadTreeLeaf<T> : QuadTreePart<T>
         // write the pointer of the value to the tree stream
         tree.Write(BitConverter.GetBytes(pointer));
     }
-
+    
+    public override T AverageValue()
+    {
+        return _value;
+    }
+    
     public T GetValue()
     {
         return _value;
@@ -1031,11 +1141,6 @@ internal static class QuadTreeUtil
         if (index > 3) throw new InvalidIndexException(new Vec2<int>(index % 2, (int)Math.Floor(index / 2f)));
     }
     
-    private static void CheckIndex2D(Vec2<byte> index2D)
-    {
-        if (index2D.X is not (1 or 0) || index2D.Y is not (1 or 0)) throw new InvalidIndexException(index2D);
-    }
-
     internal static byte Index2DTo1D(Vec2<byte> index2D)
     {
         return (byte)(index2D.X + index2D.Y * 2);

@@ -11,33 +11,12 @@ public class PathTracedRenderable : Renderable
 {
     private Vector2 _translation = Vector2.Zero;
     private float _scale = 1;
-    
+    // private float _renderScale = 1;
+
     private readonly Texture _dynTilemap;
 
-    private Vec2<long> _vertexOffset = new (0);
-    private float _renderScale = 1;
     
-    private QuadTreeStruct[] _geometry = [
-        // new QuadTreeStruct(   0b_00_00, 2, 2),
-        // new QuadTreeStruct(0b_00_01_00, 3, 3),
-        // new QuadTreeStruct(0b_01_01_00, 3, 3),
-        // new QuadTreeStruct(0b_10_01_00, 3, 3),
-        // new QuadTreeStruct(0b_11_01_00, 3, 3),
-        // new QuadTreeStruct(   0b_10_00, 2, 2),
-        // new QuadTreeStruct(   0b_11_00, 2, 2),
-        // new QuadTreeStruct(      0b_01, 1, 1),
-        // new QuadTreeStruct(      0b_10, 1, 1),
-        // new QuadTreeStruct(0b_00_00_11, 3, 3),
-        // new QuadTreeStruct(0b_01_00_11, 3, 3),
-        // new QuadTreeStruct(0b_10_00_11, 3, 3),
-        // new QuadTreeStruct(0b_11_00_11, 3, 3),
-        // new QuadTreeStruct(   0b_01_11, 2, 2),
-        // new QuadTreeStruct(0b_00_10_11, 3, 3),
-        // new QuadTreeStruct(0b_01_10_11, 3, 3),
-        // new QuadTreeStruct(0b_10_10_11, 3, 3),
-        // new QuadTreeStruct(0b_11_10_11, 3, 3),
-        // new QuadTreeStruct(   0b_11_11, 2, 2)
-    ];
+    private QuadTreeStruct[] _geometry = [];
     
     /// <summary>
     /// The SSBO that contains the world geometry to be rendered
@@ -89,6 +68,9 @@ public class PathTracedRenderable : Renderable
         loc = GL.GetUniformLocation(Shader.Handle, "scale");
         GL.Uniform1(loc, 1, ref _scale);
         
+        // loc = GL.GetUniformLocation(Shader.Handle, "renderScale");
+        // GL.Uniform1(loc, 1, ref _renderScale);
+        
         loc = GL.GetUniformLocation(Shader.Handle, "translation");
         GL.Uniform2(loc, ref _translation);
         
@@ -109,7 +91,6 @@ public class PathTracedRenderable : Renderable
         if (_prevFrameGlobalUpdatedSinceLastFrame)
             _globalUpdatedSinceLastFrame = false;
         
-        
         // update the VAO if necessary
         if (_globalUpdatedSinceLastFrame)
             UpdateVao();
@@ -126,6 +107,7 @@ public class PathTracedRenderable : Renderable
         
         // set the uniforms
         Shader.SetFloat("scale", _scale);
+        // Shader.SetFloat("renderScale", _renderScale);
         Shader.SetVector2("translation", _translation);
         Shader.SetVector2("screenSize", Program.Get().ClientSize);
 
@@ -185,7 +167,7 @@ public class PathTracedRenderable : Renderable
         ShouldRender = true;
     }
 
-    public void SetTransform(Vec2<decimal> translation, float scale)
+    public void SetTransform(Vec2<float> translation, float scale)
     {
         _translation = translation;
         _scale = scale;

@@ -8,7 +8,7 @@ public static class Util
     private const ConsoleColor ErrorColor = ConsoleColor.Red;
     private const ConsoleColor WarnColor = ConsoleColor.Yellow;
     private const ConsoleColor DebugColor = ConsoleColor.Green;
-    private const ConsoleColor LogColor = ConsoleColor.Blue;
+    private const ConsoleColor LogColor = ConsoleColor.Cyan;
 
     private const ConsoleColor DefaultColor = ConsoleColor.White;
 
@@ -24,10 +24,10 @@ public static class Util
         screenCoords = new Vec2<int>(screenCoords.X, screenSize.Y - screenCoords.Y);
         
         var center = (Vec2<decimal>)screenSize / 2;
-        var value = ((Vec2<decimal>)screenCoords - center) / new Vec2<decimal>((decimal)MainWindow.GetScale()) + MainWindow.GetTranslation() + center;
+        var value = ((Vec2<decimal>)screenCoords - center) / new Vec2<decimal>(MainWindow.GetScale()) + MainWindow.GetTranslation() + center;
         
         return new Vec2<long>(
-            (long)Math.Clamp(Math.Floor(value.X), long.MinValue, long.MaxValue), 
+            (long)Math.Clamp(Math.Floor(value.X), long.MinValue, long.MaxValue),
             (long)Math.Clamp(Math.Floor(value.Y), long.MinValue, long.MaxValue));
 
     }
@@ -41,7 +41,7 @@ public static class Util
         var screenSize = Program.Get().GetScreenSize();
 
         var center = (Vec2<float>)screenSize / 2f;
-        var value = ((Vec2<decimal>)worldCoords + MainWindow.GetTranslation() - (Vec2<decimal>)center) * (decimal)MainWindow.GetScale() + (Vec2<decimal>)center;
+        var value = ((Vec2<decimal>)worldCoords + MainWindow.GetTranslation() - (Vec2<decimal>)center) * MainWindow.GetScale() + (Vec2<decimal>)center;
         
         return new Vec2<int>(
                            (int)Math.Clamp(Math.Floor(value.X), int.MinValue, int.MaxValue), 
@@ -73,11 +73,11 @@ public static class Util
     }
     
     
-    public static uint Interleave(Vec2<uint> pos)
+    public static uint Interleave(Vec2<uint> pos, byte depth)
     {
         uint code = 0;
         
-        for(var i = 0; i < Constants.RenderDepth; i++)
+        for(var i = 0; i < depth; i++)
         {
             code |= (pos.X >> (Constants.RenderDepth-1-i) & 0x1u) << i*2;
             code |= (pos.Y >> (Constants.RenderDepth-1-i) & 0x1u) << i*2+1;
@@ -105,10 +105,34 @@ public static class Util
     }
     
     /// <summary>
-    /// Returns the next highest power of 2, from a value.
+    /// Returns the lowest power of 2 above a value.
     /// </summary>
     /// <param name="v">the value</param>
     public static ulong NextPowerOf2(ulong v)
+    {
+        const ulong half64 = ulong.MaxValue / 4 + 1;
+        const ulong full64 = ulong.MaxValue / 2 + 1;
+        
+        if (v > half64)
+            return full64;
+        
+        v--;
+        v |= v >> 1;
+        v |= v >> 2;
+        v |= v >> 4;
+        v |= v >> 8;
+        v |= v >> 16;
+        v |= v >> 32;
+        v++;
+        
+        return v;
+    }
+    
+    /// <summary>
+    /// Returns the highest power of 2 below a value.
+    /// </summary>
+    /// <param name="v">the value</param>
+    public static ulong PrevPowerOf2(ulong v)
     {
         v--;
         v |= v >> 1;
@@ -118,8 +142,8 @@ public static class Util
         v |= v >> 16;
         v |= v >> 32;
         v++;
-
-        return v;
+        
+        return v / 2;
     }
     
     public static void Error(object text)

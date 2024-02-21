@@ -5,6 +5,7 @@ in vec3 aPosition;
 out vec3 position;
 
 uniform float scale;
+uniform float renderScale;
 uniform vec2 translation;
 uniform vec2 screenSize;
 
