@@ -149,7 +149,7 @@ public class TileRenderable : Renderable
     public static void SetTransform(Vec2<decimal> translation, float scale)
     {
         var minCorner = Util.ScreenToWorldCoords(new Vec2<int>(0));
-        var maxCorner = Util.ScreenToWorldCoords(Program.Get().GetScreenSize());
+        var maxCorner = Util.ScreenToWorldCoords(GameManager.ScreenSize);
         
         var regionSize = maxCorner - minCorner;
 

@@ -110,7 +110,7 @@ public class FontRenderable : Renderable
     {
         _scale = size;
         
-        var screenSize = Program.Get().GetScreenSize();
+        var screenSize = GameManager.ScreenSize;
         var screenCenter = screenSize / 2;
 
         var textScreenSize = new Vec2<float>(text.Length * (GlyphSize.X + 1) * size, GlyphSize.Y * size);

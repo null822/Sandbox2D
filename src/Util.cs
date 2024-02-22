@@ -19,17 +19,16 @@ public static class Util
     /// <param name="screenCoords">The coords from the screen to convert</param>
     public static Vec2<long> ScreenToWorldCoords(Vec2<int> screenCoords)
     {
-        var screenSize = Program.Get().GetScreenSize();
-
+        var screenSize = GameManager.ScreenSize;
+        
         screenCoords = new Vec2<int>(screenCoords.X, screenSize.Y - screenCoords.Y);
         
         var center = (Vec2<decimal>)screenSize / 2;
-        var value = ((Vec2<decimal>)screenCoords - center) / new Vec2<decimal>(MainWindow.GetScale()) + MainWindow.GetTranslation() + center;
+        var value = ((Vec2<decimal>)screenCoords - center) / GameManager.Scale + GameManager.Translation + center;
         
         return new Vec2<long>(
             (long)Math.Clamp(Math.Floor(value.X), long.MinValue, long.MaxValue),
             (long)Math.Clamp(Math.Floor(value.Y), long.MinValue, long.MaxValue));
-
     }
     
     /// <summary>
@@ -38,10 +37,10 @@ public static class Util
     /// <param name="worldCoords">The coords from the game to convert</param>
     public static Vec2<int> WorldToScreenCoords(Vec2<long> worldCoords)
     {
-        var screenSize = Program.Get().GetScreenSize();
+        var screenSize = GameManager.ScreenSize;
 
         var center = (Vec2<float>)screenSize / 2f;
-        var value = ((Vec2<decimal>)worldCoords + MainWindow.GetTranslation() - (Vec2<decimal>)center) * MainWindow.GetScale() + (Vec2<decimal>)center;
+        var value = ((Vec2<decimal>)worldCoords + GameManager.Translation - (Vec2<decimal>)center) * GameManager.Scale + (Vec2<decimal>)center;
         
         return new Vec2<int>(
                            (int)Math.Clamp(Math.Floor(value.X), int.MinValue, int.MaxValue), 
@@ -51,7 +50,7 @@ public static class Util
     public static Vec2<float> ScreenToVertexCoords(Vec2<int> screenCoords)
     {
         // get the screen size
-        var screenSize = Program.Get().GetScreenSize();
+        var screenSize = GameManager.ScreenSize;
         
         // cast screenCoords to a float
         var vertexCoords = (Vec2<float>)screenCoords;

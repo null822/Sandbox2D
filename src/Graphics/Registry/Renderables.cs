@@ -49,7 +49,8 @@ public static class Renderables
         
         Util.Log("Created Renderables");
     }
-
+    
+    //TODO: make this less awful
     private static void Run(Func<Renderable, bool> lambda)
     {
         lambda.Invoke(_vertexDebug);

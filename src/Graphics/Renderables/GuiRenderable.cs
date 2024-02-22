@@ -67,7 +67,7 @@ public class GuiRenderable : Renderable
         // get the next available index in _vertices
         var indexOffset = (uint)(Vertices.Count / 3f);
 
-        var center = Program.Get().GetScreenSize() / 2;
+        var center = GameManager.ScreenSize / 2;
 
         var vertexTl = Util.ScreenToVertexCoords((Vec2<int>)((Vec2<float>)tl * Constants.GuiScale) + center);
         var vertexBr = Util.ScreenToVertexCoords((Vec2<int>)((Vec2<float>)br * Constants.GuiScale) + center);

@@ -46,6 +46,10 @@ public static class Constants
     public const byte RenderDepth = 16;
 
 
+    public const int MasterTps = 80;
+    public const int TicksPerLogicTick = 4;
+
+
     // whether to print outputs
     public const bool Log = true;
     public const bool Debug = true;
