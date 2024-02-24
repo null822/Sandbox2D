@@ -2,12 +2,9 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
-using OpenTK.Windowing.GraphicsLibraryFramework;
 using Sandbox2D.Graphics.Renderables;
-using Sandbox2D.GUI;
 using Sandbox2D.Maths;
 using Sandbox2D.Maths.QuadTree;
 using Sandbox2D.World;
@@ -19,44 +16,29 @@ namespace Sandbox2D;
 
 public static class GameManager
 {
-    private const int Mspt = 1000 / MasterTps;
+    private static QuadTree<ITile, QtTile<ITile>> _world;
     
-    private static QuadTree<IBlockMatrixTile> _world;
-    
-    // world editing
-    private static IBlockMatrixTile _activeBrush;
-    private static uint _brushId;
-    private static Range2D _brushRange;
-    private static Vec2<long> _leftMouseWorldCoords = new(0);
-    private static Vec2<int> _middleMouseScreenCoords = new(0);
-
     // camera
     public static Vec2<decimal> Translation { private set; get; }
     public static decimal Scale { private set; get; } = 1;
     public static Vec2<int> ScreenSize { private set; get; }
     
-    // controls
-    private static float _scrollPos = 1;
-    private static Vec2<decimal> _prevTranslation = new(0);
-    private static KeyboardState _keyboardState;
-    private static MouseState _mouseState;
-    
     // rendering
     private static int _prevLqtLength;
     private static bool _worldUpdatedSinceLastFrame = true;
-    private static Range2D _renderRange = new ((0, 0), 0x1 << RenderDepth);
+    public static Range2D RenderRange { get; private set; } = new ((0, 0), 0x1 << RenderDepth);
     
     // game state
     public static bool IsRunning { private set; get; }
     private static bool _isActive = true;
-
-    private static long _totalTicks;
+    public static bool WorldBuffer { get; private set; }
     
+    /// <summary>
+    /// Main logic loop.
+    /// </summary>
+    /// <remarks>Returns once the logic thread has shut down</remarks>
     public static void Run()
     {
-        // set thread affinity to 1 avoid changing cores
-        SetThreadAffinityMask(GetCurrentThread(), new IntPtr(1));
-        
         // initialize the logic
         Initialize();
         
@@ -69,49 +51,118 @@ public static class GameManager
             // restart the stopwatch
             stopwatch.Restart();
             
-            // if the game should be running, update it
             if (IsRunning)
             {
-                UpdateControls();
+                // update the logic
+                UpdateLogic();
                 
-                // if this tick is a logic tick, update the logic
-                if (_totalTicks % TicksPerLogicTick == 0)
-                {
-                    UpdateLogic();
-                }
-                
-                _totalTicks++;
+                // update the render thread
+                UpdateRender();
             }
+            
+            const int mspt = 1000 / Tps;
             
             var elapsed = (int)stopwatch.Elapsed.TotalMilliseconds;
-            var sleepTime = Mspt - elapsed;
+            var sleepTime = Math.Max(mspt - elapsed, 0);
             
+            // calculate tps
+            var derivedTps = 1000f / (elapsed + sleepTime);
+            
+            // update tps metric on the render thread
+            RenderManager.UpdateTps(derivedTps);
+            
+            // sleep for the remaining time in the tick
             if (sleepTime > 0)
             {
-                // sleep for the remaining time in the tick
                 Thread.Sleep(sleepTime);
             }
-            else if (IsRunning)
-            {
-                Warn($"Game is running slowly! Running at {1000f/elapsed:F1} TPS");
-            }
-            
-            
         }
+        
+        // signal that the thread has shut down
+        _isActive = true;
         
         Log("Game Logic Thread Shut Down");
     }
     
-    
+    /// <summary>
+    /// Updates the game logic.
+    /// </summary>
     private static void UpdateLogic()
     {
+        var worldModifications = new KeyValuePair<Range2D, ITile>[RenderManager.WorldModifications.Count];
+        RenderManager.WorldModifications.CopyTo(worldModifications);
         
+        // apply any world modifications
+        foreach (var modification in worldModifications)
+        {
+            _world[modification.Key] = modification.Value;
+        }
         
+        if (worldModifications.Length != 0)
+            _worldUpdatedSinceLastFrame = true;
+
+        var nullableAction = RenderManager.WorldAction;
         
-        // update the render
-        UpdateRender();
+        if (nullableAction != null)
+        {
+            var action = nullableAction.Value;
+            
+            switch (action.action)
+            {
+                case WorldAction.Save:
+                {
+                    var save = File.Create("save.qdt");
+                    
+                    _world.Serialize(save);
+                    
+                    save.Close();
+                    Log("QuadTree Saved");
+                    break;
+                }
+                case WorldAction.Load:
+                {
+                    var save = File.Open(action.arg, FileMode.Open);
+                    
+                    _world = QuadTree<ITile, QtTile<ITile>>.Deserialize(save);
+                    
+                    save.Close();
+                    
+                    _worldUpdatedSinceLastFrame = true;
+                    
+                    Log("QuadTree Loaded");
+                    
+                    break;
+                }
+                case WorldAction.Clear:
+                {
+                    _world = new QuadTree<ITile, QtTile<ITile>>(new Air(), WorldDepth);
+                    
+                    _worldUpdatedSinceLastFrame = true;
+                    
+                    Log("World Cleared");
+                    
+                    break;
+                }
+                case WorldAction.Map:
+                {
+                    var svgMap = _world.GetSvgMap().ToString();
+                    
+                    var map = File.Create(action.arg);
+                    map.Write(Encoding.ASCII.GetBytes(svgMap));
+                    map.Close();
+                    Log("QuadTree Mapped");
+                    
+                    break;
+                }
+            }
+        }
+        
+        RenderManager.ResetWorldModifications();
     }
     
+    /// <summary>
+    /// Updates the render thread.
+    /// </summary>
     private static void UpdateRender()
     {
         // update the world geometry if needed
@@ -122,269 +173,65 @@ public static class GameManager
             var tlScreen = ScreenToWorldCoords((0, ScreenSize.Y));
             var brScreen = ScreenToWorldCoords((ScreenSize.X, 0));
             var screenRange = new Range2D(tlScreen, brScreen);
-        
+            
             // create the lqt as a list, with the starting size of the previous lqt's length
             var lqtList = new List<QuadTreeStruct>(_prevLqtLength);
-        
+            
             // serialize the _world
-            _renderRange = _world.SerializeToLinear(ref lqtList, screenRange);
+            RenderRange = _world.SerializeToLinear(ref lqtList, screenRange);
             var lqt = lqtList.ToArray();
+            lqtList.Clear();
             
             // update prev lqt length
             _prevLqtLength = lqt.Length;
-        
+            
             // calculate renderScale
-            var renderScale = (decimal)_renderRange.Width / (0x1 << RenderDepth);
-        
+            var renderScale = (decimal)RenderRange.Width / (0x1 << RenderDepth);
+            
             // calculate scale/translation
             var scale = (float)(Scale * renderScale);
-            var translation = (Vec2<float>)((Translation - (Vec2<decimal>)_renderRange.Center) / renderScale);
-
+            var translation = (Vec2<float>)((Translation - (Vec2<decimal>)RenderRange.Center) / renderScale);
+            
             // update the lqt on the render thread
             RenderManager.UpdateLqt(lqt, scale, translation);
-            
-            // clear the lqtList
-            lqtList.Clear();
             
             // reset _worldUpdatedSinceLastFrame
             _worldUpdatedSinceLastFrame = false;
         }
     }
     
-    private static void UpdateControls()
-    {
-        var mouseScreenCoords = new Vec2<int>((int)Math.Floor(_mouseState.X), (int)Math.Floor(_mouseState.Y));
-        var mouseWorldCoords = ScreenToWorldCoords(mouseScreenCoords);
-        
-        var center = ScreenSize / 2;
-        
-        if (_keyboardState.IsKeyPressed(Keys.Escape))
-        {
-            IsRunning = !IsRunning;
-            GuiManager.SetVisibility(0, IsRunning);
-        }
-        
-        
-        if (!IsRunning)
-        {
-            // if the game is paused, update only the pause menu
-            GuiManager.MouseOver(mouseScreenCoords - center, 0);
-            return;
-        }
-        
-        // update GUIs
-        GuiManager.MouseOver(mouseScreenCoords - center);
-
-        
-        // keyboard-only controls
-        
-        // mapping/saving/loading/clearing
-        if (_keyboardState.IsKeyPressed(Keys.M))
-        {
-            var svgMap = _world.GetSvgMap().ToString();
-            
-            var map = File.Create("BlockMatrixMap.svg");
-            map.Write(Encoding.ASCII.GetBytes(svgMap));
-            map.Close();
-            
-            Log("QuadTree Map Saved");
-        }
-        if (_keyboardState.IsKeyPressed(Keys.S))
-        {
-            var save = File.Create("save.qdt");
-
-            _world.Serialize(save);
-
-            save.Close();
-            Log("QuadTree Saved");
-        }
-        if (_keyboardState.IsKeyPressed(Keys.L))
-        {
-            
-            var save = File.Open("save.qdt", FileMode.Open);
-
-            _world = QuadTree<IBlockMatrixTile>.Deserialize(save);
-            
-            save.Close();
-            
-            _worldUpdatedSinceLastFrame = true;
-
-            Log("QuadTree Loaded");
-
-        }
-        if (_keyboardState.IsKeyPressed(Keys.C))
-        {
-            _world = new QuadTree<IBlockMatrixTile>(
-                new Air(),
-                WorldDepth);
-
-            _worldUpdatedSinceLastFrame = true;
-            
-            Log("World Cleared");
-        }
-        
-        
-        // if the scroll wheel has moved
-        if (_mouseState.ScrollDelta.Y != 0)
-        {
-            // zoom
-            
-            var yDelta = -_mouseState.ScrollDelta.Y;
-            _scrollPos += yDelta;
-            
-            var scale = (decimal)Math.Pow(1.1, -_scrollPos) * 1024;
-            
-            const decimal min = 400m / (0x1uL << WorldDepth);
-            const decimal max = 32m;
-            
-            switch (scale)
-            {
-                case < min:
-                    _scrollPos --;
-                    break;
-                case > max:
-                    _scrollPos ++;
-                    break;
-                default:
-                    Scale = scale;
-                    break;
-            }
-            
-            // update _scale, and set the _worldUpdatedSinceLastFrame flag for culling reasons
-            // _scale = newScale;
-            _worldUpdatedSinceLastFrame = true;
-        }
-        // mouse and keyboard controls
-        
-
-        // create the brush range, subtracting 1 from the max values if they are not already long.MaxValue
-        var minX = Math.Min(mouseWorldCoords.X, _leftMouseWorldCoords.X);
-        var minY = Math.Min(mouseWorldCoords.Y, _leftMouseWorldCoords.Y);
-        var maxX = Math.Max(mouseWorldCoords.X, _leftMouseWorldCoords.X);
-        var maxY = Math.Max(mouseWorldCoords.Y, _leftMouseWorldCoords.Y);
-        maxX = maxX == long.MaxValue ? maxX : maxX - 1;
-        maxY = maxY == long.MaxValue ? maxY : maxY - 1;
-        
-        const long worldRadius = 0x1L << (WorldDepth - 1);
-        
-        // set the brushRange, clamping it within the world size
-        _brushRange = new Range2D(
-            Math.Clamp(minX, -worldRadius, worldRadius),
-            Math.Clamp(minY, -worldRadius, worldRadius),
-            Math.Clamp(maxX, -worldRadius, worldRadius),
-            Math.Clamp(maxY, -worldRadius, worldRadius)
-        );
-        
-        // if we released lmouse while holding lshift, place the _activeBrush in the _world in the _brushRange
-        if (_mouseState.IsButtonReleased(MouseButton.Left) && _keyboardState.IsKeyDown(Keys.LeftShift))
-        {
-            Log($"Placing at {_brushRange}");
-
-            _world[_brushRange] = _activeBrush;
-            _worldUpdatedSinceLastFrame = true;
-        }
-        
-        // if we are not currently holding lmouse or not holding lshift, set the _leftMouseWorldCoords to the mouse pos
-        if (!_mouseState.IsButtonDown(MouseButton.Left) || !_keyboardState.IsKeyDown(Keys.LeftShift))
-        {
-            _leftMouseWorldCoords = mouseWorldCoords;
-        }
-        
-        // if we are currently holding lmouse and are not holding lshift, place the brush in the world
-        if (_mouseState.IsButtonDown(MouseButton.Left) && !_keyboardState.IsKeyDown(Keys.LeftShift))
-        {
-            // technically buggy behaviour, but creates cool looking, "smooth" lines
-            
-            Log($"Replaced {_world[_brushRange.MaxXMaxY]}");
-            Log($"Placing at {_brushRange}");
-
-            _world[_brushRange] = _activeBrush;
-            _worldUpdatedSinceLastFrame = true;
-            
-        }
-        
-        // if we pressed lmouse, set the _leftMouseWorldCoords to the mouse pos
-        if (_mouseState.IsButtonPressed(MouseButton.Left))
-        {
-            _leftMouseWorldCoords = mouseWorldCoords;
-        }
-        
-        // if we pressed mmouse, set the _middleMouseScreenCoords to the mouse pos
-        if (_mouseState.IsButtonPressed(MouseButton.Middle))
-        {
-            _middleMouseScreenCoords = mouseScreenCoords;
-            _prevTranslation = Translation;
-        }
-        
-        // if we are currently holding mmouse, set the translation of the world
-        if (_mouseState.IsButtonDown(MouseButton.Middle))
-        {
-            var worldTranslationOffset = (Vec2<decimal>)((Vec2<double>)(_middleMouseScreenCoords - mouseScreenCoords) / (double)Scale);
-            
-            worldTranslationOffset = (worldTranslationOffset.X, -worldTranslationOffset.Y);
-            
-            var newTranslation = _prevTranslation + worldTranslationOffset;
-
-            if (Translation != newTranslation)
-            {
-                Translation = newTranslation;
-                _worldUpdatedSinceLastFrame = true;
-            }
-        }
-
-        if (_mouseState.IsButtonPressed(MouseButton.Right))
-        {
-            _brushId = (_brushId + 1) % 3;
-
-            _activeBrush = _brushId switch
-            {
-                0 => new Air(),
-                1 => new Stone(),
-                2 => new Dirt(),
-                _ => new Air()
-            };
-                
-            
-            Log($"Brush Changed to {_activeBrush.Name}");
-        }
-        
-        
-        if (_keyboardState.IsKeyPressed(Keys.LeftControl))
-        {
-            Log($"Mouse Position: {mouseWorldCoords}");
-            _worldUpdatedSinceLastFrame = true;
-        }
-        
-        // calculate renderScale
-        var renderScale = (decimal)_renderRange.Width / (0x1 << RenderDepth);
-        
-        // calculate scale/translation
-        var rScale = (float)(Scale * renderScale);
-        var rTranslation = (Vec2<float>)((Translation - (Vec2<decimal>)_renderRange.Center) / renderScale);
-
-        
-        RenderManager.UpdateTransform(rScale, rTranslation);
-    }
     
     
     /// <summary>
-    /// Initializes everything. Run once, when the game launches
+    /// Initializes everything. Run once when the game launches.
     /// </summary>
     private static void Initialize()
     {
-        _world = new QuadTree<IBlockMatrixTile>(new Air(), WorldDepth);
+        Prog("===============[ LOGIC LOADING  ]===============");
+
+        
+        // create tiles
+        Tiles.Instantiate(new ITile[]
+        {
+            new Air(),
+            new Stone(),
+            new Dirt()
+        });
+        
+        // create wold
+        _world = new QuadTree<ITile, QtTile<ITile>>(new Air(), WorldDepth);
         
         Log("Created World");
-
+        
         // run the system checks
-
-        Log("===============[SYSTEM CHECKS]===============");
+        Prog("===============[ SYSTEM CHECKS  ]===============");
         SystemChecks();
         
-        Log("===============[BEGIN PROGRAM]===============");
     }
     
-    
+    /// <summary>
+    /// Makes sure everything works.
+    /// </summary>
     private static void SystemChecks()
     {
         Log("log text");
@@ -399,41 +246,72 @@ public static class GameManager
         
         Debug(new Vec2<int>(10, 2) + new Vec2<int>(11, 1));
 
-        var e = new QuadTree<IBlockMatrixTile>(new Air(), 3);
+        var e = new QuadTree<ITile, QtTile<ITile>>(new Air(), 3);
         
         e[1, 1] = new Stone();
         
-        Debug(e[1, 1].Id);
+        Debug(e[1, 1].Get());
     }
 
     // public setters
 
     /// <summary>
-    /// Starts the game logic
+    /// Sets whether the game is running.
     /// </summary>
     public static void SetRunning(bool value)
     {
         if (IsRunning != value)
             IsRunning = value;
     }
-
-    public static void SetScreenSize(Vec2<int> size)
+    
+    /// <summary>
+    /// Shuts down the Logic Thread and returns once it is shut down.
+    /// </summary>
+    public static void Close()
+    {
+        _isActive = false;
+        
+        while (!_isActive)
+        {
+            Thread.Sleep(10);
+        }
+    }
+    
+    /// <summary>
+    /// Updates the screen size on the render thread.
+    /// </summary>
+    /// <param name="size">the new screen size</param>
+    /// <remarks>Causes the world to be re-uploaded to the gpu.</remarks>
+    public static void UpdateScreenSize(Vec2<int> size)
     {
         ScreenSize = size;
-    }
 
-    public static void SetInputs(MouseState ms, KeyboardState ks)
-    {
-        _mouseState = ms;
-        _keyboardState = ks;
-        
+        _worldUpdatedSinceLastFrame = true;
     }
     
-    // DllImports
-    
-    [DllImport("kernel32", SetLastError = true)]
-    private static extern IntPtr SetThreadAffinityMask(IntPtr hThread, IntPtr dwThreadAffinityMask);
-    
-    [DllImport("kernel32")]
-    private static extern IntPtr GetCurrentThread();
+    /// <summary>
+    /// Sets the transformation (scale/translation) for th next tick.
+    /// </summary>
+    /// <param name="scale">the new scale</param>
+    /// <param name="translation">the new translation</param>
+    /// <remarks>Causes the world to be re-uploaded to the gpu if something was changed.</remarks>
+    public static void SetTransform(decimal scale, Vec2<decimal> translation)
+    {
+        // if nothing has changed, exit
+        if (Scale == scale && Translation == translation)
+            return;
+        
+        Scale = scale;
+        Translation = translation;
+
+        _worldUpdatedSinceLastFrame = true;
+    }
+}
+
+public enum WorldAction
+{
+    Save,
+    Load,
+    Clear,
+    Map
 }

@@ -1,36 +1,48 @@
-﻿using Sandbox2D.Graphics.Registry;
-using Sandbox2D.Graphics.Renderables;
-using Sandbox2D.Maths;
+﻿using System;
+using Sandbox2D.Maths.Quadtree;
 
 namespace Sandbox2D.World;
 
-public interface ITile
+/// <summary>
+/// Represents a Tile
+/// </summary>
+public interface ITile : IQtSerializable<ITile>
 {
     /// <summary>
-    /// The name of the tile
+    /// The id of the tile
     /// </summary>
-    public string Name => "unnamed";
+    public int Id { get; }
     
     /// <summary>
     /// The name of the tile
     /// </summary>
-    public uint Id { get; }
-
-    /// <summary>
-    /// The renderable to use
-    /// </summary>
-    protected ref TileRenderable Renderable => ref Renderables.Air;
-
-    /// <summary>
-    /// Adds this tile to the supplied renderable, given its pos/size
-    /// </summary>
-    /// <param name="worldRange">the area this tile takes up, in world coordinates</param>
-    public void AddToRenderable(Range2D worldRange)
+    public string Name { get; }
+    
+    
+    public ITile Get()
     {
-        Renderable.AddQuad(
-            new Vec2<long>(worldRange.MaxX, worldRange.MaxY),
-            new Vec2<long>(worldRange.MinX, worldRange.MinY)
-        );
+        return Tiles.GetTile(Id);
     }
     
+    bool IQtSerializable<ITile>.Equals(IQuadTreeValue<ITile> a)
+    {
+        return Id == a.Get().Id;
+    }
+    
+    ReadOnlySpan<byte> IQtSerializable<ITile>.Serialize()
+    {
+        return BitConverter.GetBytes(Id);
+    }
+    
+    static ITile IQtSerializable<ITile>.Deserialize(ReadOnlySpan<byte> bytes)
+    {
+        return Tiles.GetTile(BitConverter.ToInt32(bytes));
+    }
+    
+    static uint IQtSerializable<ITile>.SerializeLength => sizeof(int);
+    
+    uint IQtSerializable<ITile>.LinearSerialize()
+    {
+        return (uint)Id;
+    }
 }

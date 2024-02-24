@@ -45,16 +45,18 @@ public static class Constants
     /// </remarks>
     public const byte RenderDepth = 16;
 
-
-    public const int MasterTps = 80;
-    public const int TicksPerLogicTick = 4;
-
-
+    /// <summary>
+    /// The TPS (Ticks Per Second) the game logic will attempt to run at.
+    /// </summary>
+    public const int Tps = 20;
+    
+    
     // whether to print outputs
     public const bool Log = true;
     public const bool Debug = true;
+    public const bool Prog = true;
     public const bool Warn = true;
     public const bool Error = true;
     
-
+    
 }

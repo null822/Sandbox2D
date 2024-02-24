@@ -8,7 +8,8 @@ public static class Util
     private const ConsoleColor ErrorColor = ConsoleColor.Red;
     private const ConsoleColor WarnColor = ConsoleColor.Yellow;
     private const ConsoleColor DebugColor = ConsoleColor.Green;
-    private const ConsoleColor LogColor = ConsoleColor.Cyan;
+    private const ConsoleColor ProgColor = ConsoleColor.Cyan;
+    private const ConsoleColor LogColor = ConsoleColor.Blue;
 
     private const ConsoleColor DefaultColor = ConsoleColor.White;
 
@@ -172,6 +173,15 @@ public static class Util
         Console.ForegroundColor = DefaultColor;
     }
     
+    public static void Prog(object text)
+    {
+        if (!Constants.Prog) return;
+
+        Console.ForegroundColor = ProgColor;
+        Console.Out.WriteLine($"[Prog ]: {text}");
+        Console.ForegroundColor = DefaultColor;
+    }
+    
     public static void Log(object text)
     {
         if (!Constants.Log) return;
@@ -204,6 +214,16 @@ public static class Util
     public static void Debug(string format, object arg0)
     {
         if (!Constants.Debug) return;
+
+        Console.ForegroundColor = ProgColor;
+        Console.Out.Write("[Prog ]: ");
+        Console.Out.Write(format, arg0);
+        Console.ForegroundColor = DefaultColor;
+    }
+    
+    public static void Prog(string format, object arg0)
+    {
+        if (!Constants.Prog) return;
 
         Console.ForegroundColor = DebugColor;
         Console.Out.Write("[Debug]: ");

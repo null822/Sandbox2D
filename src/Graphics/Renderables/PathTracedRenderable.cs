@@ -102,25 +102,27 @@ public class PathTracedRenderable : Renderable
         GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, ShaderStorageBufferObject);
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, ShaderStorageBufferObject);
         
+        // apply textures
         _dynTilemap.Use(TextureUnit.Texture0);
+        
+        // use the shader
         Shader.Use();
         
         // set the uniforms
         Shader.SetFloat("scale", _scale);
-        // Shader.SetFloat("renderScale", _renderScale);
         Shader.SetVector2("translation", _translation);
         Shader.SetVector2("screenSize", Program.Get().ClientSize);
-
+        
+        // render the geometry with 1 draw call
         GL.DrawElements(PrimitiveType.Triangles, _indices.Length, DrawElementsType.UnsignedInt, 0);
         
+        // print any errors
         var error = GL.GetError();
-        
         if (error != ErrorCode.NoError)
         {
             Util.Error($"OpenGL Error {error.ToString()}");
         }
-
-
+        
         _prevFrameGlobalUpdatedSinceLastFrame = _globalUpdatedSinceLastFrame;
     }
 
@@ -171,8 +173,6 @@ public class PathTracedRenderable : Renderable
     {
         _translation = translation;
         _scale = scale;
-
-        _globalUpdatedSinceLastFrame = true;
     }
     
     public override void ResetGeometry(RenderableCategory category = RenderableCategory.All)

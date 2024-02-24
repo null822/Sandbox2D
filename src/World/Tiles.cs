@@ -1,32 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace Sandbox2D.World;
 
 public static class Tiles
 {
-    private static readonly Dictionary<uint, ITile> IdTile = new();
+    private static readonly List<ITile> TilesList = [];
     
-    public static ITile GetTile(uint id)
+    public static ITile GetTile(int id)
     {
-        return IdTile.TryGetValue(id, out var tile) ? tile : NoId(id);
-    }
-    
-    private static ITile NoId(uint id)
-    {
-        Util.Error($"The tile of id {id} does not exist");
-        return IdTile[0];
+        if (TilesList.Count < id)
+        {
+            Util.Error($"The tile of id {id} does not exist");
+            return TilesList[0];
+        }
+        
+        return TilesList[id];
     }
     
     public static void Instantiate(IEnumerable<ITile> tiles)
     {
-        uint id = 0;
-        foreach (var tile in tiles)
-        {
-            IdTile.Add(id, tile);
-            
-            id++;
-        }
+        TilesList.AddRange(tiles); 
         
         Util.Log("Created Tiles");
     }

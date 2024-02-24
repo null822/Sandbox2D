@@ -3,12 +3,9 @@ using Sandbox2D.Graphics.Renderables;
 
 namespace Sandbox2D.World.TileTypes;
 
-public class Stone : IBlockMatrixTile
+public class Stone : ITile
 {
     public string Name => "Stone";
     
-    public uint Id => 1;
-
-    public ref TileRenderable Renderable => ref Renderables.Stone;
-    
+    public int Id => 1;
 }

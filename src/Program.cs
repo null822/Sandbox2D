@@ -1,7 +1,5 @@
-﻿
-using System;
+﻿using System;
 using System.Threading;
-using System.Threading.Tasks;
 using OpenTK.Windowing.Common.Input;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -11,9 +9,9 @@ namespace Sandbox2D;
 
 public static class Program
 {
-    public static readonly RenderManager RenderManager = new (800, 600, "Sandbox2D");
+    private static readonly RenderManager RenderManager = new (800, 600, "Sandbox2D");
     
-    private static void Main(string[] args)
+    private static void Main()
     {
         Console.Clear();
         
@@ -26,18 +24,18 @@ public static class Program
 
         RenderManager.Icon = icon;
         RenderManager.VSync = Constants.Vsync;
-
+        
+        
         // start up game logic
         var gameLogicThread = new Thread(GameManager.Run)
         {
             Name = "Logic Thread",
-            IsBackground = true
+            IsBackground = true,
         };
         
         gameLogicThread.Start();
 
-        // Task.Run(GameManager.Run);
-        
+        // start the RenderManager
         RenderManager.Run();
         
     }

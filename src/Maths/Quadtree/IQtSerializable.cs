@@ -2,28 +2,14 @@
 
 namespace Sandbox2D.Maths.Quadtree;
 
-public interface IQuadTreeValue<T>
+public interface IQtSerializable<T>
 {
-    /// <summary>
-    /// Creates a new instance.
-    /// </summary>
-    public static abstract IQuadTreeValue<T> New(T value);
     
     /// <summary>
     /// Checks if this object is equal to the supplied object.
     /// </summary>
     /// <param name="a">the other object</param>
     public bool Equals(IQuadTreeValue<T> a);
-    
-    /// <summary>
-    /// Returns the enclosed value.
-    /// </summary>
-    public T Get();
-    
-    /// <summary>
-    /// Sets the enclosed value.
-    /// </summary>
-    public void Set(T value);
     
     /// <summary>
     /// Converts this instance into a span of bytes.
