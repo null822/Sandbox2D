@@ -13,7 +13,7 @@ public static class Constants
     /// The height of the world <see cref="Maths.Quadtree.Quadtree{T}"/>.
     /// </summary>
     /// <remarks>
-    /// The maximum value is 63, and //TODO: the minimum is like 2 or something, idk.
+    /// The maximum value is 64, and the minimum is 2.
     /// </remarks>
     public const int WorldHeight = 64;
     

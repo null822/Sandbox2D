@@ -13,7 +13,7 @@ namespace Sandbox2D.Maths.Quadtree;
 /// <summary>
 /// Represents a Quadtree, able to store a large amount of 2D data in recursive 4x4 <see cref="QuadtreeNode"/>s.
 /// </summary>
-/// <typeparam name="T">The type of the data to store</typeparam>
+/// <typeparam name="T">The type of the data to store. Implementing interfaces in <see cref="FeatureNodeTypes"/> will enable different features.</typeparam>
 public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
 {
     /// <summary>
@@ -51,11 +51,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     private Range2D _subsetDimensions; // TODO: actually implement the subset
     
     /// <summary>
-    /// The width/height of the entire quadtree
-    /// </summary>
-    private readonly ulong _size;
-    
-    /// <summary>
     /// The maximum value of any z-value in this quadtree
     /// </summary>
     private readonly UInt128 _maxZValue;
@@ -69,20 +64,19 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// <summary>
     /// Constructs a new <see cref="Quadtree{T}"/>.
     /// </summary>
-    /// <param name="maxHeight">the maximum height of the quadtree, where width = 2^maxHeight. range: 1-63</param>
+    /// <param name="maxHeight">the maximum height of the quadtree, where width = 2^maxHeight. range: 2-64</param>
     /// <param name="defaultValue">the default value that everything will be initialized to</param>
     /// <param name="storeModifications">[optional] whether to store modifications. Calling <see cref="GetModifications"/> will
     /// throw an exception if this is disabled</param>
-    /// <exception cref="InvalidMaxHeightException">Thrown when <paramref name="maxHeight"/> is not valid (ie. not 1-63)</exception>
+    /// <exception cref="InvalidMaxHeightException">Thrown when <paramref name="maxHeight"/> is not valid (ie. not 2-64)</exception>
     public Quadtree(int maxHeight, T defaultValue, bool storeModifications = false)
     {
-        // if (maxHeight is < 1 or > 63)
-            // throw new InvalidMaxHeightException(maxHeight);
+        if (maxHeight is < 2 or > 64)
+            throw new InvalidMaxHeightException(maxHeight);
         
         _maxHeight = maxHeight;
         _maxZValue = (UInt128)0x1 << (2 * _maxHeight);
         
-        _size = 0x1ul << maxHeight;
         var halfSize = 0x1L << (maxHeight - 1);
         Dimensions = NodeRangeFromPos((-halfSize, -halfSize), _maxHeight);
         Console.WriteLine(Dimensions);
@@ -112,8 +106,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             _enabledFeatures[(int)QuadtreeFeature.CellularAutomata] = true;
         if (defaultValue is IFeatureFileSerialization)
             _enabledFeatures[(int)QuadtreeFeature.FileSerialization] = true;
-        if (defaultValue is IFeatureGpuSerialization)
-            _enabledFeatures[(int)QuadtreeFeature.GpuSerialization] = true;
         if (defaultValue is IFeatureElementColor)
             _enabledFeatures[(int)QuadtreeFeature.ElementColor] = true;
 
@@ -313,7 +305,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         var path = new int[_maxHeight]; // an array of all the nodes traversed through to get to the current node, indexed using height
         
         // set up variables, starting at the bottom-left-most point in the `range`
-        var nodePos = range.Bl; // the position of the current node //TODO: remove
         var zValue = Interleave(range.Bl, _maxHeight); // the z-value of the current node
         var height = CalculateLargestHeight(zValue, _maxHeight); // the height of the current node
         var nodeRef = GetNodeRef(range.Bl, false, height, path); // a reference to the current node
@@ -422,7 +413,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// <param name="maxHeight">[optional] the maximum height of the returned subset. Will be automatically set to the
     /// smallest possible value if not set. If set too low, the returned subset may not fully contain <paramref name="minRange"/></param>
     /// <returns>The resulting <see cref="QuadtreeNode"/> and its dimensions</returns>
-    /// <exception cref="InvalidMaxHeightException">Thrown when <paramref name="maxHeight"/> is not valid (i.e. not 1-63)</exception>
+    /// <exception cref="InvalidMaxHeightException">Thrown when <paramref name="maxHeight"/> is not valid (i.e. not 2-64)</exception>
     /// <remarks>Automatically prevents the returned subset from extending out of the <see cref="Quadtree{T}"/></remarks>
     public (QuadtreeNode Node, Range2D Range) GetSubset(Range2D minRange, int maxHeight = -1)
     {
@@ -503,6 +494,11 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         return new QuadtreeModifications<T>(_tree.GetModifications(), _data.GetModifications());
     }
     
+    /// <summary>
+    /// NYI
+    /// </summary>
+    /// <param name="file"></param>
+    /// <exception cref="NotImplementedException">thrown.</exception>
     public void Serialize(FileStream file)
     {
         RequireFeatures(QuadtreeFeature.FileSerialization);
@@ -510,6 +506,15 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         throw new NotImplementedException();
     }
     
+    /// <summary>
+    /// NYI
+    /// </summary>
+    /// <param name="file"></param>
+    /// <param name="defaultValue"></param>
+    /// <param name="storeModifications"></param>
+    /// <returns></returns>
+    /// <exception cref="Quadtree{T}.DisabledFeatureException"></exception>
+    /// <exception cref="NotImplementedException">thrown.</exception>
     public static Quadtree<T> Deserialize(FileStream file, T defaultValue, bool storeModifications)
     {
         var enabledFeatures = new bool[Enum.GetNames(typeof(QuadtreeFeature)).Length];
@@ -517,8 +522,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             enabledFeatures[(int)QuadtreeFeature.CellularAutomata] = true;
         if (defaultValue is IFeatureFileSerialization)
             enabledFeatures[(int)QuadtreeFeature.FileSerialization] = true;
-        if (defaultValue is IFeatureGpuSerialization)
-            enabledFeatures[(int)QuadtreeFeature.GpuSerialization] = true;
         
         if (!enabledFeatures[(int)QuadtreeFeature.FileSerialization])
             throw new DisabledFeatureException(QuadtreeFeature.FileSerialization);
@@ -723,7 +726,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// true, the returned node may have a higher height</param>
     /// <param name="path">[optional] an <see cref="int"/>[<see cref="_maxHeight"/> + 1] into which the nodes traversed
     /// through by this method will be stored, in reference form</param>
-    /// value targeted by <paramref name="pos"/> if <paramref name="readOnly"/> == true). If set to false, the returned
     /// <returns>An index within <see cref="_tree"/> that refers to a node of height <paramref name="targetHeight"/> (unless <paramref name="readOnly"/> is set to true)</returns>
     /// <exception cref="PositionOutOfBoundsException">Thrown when the supplied position does not reside within the quadtree</exception>
     private int GetNodeRef(Vec2<long> pos, bool readOnly = false, int targetHeight = 0, int[] path = null)
@@ -919,7 +921,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         $"Feature \"{requiredFeature}\" is disabled, but is required for the operation");
     
     private class InvalidMaxHeightException(int maxHeight) : Exception(
-        $"Invalid Max Height. Was: {maxHeight}, Range: 1-63");
+        $"Invalid Max Height. Was: {maxHeight}, Range: 2-64");
     
     private class InvalidHeightException(int height, int maxHeight) : Exception(
         $"Invalid Height. Was: {height}, Range: 0-{maxHeight}");

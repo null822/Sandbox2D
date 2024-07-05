@@ -4,7 +4,7 @@ using Sandbox2D.Maths.Quadtree.FeatureNodeTypes;
 
 namespace Sandbox2D.World;
 
-public interface ITile : IQuadtreeElement<ITile>, IFeatureCellularAutomata, IFeatureFileSerialization, IFeatureGpuSerialization, IFeatureElementColor
+public interface ITile : IQuadtreeElement<ITile>, IFeatureCellularAutomata, IFeatureFileSerialization, IFeatureElementColor
 {
     /// <summary>
     /// The name of the tile
@@ -17,7 +17,7 @@ public interface ITile : IQuadtreeElement<ITile>, IFeatureCellularAutomata, IFea
     public Tile Tile { get; }
     
     
-    Tile IFeatureGpuSerialization.GpuSerialize()
+    public Tile GpuSerialize()
     {
         return Tile;
     }
