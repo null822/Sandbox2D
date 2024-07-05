@@ -1,7 +1,9 @@
 ﻿using System.Collections.Generic;
 using Sandbox2D.Graphics.Registry;
+using Sandbox2D.Graphics.Renderables;
 using Sandbox2D.Gui.GuiElements;
 using Sandbox2D.Maths;
+using BufferUsageHint = OpenTK.Graphics.OpenGL4.BufferUsageHint;
 
 namespace Sandbox2D.GUI;
 
@@ -137,7 +139,7 @@ public static class GuiManager
         // create the GUIs' geometry
         UpdateGuis();
         
-        Util.Log("Created GUIs");
+        Util.Log("Created GUIs", OutputSource.Load);
     }
 
     private static bool CheckId(uint id)

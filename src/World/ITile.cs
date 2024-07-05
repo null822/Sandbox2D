@@ -1,48 +1,34 @@
-﻿using System;
+﻿using Sandbox2D.Graphics;
 using Sandbox2D.Maths.Quadtree;
+using Sandbox2D.Maths.Quadtree.FeatureNodeTypes;
 
 namespace Sandbox2D.World;
 
-/// <summary>
-/// Represents a Tile
-/// </summary>
-public interface ITile : IQtSerializable<ITile>
+public interface ITile : IQuadtreeElement<ITile>, IFeatureCellularAutomata, IFeatureFileSerialization, IFeatureGpuSerialization, IFeatureElementColor
 {
-    /// <summary>
-    /// The id of the tile
-    /// </summary>
-    public int Id { get; }
-    
     /// <summary>
     /// The name of the tile
     /// </summary>
     public string Name { get; }
     
+    /// <summary>
+    /// The data of the tile
+    /// </summary>
+    public Tile Tile { get; }
     
-    public ITile Get()
+    
+    Tile IFeatureGpuSerialization.GpuSerialize()
     {
-        return Tiles.GetTile(Id);
+        return Tile;
     }
     
-    bool IQtSerializable<ITile>.Equals(IQuadTreeValue<ITile> a)
+    bool IQuadtreeElement<ITile>.CanCombine(ITile other)
     {
-        return Id == a.Get().Id;
+        return Tile.Equals(other.Tile);
     }
     
-    ReadOnlySpan<byte> IQtSerializable<ITile>.Serialize()
+    Color IFeatureElementColor.GetColor()
     {
-        return BitConverter.GetBytes(Id);
-    }
-    
-    static ITile IQtSerializable<ITile>.Deserialize(ReadOnlySpan<byte> bytes)
-    {
-        return Tiles.GetTile(BitConverter.ToInt32(bytes));
-    }
-    
-    static uint IQtSerializable<ITile>.SerializeLength => sizeof(int);
-    
-    uint IQtSerializable<ITile>.LinearSerialize()
-    {
-        return (uint)Id;
+        return Color.Lime;
     }
 }

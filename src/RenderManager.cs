@@ -10,6 +10,7 @@ using Sandbox2D.Graphics.Registry;
 using Sandbox2D.Graphics.Renderables;
 using Sandbox2D.GUI;
 using Sandbox2D.Maths;
+using Sandbox2D.Maths.Quadtree;
 using Sandbox2D.World;
 using Sandbox2D.World.TileTypes;
 using static Sandbox2D.Util;
@@ -21,26 +22,39 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     new NativeWindowSettings { ClientSize = (width, height), Title = title })
 {
     // rendering
-    private static QuadTreeStruct[] _linearQuadTree = [];
-    private static float _scale;
-    private static Vec2<float> _translation;
-    private static bool _worldUpdatedSinceLastFrame = true;
-
+    private static QuadtreeRenderable _rQt;
+    private static FontRenderable _rFont;
+    private static bool _unuploadedGeometry = true;
+    
+    private static readonly Random Random = new();
+    // world geometry
+    private static readonly ManualResetEventSlim GeometryLock = new (true);
+    private static QuadtreeModifications<ITile> _modifications = new([], []);
+    private static int _treeLength;
+    private static int _dataLength;
+    private static QuadtreeNode _renderRoot;
+    private static Range2D _renderRange;
+    
     // world editing
-    private static ITile _activeBrush;
+    private static ITile _activeBrush = new Air();
     private static uint _brushId;
     private static Range2D _brushRange;
     private static Vec2<long> _leftMouseWorldCoords = new(0);
     private static Vec2<int> _middleMouseScreenCoords = new(0);
 
-    public static (WorldAction action, string arg)? WorldAction { get; private set; }
-    public static readonly List<KeyValuePair<Range2D, ITile>> WorldModifications = [];
-
-    private static float _tps;
+    private static (WorldAction action, string arg)? _worldAction;
+    private static readonly List<WorldModification> WorldModifications = [];
+    
+    private static float _mspt;
     
     // controls
-    private static float _scrollPos = 1;
-    private static Vec2<decimal> _prevTranslation = new(0);
+    private static decimal _scale = 30;
+    private static Vec2<decimal> _translation;
+    private static float _scrollPos = 32;
+    private static Vec2<decimal> _prevTranslation;
+    
+    public static ref decimal Scale => ref _scale;
+    public static ref Vec2<decimal> Translation => ref _translation;
     
     /// <summary>
     /// Renders everything.
@@ -54,30 +68,32 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         if (!GameManager.IsRunning)
             return;
         
-        
         // clear the color buffer
         GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        // render world (with off-screen culling)
         
-        ref var pt = ref Renderables.Pt;
-        
-        // reupload the world to the gpu if needed
-        if (_worldUpdatedSinceLastFrame && GameManager.IsRunning)
+        // update world geometry / transform
+        if (GeometryLock.IsSet || GeometryLock.Wait(RenderLockTimeout))
         {
-            // reset the world geometry, update the transform, and set the new geometry
-            Renderables.ResetGeometry(RenderableCategory.Pt);
-            pt.SetGeometry(_linearQuadTree);
+            GeometryLock.Reset();
             
-            // reset worldUpdated flag
-            _worldUpdatedSinceLastFrame = false;
+            // update geometry
+            _rQt.SetGeometry(_modifications, _treeLength, _dataLength, _renderRoot);
+            
+            // reset geometry flag
+            _unuploadedGeometry = false;
+            
+            // calculate the scale/translation to be uploaded to the GPU
+            var renderScale = (float)Scale;
+            var renderTranslation = (Vec2<float>)(Translation - (Vec2<decimal>)_renderRange.Center);
+            
+            // update the world transform
+            _rQt.SetTransform(renderTranslation, renderScale);
+            
+            GeometryLock.Set();
         }
         
-        // update the world transform
-        pt.SetTransform(_translation, _scale);
-        
         // render the world
-        pt.Render();
+        _rQt.Render();
         
         // TODO: render brush outline
         
@@ -86,26 +102,26 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         GuiManager.UpdateGuis();
         Renderables.Render(RenderableCategory.Gui);
         
-        
-        ref var renderable = ref Renderables.Font;
         var center = GameManager.ScreenSize / 2;
         
         // FPS display
-        renderable.SetText($"{1 / args.Time:F1} FPS, {_tps:F1} TPS", -center + (0,10), 1f, false);
+        _rFont.SetText($"{1 / args.Time:F1} FPS, {_mspt:F1} MSPT", -center + (0,10), 1f, false);
         
-        renderable.UpdateVao();
-        renderable.Render();
-        renderable.ResetGeometry();
+        _rFont.UpdateVao();
+        _rFont.Render();
+        _rFont.ResetGeometry();
         
         // Mouse Coordinate Display
-        renderable.SetText(ScreenToWorldCoords((Vec2<int>)MousePosition).ToString(), -center + (0,30), 1f, false);
+        _rFont.SetText(ScreenToWorldCoords((Vec2<int>)MousePosition).ToString(), -center + (0,30), 1f, false);
         
-        renderable.UpdateVao();
-        renderable.Render();
-        renderable.ResetGeometry();
+        _rFont.UpdateVao();
+        _rFont.Render();
+        _rFont.ResetGeometry();
         
         // swap buffers
         SwapBuffers();
+        
+        PrintGlErrors();
     }
     
     /// <summary>
@@ -127,61 +143,37 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         // update whether the game is running
         GameManager.SetRunning(isActive);
+        
+        PrintGlErrors();
     }
     
     /// <summary>
-    /// Handles all of the controls of the game.
+    /// Handles all the controls.
     /// </summary>
     private void UpdateControls()
     {
         //TODO: make this method less unreadable and unmaintainable
         
-        var mouseScreenCoords = new Vec2<int>((int)Math.Floor(MouseState.X), (int)Math.Floor(MouseState.Y));
+        var mouseScreenCoords = new Vec2<int>((int)Math.Round(MouseState.X), (int)Math.Round(MouseState.Y));
         var mouseWorldCoords = ScreenToWorldCoords(mouseScreenCoords);
         
         var center = GameManager.ScreenSize / 2;
         
-        if (KeyboardState.IsKeyPressed(Keys.Escape))
-        {
-            // pause the game
-            GameManager.SetRunning(!GameManager.IsRunning);
-            
-            // show pause gui
-            GuiManager.SetVisibility(0, GameManager.IsRunning);
-        }
-        
-        if (!GameManager.IsRunning)
-        {
-            // if the game is paused, update only the pause menu
-            GuiManager.MouseOver(mouseScreenCoords - center, 0);
-            return;
-        }
-
-        
         // update GUIs
         GuiManager.MouseOver(mouseScreenCoords - center);
         
-        
-        #region keyboard-only controls
-        
-        // mapping/saving/loading/clearing
+        // world actions
         if (KeyboardState.IsKeyPressed(Keys.M))
-            WorldAction = (Sandbox2D.WorldAction.Map, "map.svg");
-        
+            _worldAction = (WorldAction.Map, "map.svg");
         else if (KeyboardState.IsKeyPressed(Keys.S))
-            WorldAction = (Sandbox2D.WorldAction.Save, "save.qdt");
-        
+            _worldAction = (WorldAction.Save, "save.qdt");
         else if (KeyboardState.IsKeyPressed(Keys.L))
-            WorldAction = (Sandbox2D.WorldAction.Load, "save.qdt");
-        
+            _worldAction = (WorldAction.Load, "save.qdt");
         else if (KeyboardState.IsKeyPressed(Keys.C))
-            WorldAction = (Sandbox2D.WorldAction.Clear, "");
+            _worldAction = (WorldAction.Clear, "");
         
-        #endregion
-
-        
-        var newScale = GameManager.Scale;
-        var newTranslation = GameManager.Translation;
+        var newScale = Scale;
+        var newTranslation = Translation;
         
         // if the scroll wheel has moved
         if (MouseState.ScrollDelta.Y != 0)
@@ -193,7 +185,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
             
             var scale = (decimal)Math.Pow(1.1, -_scrollPos) * 1024;
             
-            const decimal min = 400m / (0x1uL << WorldDepth);
+            const decimal min = 400m / ~(WorldHeight == 64 ? 0 : ~0x0uL << WorldHeight);
             const decimal max = 32m;
             
             switch (scale)
@@ -208,112 +200,78 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
                     newScale = scale;
                     break;
             }
-            
-            _worldUpdatedSinceLastFrame = true;
         }
         
         // mouse and keyboard controls
         
-        // create the brush range, subtracting 1 from the max values if they are not already long.MaxValue
-        var minX = Math.Min(mouseWorldCoords.X, _leftMouseWorldCoords.X);
-        var minY = Math.Min(mouseWorldCoords.Y, _leftMouseWorldCoords.Y);
-        var maxX = Math.Max(mouseWorldCoords.X, _leftMouseWorldCoords.X);
-        var maxY = Math.Max(mouseWorldCoords.Y, _leftMouseWorldCoords.Y);
-        maxX = maxX == long.MaxValue ? maxX : maxX - 1;
-        maxY = maxY == long.MaxValue ? maxY : maxY - 1;
-        
-        const long worldRadius = 0x1L << (WorldDepth - 1);
-        
-        // set the brushRange, clamping it within the world size
+        // update the brush range
         _brushRange = new Range2D(
-            Math.Clamp(minX, -worldRadius, worldRadius),
-            Math.Clamp(minY, -worldRadius, worldRadius),
-            Math.Clamp(maxX, -worldRadius, worldRadius),
-            Math.Clamp(maxY, -worldRadius, worldRadius)
+            Math.Min(mouseWorldCoords.X, _leftMouseWorldCoords.X),
+            Math.Min(mouseWorldCoords.Y, _leftMouseWorldCoords.Y),
+            Math.Max(mouseWorldCoords.X, _leftMouseWorldCoords.X),
+            Math.Max(mouseWorldCoords.Y, _leftMouseWorldCoords.Y)
         );
+        
+        // if we are not holding lmouse, set the _leftMouseWorldCoords to the mouse pos
+        if (!(MouseState.IsButtonDown(MouseButton.Left) && KeyboardState.IsKeyDown(Keys.LeftShift)))
+        {
+            _leftMouseWorldCoords = mouseWorldCoords;
+        }
         
         // if we released lmouse while holding lshift, place the _activeBrush in the _world in the _brushRange
         if (MouseState.IsButtonReleased(MouseButton.Left) && KeyboardState.IsKeyDown(Keys.LeftShift))
         {
-            WorldModifications.Add(new KeyValuePair<Range2D, ITile>(_brushRange, _activeBrush));
-        }
-        
-        // if we are not currently holding lmouse or not holding lshift, set the _leftMouseWorldCoords to the mouse pos
-        if (!MouseState.IsButtonDown(MouseButton.Left) && !KeyboardState.IsKeyDown(Keys.LeftShift))
-        {
-            _leftMouseWorldCoords = mouseWorldCoords;
+            WorldModifications.Add(new WorldModification(_brushRange, _activeBrush));
         }
         
         // if we are currently holding lmouse and are not holding lshift, place the brush in the world
         if (MouseState.IsButtonDown(MouseButton.Left) && !KeyboardState.IsKeyDown(Keys.LeftShift))
         {
-            // technically buggy behaviour, but creates cool looking, "smooth" lines
-            WorldModifications.Add(new KeyValuePair<Range2D, ITile>(_brushRange, _activeBrush));
-            _leftMouseWorldCoords = mouseWorldCoords;
+            WorldModifications.Add(new WorldModification(_brushRange, _activeBrush));
             
-        }
-        
-        // if we just pressed lmouse, set the _leftMouseWorldCoords to the mouse pos
-        if (MouseState.IsButtonPressed(MouseButton.Left))
-        {
-            _leftMouseWorldCoords = mouseWorldCoords;
+            if (!KeyboardState.IsKeyDown(Keys.LeftShift))
+                _leftMouseWorldCoords = mouseWorldCoords;
         }
         
         // if we pressed mmouse, set the _middleMouseScreenCoords to the mouse pos
         if (MouseState.IsButtonPressed(MouseButton.Middle))
         {
             _middleMouseScreenCoords = mouseScreenCoords;
-            _prevTranslation = GameManager.Translation;
+            _prevTranslation = Translation;
         }
         
         // if we are currently holding mmouse, set the translation of the world
         if (MouseState.IsButtonDown(MouseButton.Middle))
         {
-            var worldTranslationOffset = (Vec2<decimal>)(_middleMouseScreenCoords - mouseScreenCoords) / GameManager.Scale;
+            var worldTranslationOffset = (Vec2<decimal>)(_middleMouseScreenCoords - mouseScreenCoords) / Scale;
             
             worldTranslationOffset = (worldTranslationOffset.X, -worldTranslationOffset.Y);
             
             var nextTranslation = _prevTranslation + worldTranslationOffset;
 
-            if (GameManager.Translation != nextTranslation)
+            if (Translation != nextTranslation)
             {
                 newTranslation = nextTranslation;
-                _worldUpdatedSinceLastFrame = true;
             }
         }
 
         if (MouseState.IsButtonPressed(MouseButton.Right))
         {
-            _brushId = (_brushId + 1) % 3;
-
-            _activeBrush = _brushId switch
-            {
-                0 => new Air(),
-                1 => new Stone(),
-                2 => new Dirt(),
-                _ => new Air()
-            };
-                
+            _brushId = (_brushId + 64) % (2 << 24);
             
-            Log($"Brush Changed to {_activeBrush.Name}");
+            _activeBrush = new Paint((uint)(Random.Next() & 0x00ffffff));
+            
+            Log($"Brush Changed to #{(_activeBrush.Tile.Data & 0x00ffffff):X6}");
         }
         
         
         if (KeyboardState.IsKeyPressed(Keys.LeftControl))
         {
             Log($"Mouse Position: {mouseWorldCoords}");
-            _worldUpdatedSinceLastFrame = true;
         }
-        
-        // calculate renderScale
-        var renderScale = (decimal)GameManager.RenderRange.Width / (0x1 << RenderDepth);
-        
-        // calculate scale/translation
-        _scale = (float)(GameManager.Scale * renderScale);
-        _translation = (GameManager.Translation - (Vec2<decimal>)GameManager.RenderRange.Center) / renderScale;
-        
-        // update the transform for the logic
-        GameManager.SetTransform(newScale, newTranslation);
+
+        Scale = newScale;
+        Translation = newTranslation;
     }
     
     
@@ -322,14 +280,14 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     /// </summary>
     protected override void OnLoad()
     {
-        Prog("===============[GRAPHICS LOADING]===============");
+        Log("===============[GRAPHICS LOADING]===============", OutputSource.Load);
         
         base.OnLoad();
         
         // set clear color
         GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         
-        // create all of the shaders
+        // create all the shaders
         Shaders.Instantiate();
         
         // create the textures
@@ -337,16 +295,24 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         // create the renderables. must be done after creating the shaders
         Renderables.Instantiate();
+
+        _rQt = new QuadtreeRenderable(Shaders.Qtr, BufferUsageHint.StreamDraw);
+        _rFont = new FontRenderable(Shaders.Font, BufferUsageHint.DynamicDraw);
         
         // create the GUIs. must be done after creating the renderables
         GuiManager.Instantiate();
         
+        // set translations
+        _translation = -InitialScreenSize / 2;
+        _prevTranslation = _translation;
         
         // start the game logic
         GameManager.SetRunning(true);
         
-        Prog("===============[ BEGIN PROGRAM  ]===============");
+        
+        Log("===============[ BEGIN PROGRAM  ]===============", OutputSource.Load);
     }
+    
     
     /// <summary>
     /// Returns true if the game should be running (game logic, rendering, etc.)
@@ -370,7 +336,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     protected override void OnResize(ResizeEventArgs e)
     {
         base.OnResize(e);
-
+        
         GL.Viewport(0, 0, e.Width, e.Height);
         
         // update screenSize on the logic thread
@@ -380,7 +346,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         // and need to be updated with the new screen size
         GuiManager.UpdateGuis();
     }
-    
+
     /// <summary>
     /// Shuts down the game.
     /// </summary>
@@ -388,45 +354,97 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     {
         // close the GameManager thread
         GameManager.Close();
-        
+
+        WorldModifications.Clear();
+
         base.OnClosing(e);
     }
-    
-    // public setters
+
+    // public setters/getters
     
     /// <summary>
     /// Resets the world modifications on the render thread. Run once after each logic tick.
     /// </summary>
-    public static void ResetWorldModifications()
+    public static (WorldModification[] Modifications, (WorldAction Action, string Arg)? Action) GetWorldModifications()
     {
-        WorldAction = null;
+        //TODO: thread safety
+        var modifications = WorldModifications.ToArray();
+        var action = _worldAction;
+        
+        _worldAction = null;
         WorldModifications.Clear();
+        
+        return (modifications, action);
+    }
+
+    /// <summary>
+    /// Updates the geometry on the render thread.
+    /// </summary>
+    /// <param name="modifications">the modifications to the world since the last time this method was called</param>
+    /// <param name="treeLength">the length of the "tree" section</param>
+    /// <param name="dataLength">the length of the "data" section</param>
+    /// <param name="renderRoot">the root node for rendering</param>
+    /// <param name="renderRange">the dimensions of <paramref name="renderRoot"/></param>
+    /// <remarks>Causes the quadtree to be partially re-uploaded to the gpu.</remarks>
+    public static void UpdateGeometry(QuadtreeModifications<ITile> modifications, int treeLength, int dataLength, QuadtreeNode renderRoot, Range2D renderRange)
+    {
+        if (!GeometryLock.IsSet && !GeometryLock.Wait(RenderLockTimeout))
+        {
+            // if we failed to get access in time but the new treeLength is significantly smaller, keep waiting
+            if (treeLength * 1.5 < _treeLength)
+                GeometryLock.Wait(Timeout.Infinite);
+            else return;
+        }
+        GeometryLock.Reset();
+        
+        _modifications = modifications;
+        _treeLength = treeLength;
+        _dataLength = dataLength;
+        _renderRoot = renderRoot;
+        _renderRange = renderRange;
+        
+        _unuploadedGeometry = true;
+        
+        GeometryLock.Set();
     }
     
     /// <summary>
-    /// Updates the Linear Quad Tree on the render thread.
+    /// Checks whether new geometry can be uploaded. Will wait for <see cref="Constants.RenderLockTimeout"/> to get a lock.
     /// </summary>
-    /// <param name="lqt">the new Linear Quad Tree</param>
-    /// <param name="scale">the new scale</param>
-    /// <param name="translation">the new translation</param>
-    /// <remarks>Causes the world to be re-uploaded to the gpu.</remarks>
-    public static void UpdateLqt(QuadTreeStruct[] lqt, float scale, Vec2<float> translation)
+    public static bool CanUpdateGeometry()
     {
-        _linearQuadTree = lqt;
-
-        _scale = scale;
-        _translation = translation;
-
-        _worldUpdatedSinceLastFrame = true;
+        if (!GeometryLock.IsSet && !GeometryLock.Wait(RenderLockTimeout)) return false;
+        GeometryLock.Reset();
+        
+        var val = !_unuploadedGeometry;
+        
+        GeometryLock.Set();
+        
+        return val;
     }
     
     /// <summary>
-    /// Updates the TPS metric.
+    /// Updates the MSPT metric.
     /// </summary>
-    /// <param name="tps">the new tps</param>
-    public static void UpdateTps(float tps)
+    /// <param name="mspt">the new mpst</param>
+    public static void UpdateMspt(float mspt)
     {
-        _tps = tps;
+        _mspt = mspt;
     }
-    
+
+    public override void Dispose()
+    {
+        GC.SuppressFinalize(this);
+        
+        GeometryLock.Dispose();
+        WorldModifications.Clear();
+        
+        base.Dispose();
+    }
+}
+
+public readonly struct WorldModification(Range2D range, ITile tile)
+{
+    public readonly Range2D Range = range;
+    public readonly ITile Tile = tile;
 }

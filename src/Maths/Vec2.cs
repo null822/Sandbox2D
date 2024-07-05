@@ -1,14 +1,14 @@
 ﻿using System;
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using OpenTK.Mathematics;
 using Vector2 = OpenTK.Mathematics.Vector2;
 
 namespace Sandbox2D.Maths;
 
-public readonly struct Vec2<T>(T x, T y)
-    where T : INumber<T>, IConvertible, new()
-
+[StructLayout(LayoutKind.Sequential)]
+public readonly struct Vec2<T>(T x, T y) where T : INumber<T>, IConvertible, new()
 {
     
     public readonly T X = x;
@@ -25,6 +25,41 @@ public readonly struct Vec2<T>(T x, T y)
     public Vec2((T X, T Y) vec) : this(vec.X, vec.Y)
     {
         
+    }
+    
+    /// <summary>
+    /// Using this <see cref="Vec2{T}"/> as the origin, computes which quadrant another <see cref="Vec2{T}"/> lies within.
+    /// </summary>
+    /// <returns>
+    /// <code>
+    /// Ret Val | Quadrant
+    /// --------+----------------
+    ///  0      | Same Position
+    ///  1      | Bottom Left
+    ///  2      | Bottom Right
+    ///  3      | Top Left
+    ///  4      | Top Right
+    /// -1      | Directly Below
+    /// -2      | Directly Right
+    /// -3      | Directly Left
+    /// -4      | Directly Above
+    /// </code>
+    /// </returns>
+    public int Quadrant(Vec2<T> other)
+    {
+        return (other.X - X, other.Y - Y) switch
+        {
+            ( 0,  0) =>  0,
+            (<0, <0) =>  1,
+            (>0, <0) =>  2,
+            (<0, >0) =>  3,
+            (>0, >0) =>  4,
+            ( 0, <0) => -1,
+            (>0,  0) => -2,
+            (<0,  0) => -3,
+            ( 0, >0) => -4,
+            _ => -5
+        };
     }
     
     public static Vec2<T> operator +(Vec2<T> a, Vec2<T> b)
