@@ -1,19 +1,32 @@
 ﻿using OpenTK.Windowing.Common;
+using Sandbox2D.Maths;
 
 namespace Sandbox2D;
 
+/// <summary>
+/// A set of constant values for the configuration of <see cref="Sandbox2D"/>
+/// </summary>
 public static class Constants
 {
+    
     /// <summary>
-    /// Private toggle for if the world should be max-sized.
+    /// The height of the world <see cref="Maths.Quadtree.Quadtree{T}"/>.
     /// </summary>
-    private const bool LargeWorld = true;
+    /// <remarks>
+    /// The maximum value is 63, and //TODO: the minimum is like 2 or something, idk.
+    /// </remarks>
+    public const int WorldHeight = 64;
+    
+    /// <summary>
+    /// The TPS (Ticks Per Second) the game logic will attempt to run at.
+    /// </summary>
+    public const int Tps = 20;
     
     /// <summary>
     /// The VSync mode to use.
     /// </summary>
     public const VSyncMode Vsync = VSyncMode.On;
-
+    
     /// <summary>
     /// The global scale of GUIs.
     /// </summary>
@@ -23,40 +36,20 @@ public static class Constants
     /// The delay, in milliseconds, between active-checks for when the window is unfocused.
     /// </summary>
     public const int CheckActiveDelay = 100;
-    
-    /// <summary>
-    /// The scale at which to export a QuadTree as an svg as.
-    /// </summary>
-    public const double QuadTreeSvgScale = 1;
-    
-    /// <summary>
-    /// The depth of the world QuadTree.
-    /// </summary>
-    /// <remarks>
-    /// The maximum value is 63
-    /// </remarks>
-    public const byte WorldDepth  = LargeWorld ? 63 : 3;
-    
-    /// <summary>
-    /// The depth of Linear QuadTree that gets uploaded to the GPU.
-    /// </summary>
-    /// <remarks>
-    /// The maximum value is 16
-    /// </remarks>
-    public const byte RenderDepth = 16;
 
     /// <summary>
-    /// The TPS (Ticks Per Second) the game logic will attempt to run at.
+    /// The timeout, in milliseconds, for how long to wait for a lock for transferring data from the logic thread to
+    /// the render thread
     /// </summary>
-    public const int Tps = 20;
+    public const int RenderLockTimeout = 100;
+
+    /// <summary>
+    /// The width/height of the SVG of an exported <see cref="Maths.Quadtree.Quadtree{T}"/> (see <see cref="Maths.Quadtree.Quadtree{T}.GetSvgMap"/>).
+    /// </summary>
+    public const int QuadTreeSvgWidth = 1048576;
     
-    
-    // whether to print outputs
-    public const bool Log = true;
-    public const bool Debug = true;
-    public const bool Prog = true;
-    public const bool Warn = true;
-    public const bool Error = true;
-    
-    
+    /// <summary>
+    /// The default size of the game window
+    /// </summary>
+    public static readonly Vec2<int> InitialScreenSize = new(800, 600); 
 }

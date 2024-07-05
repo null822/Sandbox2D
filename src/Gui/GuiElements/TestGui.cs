@@ -1,5 +1,4 @@
-﻿using Sandbox2D.Graphics;
-using Sandbox2D.Graphics.Registry;
+﻿using Sandbox2D.Graphics.Registry;
 using Sandbox2D.Graphics.Renderables;
 using Sandbox2D.GUI;
 using Sandbox2D.Maths;

@@ -27,8 +27,8 @@ public class GuiCheckbox : IGuiElement
             return;
         
         Renderable.AddQuad(
-            (Vec2<int>)Area.TopLeft + guiPosition,
-            (Vec2<int>)Area.BottomRight + guiPosition,
+            (Vec2<int>)Area.Tl + guiPosition,
+            (Vec2<int>)Area.Br + guiPosition,
             _state);
     }
 }

@@ -7,7 +7,7 @@ public interface IGuiElement
     protected bool Enabled { get; set; }
     
     public void MouseOver(Vec2<int> mousePos);
-
+    
     public void AddToRenderable(Vec2<int> guiPosition);
     
     public sealed void SetVisibility(bool visibility)

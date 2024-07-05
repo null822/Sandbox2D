@@ -5,6 +5,7 @@
         <RollForward>Major</RollForward>
         <PublishReadyToRun>false</PublishReadyToRun>
         <TieredCompilation>false</TieredCompilation>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
     
     <PropertyGroup>
@@ -13,8 +14,8 @@
     
     <ItemGroup>
       <PackageReference Include="OpenTK" Version="4.8.2" />
-      <PackageReference Include="SixLabors.ImageSharp" Version="3.1.2" />
-      <PackageReference Include="StbImageSharp" Version="2.27.13" />
+      <PackageReference Include="SixLabors.ImageSharp" Version="3.1.4" />
+      <PackageReference Include="StbImageSharp" Version="2.27.14" />
     </ItemGroup>
 
     <ItemGroup>

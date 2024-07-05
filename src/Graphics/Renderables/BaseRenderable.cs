@@ -109,9 +109,5 @@ public class BaseRenderable : Renderable
         _vertices.Clear();
         _indices.Clear();
     }
-
-    protected override bool IsInCategory(RenderableCategory category)
-    {
-        return base.IsInCategory(category) || category == RenderableCategory.Base;
-    }
+    
 }

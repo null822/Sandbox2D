@@ -21,6 +21,6 @@ public static class Tiles
     {
         TilesList.AddRange(tiles); 
         
-        Util.Log("Created Tiles");
+        Util.Log("Created Tiles", OutputSource.Load);
     }
 }

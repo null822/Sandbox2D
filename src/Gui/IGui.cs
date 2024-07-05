@@ -23,8 +23,8 @@ public interface IGui
         var offsetNonNull = offset ?? new Vec2<int>(0, 0);
         
         Renderable.AddQuad(
-            (Vec2<int>)Area.TopLeft + offsetNonNull,
-            (Vec2<int>)Area.BottomRight + offsetNonNull
+            (Vec2<int>)Area.Tl + offsetNonNull,
+            (Vec2<int>)Area.Br + offsetNonNull
         );
         
         foreach (var gui in GuiElements)
