@@ -195,7 +195,7 @@ public static class GameManager
             }
         }
     }
-
+    
     private static Range2D CalculateScreenRange()
     {
         var tlScreen = ScreenToWorldCoords((0, ScreenSize.Y));

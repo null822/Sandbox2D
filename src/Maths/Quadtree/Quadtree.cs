@@ -295,7 +295,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// <param name="range">the section to compress</param>
     private void CompressRange(Range2D range)
     {
-        var maxZValue = Interleave(range.Tr, _maxHeight); // the z-value of the last node to be traversed
+        var maxZValue = ~(_maxHeight == 64 ? 0 : ~(UInt128)0x0 << (2 * _maxHeight)); // the z-value of the last node to be traversed
         var path = new int[_maxHeight]; // an array of all the nodes traversed through to get to the current node, indexed using height
         
         // set up variables, starting at the bottom-left-most point in the `range`
@@ -321,7 +321,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
                 
                 // if this is the last node we will compress, force a "full compress", to tie up any loose ends (not
                 // fully compressed nodes)
-                var trZValue = zValue + ((UInt128)0x1 << (2 * height)) - 1; //TODO: will break with _maxHeight = 64
+                var trZValue = zValue + ~(height == 64 ? 0 : ~(UInt128)0x0 << (2 * height));
                 if (trZValue == maxZValue)
                 {
                     CompressNode(zValue, height, path, true);
