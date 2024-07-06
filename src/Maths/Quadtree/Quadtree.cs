@@ -104,35 +104,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
 
     }
     
-    /// <summary>
-    /// Gets or sets a single element in the <see cref="Quadtree{T}"/>
-    /// </summary>
-    /// <param name="pos">the element to get or set</param>
-    public T this[Vec2<long> pos]
-    {
-        get => Get(pos);
-        set => Set(pos, value);
-    }
-    
-    /// <summary>
-    /// Gets or sets a single element in the <see cref="Quadtree{T}"/>
-    /// </summary>
-    /// <param name="x">the X coordinate of the element to get or set</param>
-    /// <param name="y">the Y coordinate of the element to get or set</param>
-    public T this[long x, long y]
-    {
-        get => Get((x, y));
-        set => Set((x, y), value);
-    }
-    
-    /// <summary>
-    /// Sets every point in within a <see cref="Range2D"/> to the supplied value.
-    /// </summary>
-    /// <param name="range">the <see cref="Range2D"/> describing which elements to set</param>
-    public T this[Range2D range]
-    {
-        set => Set(range, value);
-    }
+    #region Get / Set
     
     /// <summary>
     /// Returns the value at the supplied position.
@@ -242,6 +214,9 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         _modifications.Clear();
     }
     
+    #endregion
+    
+    #region Compression
     
     /// <summary>
     /// Tries to combine as many nodes as possible in this <see cref="Quadtree{T}"/>, which are referenced in <see cref="_modifications"/>.
@@ -391,95 +366,243 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         }
     }
     
+    #endregion
+    
+    #region Quadtree Traversing
+
+    /// <summary>
+    /// Gets the node 4^<paramref name="height"/> spaces further in the Z-Order Curve of this <see cref="Quadtree{T}"/>.
+    /// Useful when iterating through the entire quadtree. Updates the z-value, height, and node ref.
+    /// </summary>
+    /// <param name="zValue">the current z-value</param>
+    /// <param name="height">the current height</param>
+    /// <param name="maxZValue">the maximum z-value allowed for the next node</param>
+    /// <param name="path">a ref to an array containing references to all the nodes traversed through to get to the current node</param>
+    /// <returns>the updated <paramref name="zValue"/>, <paramref name="height"/>, and the index of the next node within <see cref="_tree"/></returns>
+    private (UInt128 zValue, int height, int nodeRef) GetNextNode(UInt128 zValue, int height, UInt128 maxZValue, ref int[] path)
+    {
+        if (height == _maxHeight)
+            return (0, _maxHeight, -1);
+        
+        // calculate difference to the next z-value
+        var deltaZ = (UInt128)0x1 << (2 * height);
+
+        var diff = maxZValue - zValue;
+        
+        // if this jump puts the z-value past the maxZValue, exit
+        if (deltaZ > diff)
+            return (0, 0, -1);
+        
+        
+        // calculate the next z-value
+        zValue += deltaZ;
+        
+        // calculate next height
+        height = CalculateLargestHeight(zValue, _maxHeight);
+        
+        // get the next node's ref
+        
+        // backtrack to the lowest node that both the current node and the next node reside in. this will always be the
+        // parent node of the next node
+        // if the next node is one below the root node, its parent will be the root node, which is not in `path`
+        var parentNodeRef = height == _maxHeight-1 ? 0 : path[height + 1];
+        var parentNode = _tree[parentNodeRef];
+        if (parentNode.Type == Leaf) 
+            throw new InvalidNodeTypeException(Leaf, Branch, "GetNextNode/parent node in path");
+        
+        // get the last "instruction" in the next z-value, which is the index within its parent node
+        var nextNodeIndex = ZValueIndex(zValue, height);
+        
+        // get the next node's ref
+        var nodeRef = parentNode.GetNodeRef(nextNodeIndex);
+        
+        // update the path. nodes in the path with lower heights are now irrelevant and will be overridden when the time comes
+        path[height] = nodeRef;
+        
+        return (zValue, height, nodeRef);
+    }
     
     /// <summary>
-    /// Creates a new <see cref="QuadtreeNode"/> that acts as a root node for a smaller subset of this entire <see cref="Quadtree{T}"/>.
+    /// Calculates the position of the next node that <see cref="GetNextNode"/> will select.
     /// </summary>
-    /// <param name="minRange">a <see cref="Range2D"/> that will always fit into the returned subset unless it goes outside the
-    /// bounds of the <see cref="Quadtree{T}"/>, or <see cref="maxHeight"/> is too small. Used to specify position/size of the subset</param>
-    /// <param name="maxHeight">[optional] the maximum height of the returned subset. Will be automatically set to the
-    /// smallest possible value if not set. If set too low, the returned subset may not fully contain <paramref name="minRange"/></param>
-    /// <returns>The resulting <see cref="QuadtreeNode"/> and its dimensions</returns>
-    /// <exception cref="InvalidMaxHeightException">Thrown when <paramref name="maxHeight"/> is not valid (i.e. not 2-64)</exception>
-    /// <remarks>Automatically prevents the returned subset from extending out of the <see cref="Quadtree{T}"/></remarks>
-    public (QuadtreeNode Node, Range2D Range) GetSubset(Range2D minRange, int maxHeight = -1)
+    /// <param name="nodePos">the position of the node</param>
+    /// <param name="zValue">the z-value of the node</param>
+    /// <param name="height">the height of the node</param>
+    /// <returns>the position of the next node</returns>
+    private Vec2<long> GetNextNodePos(Vec2<long> nodePos, UInt128 zValue, int height)
     {
-        if (!Dimensions.Contains(minRange))
-            throw new RangeOutOfBoundsException(minRange, Dimensions);
+        if (height >= _maxHeight)
+            return (-1, -1);
         
-        if (maxHeight > _maxHeight)
-            throw new InvalidHeightException(maxHeight, _maxHeight);
+        // get the index of this node within its parent
+        var parentIndex = ZValueIndex(zValue, height);
         
-        // calculate minimum height needed if none is set
-        if (maxHeight == -1)
+        // get the size of this node
+        var nodeSize = 0x1L << height; //TODO: will break with _maxHeight = 64
+        
+        switch (parentIndex)
         {
-            var maxExt = minRange.MaxExtension;
-            var log = BitOperations.Log2(maxExt);
-            
-            maxHeight = BitOperations.IsPow2(maxExt) ? log : log + 1;
+            case 0: nodePos += ( nodeSize, 0); break;
+            case 1: nodePos += (-nodeSize, nodeSize); break;
+            case 2: nodePos += ( nodeSize, 0); break;
+            case 3: nodePos = Deinterleave(zValue + ((UInt128)0x1 << (2 * height)), _maxHeight); break;
         }
         
-        if (maxHeight < 1) throw new InvalidHeightException(maxHeight, _maxHeight);
+        return nodePos;
+    }
+    
+    /// <summary>
+    /// Traverses through the <see cref="Quadtree{T}"/> to find the index of the node within <see cref="_tree"/> that
+    /// corresponds to the supplied position.
+    /// </summary>
+    /// <param name="pos">the supplied position</param>
+    /// <param name="readOnly">[optional] when set to true, prevents the quadtree from being modified.
+    /// If set, it is no longer guaranteed that a reference to a 1x1 node will be returned</param>
+    /// <param name="targetHeight">[optional] the height of the returned node. Defaults to 0. If <paramref name="readOnly"/> is set to
+    /// true, the returned node may have a higher height</param>
+    /// <param name="path">[optional] an <see cref="int"/>[<see cref="_maxHeight"/> + 1] into which the nodes traversed
+    /// through by this method will be stored, in reference form</param>
+    /// <returns>An index within <see cref="_tree"/> that refers to a node of height <paramref name="targetHeight"/> (unless <paramref name="readOnly"/> is set to true)</returns>
+    /// <exception cref="PositionOutOfBoundsException">Thrown when the supplied position does not reside within the quadtree</exception>
+    private int GetNodeRef(Vec2<long> pos, bool readOnly = false, int targetHeight = 0, int[] path = null)
+    {
+        // validate pos parameter
+        if (!Dimensions.Contains(pos)) throw new PositionOutOfBoundsException(pos, Dimensions);
         
-        // calculate the center, snapping it to the nearest `snapDistance`
-        var snapDistance = 0x1L << (maxHeight - 1);
-        var centerF = minRange.CenterF;
-        var center = new Vec2<long>(
-            (long)Math.Round(centerF.X / snapDistance) * snapDistance,
-            (long)Math.Round(centerF.Y / snapDistance) * snapDistance
-        );
-        // clamp the center to ensure the resulting range does not go outside the bounds of the quadtree
-        var centerMax = (long)(Dimensions.MaxExtension - (ulong)snapDistance);
-        center = new Vec2<long>(
-            long.Clamp(center.X, -centerMax, centerMax),
-            long.Clamp(center.Y, -centerMax, centerMax));
+        // validate path parameter
+        var usePath = path != null;
+        if (usePath && path.Length != _maxHeight)
+            throw new Exception($"Invalid path Length: Was: {path.Length}, Required: {_maxHeight}");
         
-        // create the range
-        var subsetRange = new Range2D(center, 0x1uL << maxHeight);
+        // calculate the position's z-value
+        var zValue = Interleave(pos, _maxHeight);
+        
+        // start at root node
+        var nodeRef = 0;
+        for (var height = _maxHeight - 1; height >= targetHeight; height--)
+        {
+            var node = _tree[nodeRef];
+            
+            if (node.Type == Leaf)
+            {
+                // if we are not allowed to modify the quadtree, stop descending prematurely
+                if (readOnly)
+                    break;
+                
+                // otherwise, subdivide the leaf node and refresh `node`
+                Subdivide(nodeRef);
+                node = _tree[nodeRef];
+            }
+            
+            // get the next node
+            
+            // extract the relevant 2-bit section from the z-value
+            var zPart = ZValueIndex(zValue, height);
+            
+            // set the current node to the node within at index `zPart`
+            nodeRef = node.GetNodeRef(zPart);
+            
+            // update the path if we need to
+            if (usePath) path[height] = nodeRef;
+        }
+        
+        // return the node
+        return nodeRef;
+    }
+    
+    #endregion
+    
+    #region Node Modification
+    
+    /// <summary>
+    /// Subdivides a leaf node into 4 smaller leaf nodes with the same value, replacing the original node.
+    /// </summary>
+    /// <param name="nodeIndex">the index (within <see cref="_tree"/>) of the node to subdivide</param>
+    /// <exception cref="InvalidNodeTypeException">Thrown when <paramref name="nodeIndex"/> does not reference a leaf node</exception>
+    /// <remarks>The supplied node's index within <see cref="_tree"/> does not change.</remarks>
+    private void Subdivide(int nodeIndex)
+    {
+        if (_tree[nodeIndex].Type != Leaf)
+            throw new InvalidNodeTypeException(Branch, Leaf);
+        
+        // get the value of the original node
+        var valueRef = _tree[nodeIndex].GetValueRef();
+        
+        // create 4 new leaf nodes with that value
+        var i0 = _tree.Add(new QuadtreeNode(valueRef));
+        var i1 = _tree.Add(new QuadtreeNode(valueRef));
+        var i2 = _tree.Add(new QuadtreeNode(valueRef));
+        var i3 = _tree.Add(new QuadtreeNode(valueRef));
+        
+        // assign them to the new branch node, replacing the original leaf node
+        _tree[nodeIndex] = new QuadtreeNode(i0, i1, i2, i3);
+    }
+    
+    /// <summary>
+    /// Removes a node from the <see cref="Quadtree{T}"/>
+    /// </summary>
+    /// <param name="nodeRef">a reference to the node to delete</param>
+    /// <param name="recursive">whether to recursively delete all the nodes children</param>
+    /// <exception cref="ArgumentOutOfRangeException"></exception>
+    private void DeleteNode(int nodeRef, bool recursive = false)
+    {
+        var node = _tree[nodeRef];
+        
+        if (recursive && node.Type == Branch)
+            DeleteChildren(nodeRef);
 
-        // get the child nodes of the subset root
-        var ref0 = GetNodeRef(center + (-1, -1), true, maxHeight-1);
-        var ref1 = GetNodeRef(center + (+1, -1), true, maxHeight-1);
-        var ref2 = GetNodeRef(center + (-1, +1), true, maxHeight-1);
-        var ref3 = GetNodeRef(center + (+1, +1), true, maxHeight-1);
+        // TODO: remove values (each value contains usage count maybe?)
+        _tree.Remove(nodeRef);
+    }
+    
+    /// <summary>
+    /// Deletes all of a node's children.
+    /// </summary>
+    /// <param name="parentNode">a reference to the node that will have its children deleted</param>
+    private void DeleteChildren(int parentNode)
+    {
+        var nodeRef = parentNode; // a reference to the current node
+        var height = _maxHeight; // the current height, relative to the parentNode parameter
         
-        // construct the subset root node
-        QuadtreeNode subsetRoot;
-        if (ref0 == ref1 && ref0 == ref2 && ref0 == ref3)
-            subsetRoot = new QuadtreeNode(_tree[ref0].GetValueRef());
-        else
-            subsetRoot = new QuadtreeNode(ref0, ref1, ref2, ref3);
+        var path = new int[_maxHeight + 1]; // an array of all the nodes traversed through to get to the current node, indexed using height. Includes the `parentNode`
+        var nextChildIndexes = new int[_maxHeight + 1]; // an array containing, for each branch node in `path`, the index of the next child to be deleted
         
-        return (subsetRoot, subsetRange);
+        while (true)
+        {
+            // exit if we are at the root node, and we have fully explored all of its children
+            if (height == _maxHeight && nextChildIndexes[height] == 4)
+                break;
+            
+            path[height] = nodeRef;
+            var node = _tree[nodeRef];
+            
+            switch (node.Type)
+            {
+                // if the node is a branch node that has not been fully deleted, step down into it
+                case Branch when nextChildIndexes[height] < 4:
+                    nodeRef = node.GetNodeRef(nextChildIndexes[height]);
+                    height--;
+                    continue;
+                // if the node is a leaf node that is below the root node and its immediate children, delete it
+                case Leaf when height < _maxHeight-2:
+                    DeleteNode(nodeRef);
+                    break;
+            }
+            
+            // update child indexes
+            nextChildIndexes[height+1]++;
+            nextChildIndexes[height] = 0;
+            
+            // step up into the parent node
+            height++;
+            nodeRef = path[height];
+        }
     }
     
-    /// <summary>
-    /// Updates the internally stored subset. Calling this method on a frequently accessed region
-    /// of the <see cref="Quadtree{T}"/> increases read/write speed for that region by acting as a cache.
-    /// Moves the subset every time it is called.
-    /// </summary>
-    public void UpdateSubset(Range2D minRange)
-    {
-        (_tree[1], _subsetDimensions) = GetSubset(minRange);
-    }
+    #endregion
     
-    /// <summary>
-    /// Gets the lengths of the <see cref="_tree"/> and <see cref="_data"/> sections in this <see cref="Quadtree{T}"/>.
-    /// </summary>
-    public (int treeLength, int dataLength) GetLength()
-    {
-        return (_tree.ModificationLength, _data.ModificationLength);
-    }
     
-    /// <summary>
-    /// Gets the modifications that have been done to this <see cref="Quadtree{T}"/> since the last time this
-    /// method was called.
-    /// </summary>
-    /// <returns>a <see cref="QuadtreeModifications{T}"/> struct</returns>
-    public QuadtreeModifications<T> GetModifications()
-    {
-        return new QuadtreeModifications<T>(_tree.GetModifications(), _data.GetModifications());
-    }
+    #region Serialization
     
     /// <summary>
     /// NYI
@@ -515,6 +638,10 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         
         throw new NotImplementedException();
     }
+    
+    #endregion
+    
+    #region SVG Export
     
     /// <summary>
     /// Converts this QuadTree into an SVG.
@@ -623,233 +750,165 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
                $"width=\"{w}\" height=\"{h}\" " +
                $"x=\"{minX}\" y=\"{minY}\"/>";
     }
-
-    /// <summary>
-    /// Gets the node 4^<paramref name="height"/> spaces further in the Z-Order Curve of this <see cref="Quadtree{T}"/>.
-    /// Useful when iterating through the entire quadtree. Updates the z-value, height, and node ref.
-    /// </summary>
-    /// <param name="zValue">the current z-value</param>
-    /// <param name="height">the current height</param>
-    /// <param name="maxZValue">the maximum z-value allowed for the next node</param>
-    /// <param name="path">a ref to an array containing references to all the nodes traversed through to get to the current node</param>
-    /// <returns>the updated <paramref name="zValue"/>, <paramref name="height"/>, and the index of the next node within <see cref="_tree"/></returns>
-    private (UInt128 zValue, int height, int nodeRef) GetNextNode(UInt128 zValue, int height, UInt128 maxZValue, ref int[] path)
-    {
-        if (height == _maxHeight)
-            return (0, _maxHeight, -1);
-        
-        // calculate difference to the next z-value
-        var deltaZ = (UInt128)0x1 << (2 * height);
-
-        var diff = maxZValue - zValue;
-        
-        // if this jump puts the z-value past the maxZValue, exit
-        if (deltaZ > diff)
-            return (0, 0, -1);
-        
-        
-        // calculate the next z-value
-        zValue += deltaZ;
-        
-        // calculate next height
-        height = CalculateLargestHeight(zValue, _maxHeight);
-        
-        // get the next node's ref
-        
-        // backtrack to the lowest node that both the current node and the next node reside in. this will always be the
-        // parent node of the next node
-        // if the next node is one below the root node, its parent will be the root node, which is not in `path`
-        var parentNodeRef = height == _maxHeight-1 ? 0 : path[height + 1];
-        var parentNode = _tree[parentNodeRef];
-        if (parentNode.Type == Leaf) 
-            throw new InvalidNodeTypeException(Leaf, Branch, "GetNextNode/parent node in path");
-        
-        // get the last "instruction" in the next z-value, which is the index within its parent node
-        var nextNodeIndex = ZValueIndex(zValue, height);
-        
-        // get the next node's ref
-        var nodeRef = parentNode.GetNodeRef(nextNodeIndex);
-        
-        // update the path. nodes in the path with lower heights are now irrelevant and will be overridden when the time comes
-        path[height] = nodeRef;
-        
-        return (zValue, height, nodeRef);
-    }
+    
+    #endregion
+    
+    
+    #region Subset
     
     /// <summary>
-    /// Calculates the position of the next node that <see cref="GetNextNode"/> will select.
+    /// Creates a new <see cref="QuadtreeNode"/> that acts as a root node for a smaller subset of this entire <see cref="Quadtree{T}"/>.
     /// </summary>
-    /// <param name="nodePos">the position of the node</param>
-    /// <param name="zValue">the z-value of the node</param>
-    /// <param name="height">the height of the node</param>
-    /// <returns>the position of the next node</returns>
-    private Vec2<long> GetNextNodePos(Vec2<long> nodePos, UInt128 zValue, int height)
+    /// <param name="minRange">a <see cref="Range2D"/> that will always fit into the returned subset unless it goes outside the
+    /// bounds of the <see cref="Quadtree{T}"/>, or <see cref="maxHeight"/> is too small. Used to specify position/size of the subset</param>
+    /// <param name="maxHeight">[optional] the maximum height of the returned subset. Will be automatically set to the
+    /// smallest possible value if not set. If set too low, the returned subset may not fully contain <paramref name="minRange"/></param>
+    /// <returns>The resulting <see cref="QuadtreeNode"/> and its dimensions</returns>
+    /// <exception cref="InvalidMaxHeightException">Thrown when <paramref name="maxHeight"/> is not valid (i.e. not 2-64)</exception>
+    /// <remarks>Automatically prevents the returned subset from extending out of the <see cref="Quadtree{T}"/></remarks>
+    public (QuadtreeNode Node, Range2D Range) GetSubset(Range2D minRange, int maxHeight = -1)
     {
-        if (height >= _maxHeight)
-            return (-1, -1);
+        if (!Dimensions.Contains(minRange))
+            throw new RangeOutOfBoundsException(minRange, Dimensions);
         
-        // get the index of this node within its parent
-        var parentIndex = ZValueIndex(zValue, height);
+        if (maxHeight > _maxHeight)
+            throw new InvalidHeightException(maxHeight, _maxHeight);
         
-        // get the size of this node
-        var nodeSize = 0x1L << height; //TODO: will break with _maxHeight = 64
-        
-        switch (parentIndex)
+        // calculate minimum height needed if none is set
+        if (maxHeight == -1)
         {
-            case 0: nodePos += ( nodeSize, 0); break;
-            case 1: nodePos += (-nodeSize, nodeSize); break;
-            case 2: nodePos += ( nodeSize, 0); break;
-            case 3: nodePos = Deinterleave(zValue + ((UInt128)0x1 << (2 * height)), _maxHeight); break;
+            var maxExt = minRange.MaxExtension;
+            var log = BitOperations.Log2(maxExt);
+            
+            maxHeight = BitOperations.IsPow2(maxExt) ? log : log + 1;
         }
         
-        return nodePos;
+        if (maxHeight < 1) throw new InvalidHeightException(maxHeight, _maxHeight);
+        
+        // calculate the center, snapping it to the nearest `snapDistance`
+        var snapDistance = 0x1L << (maxHeight - 1);
+        var centerF = minRange.CenterF;
+        var center = new Vec2<long>(
+            (long)Math.Round(centerF.X / snapDistance) * snapDistance,
+            (long)Math.Round(centerF.Y / snapDistance) * snapDistance
+        );
+        // clamp the center to ensure the resulting range does not go outside the bounds of the quadtree
+        var centerMax = (long)(Dimensions.MaxExtension - (ulong)snapDistance);
+        center = new Vec2<long>(
+            long.Clamp(center.X, -centerMax, centerMax),
+            long.Clamp(center.Y, -centerMax, centerMax));
+        
+        // create the range
+        var subsetRange = new Range2D(center, 0x1uL << maxHeight);
+
+        // get the child nodes of the subset root
+        var ref0 = GetNodeRef(center + (-1, -1), true, maxHeight-1);
+        var ref1 = GetNodeRef(center + (+1, -1), true, maxHeight-1);
+        var ref2 = GetNodeRef(center + (-1, +1), true, maxHeight-1);
+        var ref3 = GetNodeRef(center + (+1, +1), true, maxHeight-1);
+        
+        // construct the subset root node
+        QuadtreeNode subsetRoot;
+        if (ref0 == ref1 && ref0 == ref2 && ref0 == ref3)
+            subsetRoot = new QuadtreeNode(_tree[ref0].GetValueRef());
+        else
+            subsetRoot = new QuadtreeNode(ref0, ref1, ref2, ref3);
+        
+        return (subsetRoot, subsetRange);
     }
+    
+    /// <summary>
+    /// Updates the internally stored subset. Calling this method on a frequently accessed region
+    /// of the <see cref="Quadtree{T}"/> increases read/write speed for that region by acting as a cache.
+    /// Moves the subset every time it is called.
+    /// </summary>
+    public void UpdateSubset(Range2D minRange)
+    {
+        (_tree[1], _subsetDimensions) = GetSubset(minRange);
+    }
+    
+    #endregion
+    
+    #region Indexers
+    
+    /// <summary>
+    /// Gets or sets a single element in the <see cref="Quadtree{T}"/>
+    /// </summary>
+    /// <param name="pos">the element to get or set</param>
+    public T this[Vec2<long> pos]
+    {
+        get => Get(pos);
+        set => Set(pos, value);
+    }
+    
+    /// <summary>
+    /// Gets or sets a single element in the <see cref="Quadtree{T}"/>
+    /// </summary>
+    /// <param name="x">the X coordinate of the element to get or set</param>
+    /// <param name="y">the Y coordinate of the element to get or set</param>
+    public T this[long x, long y]
+    {
+        get => Get((x, y));
+        set => Set((x, y), value);
+    }
+    
+    /// <summary>
+    /// Sets every point in within a <see cref="Range2D"/> to the supplied value.
+    /// </summary>
+    /// <param name="range">the <see cref="Range2D"/> describing which elements to set</param>
+    public T this[Range2D range]
+    {
+        set => Set(range, value);
+    }
+    
+    #endregion
+    
+    
+    #region Public Util
 
     /// <summary>
-    /// Traverses through the <see cref="Quadtree{T}"/> to find the index of the node within <see cref="_tree"/> that
-    /// corresponds to the supplied position.
+    /// Gets the lengths of the <see cref="_tree"/> and <see cref="_data"/> sections in this <see cref="Quadtree{T}"/>.
     /// </summary>
-    /// <param name="pos">the supplied position</param>
-    /// <param name="readOnly">[optional] when set to true, prevents the quadtree from being modified.
-    /// If set, it is no longer guaranteed that a reference to a 1x1 node will be returned</param>
-    /// <param name="targetHeight">[optional] the height of the returned node. Defaults to 0. If <paramref name="readOnly"/> is set to
-    /// true, the returned node may have a higher height</param>
-    /// <param name="path">[optional] an <see cref="int"/>[<see cref="_maxHeight"/> + 1] into which the nodes traversed
-    /// through by this method will be stored, in reference form</param>
-    /// <returns>An index within <see cref="_tree"/> that refers to a node of height <paramref name="targetHeight"/> (unless <paramref name="readOnly"/> is set to true)</returns>
-    /// <exception cref="PositionOutOfBoundsException">Thrown when the supplied position does not reside within the quadtree</exception>
-    private int GetNodeRef(Vec2<long> pos, bool readOnly = false, int targetHeight = 0, int[] path = null)
+    public (int treeLength, int dataLength) GetLength()
     {
-        // validate pos parameter
-        if (!Dimensions.Contains(pos)) throw new PositionOutOfBoundsException(pos, Dimensions);
-        
-        // validate path parameter
-        var usePath = path != null;
-        if (usePath && path.Length != _maxHeight)
-            throw new Exception($"Invalid path Length: Was: {path.Length}, Required: {_maxHeight}");
-        
-        // calculate the position's z-value
-        var zValue = Interleave(pos, _maxHeight);
-        
-        // start at root node
-        var nodeRef = 0;
-        for (var height = _maxHeight - 1; height >= targetHeight; height--)
-        {
-            var node = _tree[nodeRef];
-            
-            if (node.Type == Leaf)
-            {
-                // if we are not allowed to modify the quadtree, stop descending prematurely
-                if (readOnly)
-                    break;
-                
-                // otherwise, subdivide the leaf node and refresh `node`
-                Subdivide(nodeRef);
-                node = _tree[nodeRef];
-            }
-            
-            // get the next node
-            
-            // extract the relevant 2-bit section from the z-value
-            var zPart = ZValueIndex(zValue, height);
-            
-            // set the current node to the node within at index `zPart`
-            nodeRef = node.GetNodeRef(zPart);
-            
-            // update the path if we need to
-            if (usePath) path[height] = nodeRef;
-        }
-        
-        // return the node
-        return nodeRef;
+        return (_tree.ModificationLength, _data.ModificationLength);
     }
     
     /// <summary>
-    /// Subdivides a leaf node into 4 smaller leaf nodes with the same value, replacing the original node.
+    /// Gets the modifications that have been done to this <see cref="Quadtree{T}"/> since the last time this
+    /// method was called.
     /// </summary>
-    /// <param name="nodeIndex">the index (within <see cref="_tree"/>) of the node to subdivide</param>
-    /// <exception cref="InvalidNodeTypeException">Thrown when <paramref name="nodeIndex"/> does not reference a leaf node</exception>
-    /// <remarks>The supplied node's index within <see cref="_tree"/> does not change.</remarks>
-    private void Subdivide(int nodeIndex)
+    /// <returns>a <see cref="QuadtreeModifications{T}"/> struct</returns>
+    public QuadtreeModifications<T> GetModifications()
     {
-        if (_tree[nodeIndex].Type != Leaf)
-            throw new InvalidNodeTypeException(Branch, Leaf);
-        
-        // get the value of the original node
-        var valueRef = _tree[nodeIndex].GetValueRef();
-        
-        // create 4 new leaf nodes with that value
-        var i0 = _tree.Add(new QuadtreeNode(valueRef));
-        var i1 = _tree.Add(new QuadtreeNode(valueRef));
-        var i2 = _tree.Add(new QuadtreeNode(valueRef));
-        var i3 = _tree.Add(new QuadtreeNode(valueRef));
-        
-        // assign them to the new branch node, replacing the original leaf node
-        _tree[nodeIndex] = new QuadtreeNode(i0, i1, i2, i3);
+        return new QuadtreeModifications<T>(_tree.GetModifications(), _data.GetModifications());
     }
     
     /// <summary>
-    /// Removes a node from the <see cref="Quadtree{T}"/>
+    /// Computes the hash code of this <see cref="Quadtree{T}"/>. Only factors in <see cref="_tree"/> and <see cref="_data"/>.
     /// </summary>
-    /// <param name="nodeRef">a reference to the node to delete</param>
-    /// <param name="recursive">whether to recursively delete all the nodes children</param>
-    /// <exception cref="ArgumentOutOfRangeException"></exception>
-    private void DeleteNode(int nodeRef, bool recursive = false)
+    public override int GetHashCode()
     {
-        var node = _tree[nodeRef];
+        return _tree.GetHashCode() ^ _data.GetHashCode();
+    }
+    
+    /// <summary>
+    /// Frees up the memory consumed by this <see cref="Quadtree{T}"/>.
+    /// </summary>
+    public void Dispose()
+    {
+        _tree.Dispose();
+        _data.Dispose();
         
-        if (recursive && node.Type == Branch)
-            DeleteChildren(nodeRef);
+        GC.SuppressFinalize(this);
+    }
+    
+    #endregion
 
-        // TODO: remove values (each value contains usage count maybe?)
-        _tree.Remove(nodeRef);
-    }
     
-    /// <summary>
-    /// Deletes all of a node's children.
-    /// </summary>
-    /// <param name="parentNode">a reference to the node that will have its children deleted</param>
-    private void DeleteChildren(int parentNode)
-    {
-        var nodeRef = parentNode; // a reference to the current node
-        var height = _maxHeight; // the current height, relative to the parentNode parameter
-        
-        var path = new int[_maxHeight + 1]; // an array of all the nodes traversed through to get to the current node, indexed using height. Includes the `parentNode`
-        var nextChildIndexes = new int[_maxHeight + 1]; // an array containing, for each branch node in `path`, the index of the next child to be deleted
-        
-        while (true)
-        {
-            // exit if we are at the root node, and we have fully explored all of its children
-            if (height == _maxHeight && nextChildIndexes[height] == 4)
-                break;
-            
-            path[height] = nodeRef;
-            var node = _tree[nodeRef];
-            
-            switch (node.Type)
-            {
-                // if the node is a branch node that has not been fully deleted, step down into it
-                case Branch when nextChildIndexes[height] < 4:
-                    nodeRef = node.GetNodeRef(nextChildIndexes[height]);
-                    height--;
-                    continue;
-                // if the node is a leaf node that is below the root node and its immediate children, delete it
-                case Leaf when height < _maxHeight-2:
-                    DeleteNode(nodeRef);
-                    break;
-            }
-            
-            // update child indexes
-            nextChildIndexes[height+1]++;
-            nextChildIndexes[height] = 0;
-            
-            // step up into the parent node
-            height++;
-            nodeRef = path[height];
-        }
-    }
-    
-    
+
+    #region Private Util
+
     /// <summary>
     /// Checks whether each supplied feature is enabled in this <see cref="Quadtree{T}"/>. If any are not enabled, throws a <see cref="DisabledFeatureException"/>.
     /// </summary>
@@ -863,48 +922,9 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         }
     }
     
+    #endregion
     
-    /// <summary>
-    /// Computes the hash code of this <see cref="Quadtree{T}"/>. Only factors in <see cref="_tree"/> and <see cref="_data"/>.
-    /// </summary>
-    public override int GetHashCode()
-    {
-        return _tree.GetHashCode() ^ _data.GetHashCode();
-    }
-    
-    /// <summary>
-    /// Computes the hash code of the <see cref="_tree"/> section of this <see cref="Quadtree{T}"/>.
-    /// </summary>
-    public Hash GetTreeHash()
-    {
-        return _tree.Hash(2);
-    }
-    
-    /// <summary>
-    /// Computes the hash code of the <see cref="_data"/> section of this <see cref="Quadtree{T}"/>.
-    /// </summary>
-    public Hash GetDataHash()
-    {
-        return _data.Hash(2);
-    }
-
-    /// <summary>
-    /// Frees up the memory consumed by this <see cref="Quadtree{T}"/>.
-    /// </summary>
-    public void Dispose()
-    {
-        _tree.Dispose();
-        _data.Dispose();
-        
-        GC.SuppressFinalize(this);
-    }
-    
-    private enum QuadtreeFeature
-    {
-        FileSerialization = 0,
-        ElementColor = 1,
-        CellularAutomata = 2
-    }
+    #region Exceptions
     
     private class DisabledFeatureException(QuadtreeFeature requiredFeature) : Exception(
         $"Feature \"{requiredFeature}\" is disabled, but is required for the operation");
@@ -920,6 +940,15 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     
     private class PositionOutOfBoundsException(Vec2<long> pos, Range2D bound) : Exception(
         $"Position {pos} is Outside QuadTree Bounds of {bound}");
+    
+    #endregion
+    
+    private enum QuadtreeFeature
+    {
+        FileSerialization = 0,
+        ElementColor = 1,
+        CellularAutomata = 2
+    }
 }
 
 
