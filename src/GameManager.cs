@@ -79,9 +79,6 @@ public static class GameManager
         Translation = RenderManager.Translation;
         Scale = RenderManager.Scale;
         var (modifications, action) = RenderManager.GetWorldModifications();
-
-        var rangeCount = 0;
-        var coordCount = 0;
         
         // apply any world modifications
         foreach (var modification in modifications)
@@ -90,21 +87,17 @@ public static class GameManager
             
             // ensure the range is within the world
             if (!_world.Dimensions.Overlaps(modification.Range))
-            {
-                Error($"Range {range} is Fully Outside World Bounds of {_world.Dimensions}");
                 continue;
-            }
+            
             range = _world.Dimensions.Overlap(range);
             
             if (modification.Range.Bl == modification.Range.Tr)
             {
                 _world[range.Bl] = modification.Tile;
-                coordCount++;
             }
             else
             {
                 _world[range] = modification.Tile;
-                rangeCount++;
             }
         }
         

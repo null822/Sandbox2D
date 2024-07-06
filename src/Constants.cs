@@ -15,7 +15,7 @@ public static class Constants
     /// <remarks>
     /// The maximum value is 64, and the minimum is 2.
     /// </remarks>
-    public const int WorldHeight = 64;
+    public const int WorldHeight = 5;
     
     /// <summary>
     /// The TPS (Ticks Per Second) the game logic will attempt to run at.
@@ -46,7 +46,7 @@ public static class Constants
     /// <summary>
     /// The width/height of the SVG of an exported <see cref="Maths.Quadtree.Quadtree{T}"/> (see <see cref="Maths.Quadtree.Quadtree{T}.GetSvgMap"/>).
     /// </summary>
-    public const int QuadTreeSvgWidth = 1048576;
+    public const int QuadTreeSvgWidth = 65536;
     
     /// <summary>
     /// The default size of the game window

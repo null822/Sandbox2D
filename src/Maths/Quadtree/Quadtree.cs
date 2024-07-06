@@ -51,11 +51,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     private Range2D _subsetDimensions; // TODO: actually implement the subset
     
     /// <summary>
-    /// The maximum value of any z-value in this quadtree
-    /// </summary>
-    private readonly UInt128 _maxZValue;
-    
-    /// <summary>
     /// Stores which features have been enabled. Indexed using <see cref="QuadtreeFeature"/>.
     /// </summary>
     private readonly bool[] _enabledFeatures;
@@ -75,10 +70,9 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             throw new InvalidMaxHeightException(maxHeight);
         
         _maxHeight = maxHeight;
-        _maxZValue = (UInt128)0x1 << (2 * _maxHeight);
         
-        var halfSize = 0x1L << (maxHeight - 1);
-        Dimensions = NodeRangeFromPos((-halfSize, -halfSize), _maxHeight);
+        var halfSize = 0x1L << (maxHeight - 1); //TODO: will break if _maxHeight = 64
+        Dimensions = NodeRangeFromPos((-halfSize, -halfSize), _maxHeight); //TODO: don't like 64-part of this NodeRangeFromPos() implementation
         Console.WriteLine(Dimensions);
         Console.WriteLine(Dimensions.MaxExtension);
         
@@ -311,10 +305,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         
         while (true)
         {
-            // if we have gone through the entire range, exit the loop
-            if (zValue > maxZValue)
-                break;
-            
             var node = _tree[nodeRef];
             
             // if the node is a branch node, step down into it
@@ -331,7 +321,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
                 
                 // if this is the last node we will compress, force a "full compress", to tie up any loose ends (not
                 // fully compressed nodes)
-                var trZValue = zValue + ((UInt128)0x1 << (2 * height)) - 1;
+                var trZValue = zValue + ((UInt128)0x1 << (2 * height)) - 1; //TODO: will break with _maxHeight = 64
                 if (trZValue == maxZValue)
                 {
                     CompressNode(zValue, height, path, true);
@@ -549,7 +539,8 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         var svgString = new StringBuilder(
             $"<svg viewBox=\"{minX} {minY} {w} {h}\">"
         );
-        
+
+        var maxZValue = (UInt128)0x1 << (2 * _maxHeight); //TODO: will break if _maxHeight = 64
         UInt128 zValue = 0;
         var pos = Dimensions.Bl;
         var height = _maxHeight;
@@ -560,9 +551,9 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         {
             var node = _tree[nodeRef];
             
+            // if the node is a branch node, step down into it without changing the z-value, and continue
             if (node.Type == Branch)
             {
-                // if the node is a branch node, step down into it without changing the z-value, and continue
                 nodeRef = node.Ref0;
                 height--;
                 // update the path
@@ -576,8 +567,8 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             
             // jump to the next node
             pos = GetNextNodePos(pos, zValue, height);
-            (zValue, height, nodeRef) = GetNextNode(zValue, height, _maxZValue, ref path);
-            if (nodeRef == -1) break;
+            (zValue, height, nodeRef) = GetNextNode(zValue, height, maxZValue, ref path);
+            if (nodeRef == -1) break; // exit if we went through the entire quadtree
         }
         
         svgString.Append("<svg/>");
@@ -647,15 +638,15 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// <returns>the updated <paramref name="zValue"/>, <paramref name="height"/>, and the index of the next node within <see cref="_tree"/></returns>
     private (UInt128 zValue, int height, int nodeRef) GetNextNode(UInt128 zValue, int height, UInt128 maxZValue, ref int[] path)
     {
-        if (height == _maxHeight) return (0, _maxHeight, -1);
+        if (height == _maxHeight)
+            return (0, _maxHeight, -1);
         
         // calculate difference to the next z-value
         var deltaZ = (UInt128)0x1 << (2 * height);
         
         // if this jump puts the z-value past the maxZValue, exit
-        if (deltaZ > maxZValue - zValue)
+        if (deltaZ >= maxZValue - zValue)
             return (0, 0, -1);
-        
         
         // calculate the next z-value
         zValue += deltaZ;
@@ -666,18 +657,17 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         // get the next node's ref
         
         // backtrack to the lowest node that both the current node and the next node reside in. this will always be the
-        // parent node of the next node. If the next node is one below the root node, its parent will be the root node,
-        // which is not in `path`
+        // parent node of the next node
+        // if the next node is one below the root node, its parent will be the root node, which is not in `path`
         var parentNodeRef = height == _maxHeight-1 ? 0 : path[height + 1];
+        var parentNode = _tree[parentNodeRef];
+        if (parentNode.Type == Leaf) 
+            throw new InvalidNodeTypeException(Leaf, Branch, "GetNextNode/parent node in path");
         
         // get the last "instruction" in the next z-value, which is the index within its parent node
         var nextNodeIndex = ZValueIndex(zValue, height);
         
-        // get the parent node
-        var parentNode = _tree[parentNodeRef];
-        if (parentNode.Type == Leaf) throw new InvalidNodeTypeException(Leaf, Branch, "GetNextNode/parent node in path");
-        
-        // get the next node ref
+        // get the next node's ref
         var nodeRef = parentNode.GetNodeRef(nextNodeIndex);
         
         // update the path. nodes in the path with lower heights are now irrelevant and will be overridden when the time comes
@@ -702,7 +692,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         var parentIndex = ZValueIndex(zValue, height);
         
         // get the size of this node
-        var nodeSize = 0x1L << height;
+        var nodeSize = 0x1L << height; //TODO: will break with _maxHeight = 64
         
         switch (parentIndex)
         {
@@ -911,10 +901,9 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     
     private enum QuadtreeFeature
     {
-        CellularAutomata = 0,
-        FileSerialization = 1,
-        GpuSerialization = 2,
-        ElementColor = 3,
+        FileSerialization = 0,
+        ElementColor = 1,
+        CellularAutomata = 2
     }
     
     private class DisabledFeatureException(QuadtreeFeature requiredFeature) : Exception(
