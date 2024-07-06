@@ -71,7 +71,8 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         
         _maxHeight = maxHeight;
         
-        var halfSize = 0x1L << (maxHeight - 1); //TODO: will break if _maxHeight = 64
+        var halfSize = (long)(Pow2Min1uL(_maxHeight - 1) + 1); //TODO: will break if _maxHeight = 64
+        Console.WriteLine($"{maxHeight}, {halfSize}");
         Dimensions = NodeRangeFromPos((-halfSize, -halfSize), _maxHeight); //TODO: don't like 64-part of this NodeRangeFromPos() implementation
         Console.WriteLine(Dimensions);
         Console.WriteLine(Dimensions.MaxExtension);
@@ -225,10 +226,8 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
                     _tree[nodeRef] = valueNode;
                 }
                 
-                // calculate the position of the next node
-                nodePos = GetNextNodePos(nodePos, zValue, height);
-                
                 // jump to the next node
+                nodePos = GetNextNodePos(nodePos, zValue, height);
                 (zValue, height, nodeRef) = GetNextNode(zValue, height, maxZValue, ref path);
                 if (nodeRef == -1)
                     break;
@@ -295,7 +294,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// <param name="range">the section to compress</param>
     private void CompressRange(Range2D range)
     {
-        var maxZValue = ~(_maxHeight == 64 ? 0 : ~(UInt128)0x0 << (2 * _maxHeight)); // the z-value of the last node to be traversed
+        var maxZValue = Pow2Min1U128(_maxHeight * 2); // the z-value of the last node to be traversed
         var path = new int[_maxHeight]; // an array of all the nodes traversed through to get to the current node, indexed using height
         
         // set up variables, starting at the bottom-left-most point in the `range`
@@ -540,7 +539,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             $"<svg viewBox=\"{minX} {minY} {w} {h}\">"
         );
 
-        var maxZValue = (UInt128)0x1 << (2 * _maxHeight); //TODO: will break if _maxHeight = 64
+        var maxZValue = Pow2Min1U128(_maxHeight * 2);
         UInt128 zValue = 0;
         var pos = Dimensions.Bl;
         var height = _maxHeight;
@@ -643,10 +642,13 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         
         // calculate difference to the next z-value
         var deltaZ = (UInt128)0x1 << (2 * height);
+
+        var diff = maxZValue - zValue;
         
         // if this jump puts the z-value past the maxZValue, exit
-        if (deltaZ >= maxZValue - zValue)
+        if (deltaZ > diff)
             return (0, 0, -1);
+        
         
         // calculate the next z-value
         zValue += deltaZ;

@@ -129,6 +129,34 @@ public static class QuadtreeUtil
     }
     
     /// <summary>
+    /// Computes 2^n - 1, returning the result as a long, and never exceeding the limit of 2^63.
+    /// </summary>
+    /// <param name="v">n; the value to return 2^n - 1 of</param>
+    public static long Pow2Min1L(int v)
+    {
+        return ~(v == 63 ? 0 : ~0x0L << v);
+    }
+    
+    /// <summary>
+    /// Computes 2^n - 1, returning the result as a ulong, and never exceeding the limit of 2^64.
+    /// </summary>
+    /// <param name="v">n; the value to return 2^n - 1 of</param>
+    // ReSharper disable once InconsistentNaming
+    public static ulong Pow2Min1uL(int v)
+    {
+        return ~(v == 64 ? 0 : ~0x0uL << v);
+    }
+    
+    /// <summary>
+    /// Computes 2^n - 1, returning the result as a UInt128, and never exceeding the limit of 2^128.
+    /// </summary>
+    /// <param name="v">n; the value to return 2^n - 1 of</param>
+    public static UInt128 Pow2Min1U128(int v)
+    {
+        return ~(v == 128 ? 0 : ~(UInt128)0x0 << v);
+    }
+    
+    /// <summary>
     /// A <see cref="Comparer{T}"/> that allows for sorting <see cref="Range2D"/>s by their <see cref="Range2D.Bl"/>
     /// corner in an increasing, bottom-left to top right-order.
     /// </summary>
