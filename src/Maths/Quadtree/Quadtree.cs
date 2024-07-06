@@ -70,10 +70,8 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             throw new InvalidMaxHeightException(maxHeight);
         
         _maxHeight = maxHeight;
-        
-        var halfSize = (long)(Pow2Min1uL(_maxHeight - 1) + 1); //TODO: will break if _maxHeight = 64
-        Console.WriteLine($"{maxHeight}, {halfSize}");
-        Dimensions = NodeRangeFromPos((-halfSize, -halfSize), _maxHeight); //TODO: don't like 64-part of this NodeRangeFromPos() implementation
+        var halfSize = -1L << (_maxHeight - 1);
+        Dimensions = NodeRangeFromPos(new Vec2<long>(halfSize), _maxHeight);
         Console.WriteLine(Dimensions);
         Console.WriteLine(Dimensions.MaxExtension);
         
@@ -528,17 +526,17 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         
         // create the viewbox
         // viewbox is 2x as large as the actual svg
-        var minX =  Dimensions.MinX * scale * 2m;
-        var maxY = -Dimensions.MinY * scale * 2m;
-        var maxX =  Dimensions.MaxX * scale * 2m;
-        var minY = -Dimensions.MaxY * scale * 2m;
+        var minX =   Dimensions.MinX * scale * 2m;
+        var maxY = -(Dimensions.MinY * scale * 2m);
+        var maxX =   Dimensions.MaxX * scale * 2m;
+        var minY = -(Dimensions.MaxY * scale * 2m);
         var w = maxX - minX + 1;
         var h = maxY - minY + 1;
         
         var svgString = new StringBuilder(
             $"<svg viewBox=\"{minX} {minY} {w} {h}\">"
         );
-
+        
         var maxZValue = Pow2Min1U128(_maxHeight * 2);
         UInt128 zValue = 0;
         var pos = Dimensions.Bl;

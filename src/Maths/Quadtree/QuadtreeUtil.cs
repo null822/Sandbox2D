@@ -100,13 +100,8 @@ public static class QuadtreeUtil
     /// <returns>The node represented as a <see cref="Range2D"/></returns>
     public static Range2D NodeRangeFromPos(Vec2<long> bl, int height)
     {
-        if (height == 64)
-        {
-            return new Range2D(new Vec2<long>(long.MinValue), new Vec2<long>(long.MaxValue));
-        }
-        
-        var size = ~(~0L << height);
-        var tr = bl + new Vec2<long>(size);
+        var sizeM1 = Pow2Min1uL(height); 
+        var tr = new Vec2<long>((long)((ulong)bl.X + sizeM1), (long)((ulong)bl.Y + sizeM1));
         
         return new Range2D(bl, tr);
     }
