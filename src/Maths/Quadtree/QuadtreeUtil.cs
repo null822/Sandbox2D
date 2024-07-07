@@ -88,7 +88,7 @@ public static class QuadtreeUtil
     /// <returns>The rounded off z-value</returns>
     public static UInt128 RoundZValue(UInt128 zValue, int height)
     {
-        var mask = UInt128.MaxValue << (height * 2);
+        var mask = height == 64 ? 0 : UInt128.MaxValue << (height * 2);
         return zValue & mask;
     }
     

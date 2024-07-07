@@ -54,7 +54,7 @@ public static class Program
     {
         var setRemoveHash = new DynamicArray<int>([12, 32, 42]).Hash();
         var clearHash = new DynamicArray<int>([]).Hash();
-        var sortHash = new DynamicArray<int>([0, 1, 2, 3, 6, 10, 11, 12]).Hash();
+        var sortHash = new DynamicArray<int>([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).Hash();
 
         const int batchLength = 2;
         
@@ -142,6 +142,20 @@ public static class Program
                 Warn($"[{i}] = {dynamicArrayMirror[i]}");
             }
         }
+        
+        dynamicArray.Dispose();
+        dynamicArray = new DynamicArray<int>(batchLength, true);
+
+        dynamicArray.Add(9);
+        dynamicArray.Add(0);
+        dynamicArray.Add(1);
+        dynamicArray.Add(2);
+        dynamicArray.Add(5);
+        dynamicArray.Add(6);
+        dynamicArray.Add(3);
+        dynamicArray.Add(4);
+        dynamicArray.Add(7);
+        dynamicArray.Add(8);
         
         dynamicArray.Sort();
         success = Assert(dynamicArray.Hash(), sortHash, "DynamicArray Sort");

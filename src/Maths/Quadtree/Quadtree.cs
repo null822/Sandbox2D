@@ -72,8 +72,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         _maxHeight = maxHeight;
         var halfSize = -1L << (_maxHeight - 1);
         Dimensions = NodeRangeFromPos(new Vec2<long>(halfSize), _maxHeight);
-        Console.WriteLine(Dimensions);
-        Console.WriteLine(Dimensions.MaxExtension);
         
         const int arrLen = 2048;
         
@@ -112,7 +110,11 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// <param name="pos">the position</param>
     private T Get(Vec2<long> pos)
     {
-        var node = GetNodeRef(pos, true);
+        // validate pos parameter
+        if (!Dimensions.Contains(pos)) throw new PositionOutOfBoundsException(pos, Dimensions);
+        
+        // get the targeted node
+        var node = GetNodeRef(Interleave(pos, _maxHeight), readOnly: true);
         
         // return the value of the node
         return _data[_tree[node].GetValueRef()];
@@ -125,7 +127,11 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// <param name="value">the value</param>
     private void Set(Vec2<long> pos, T value)
     {
-        var node = GetNodeRef(pos);
+        // validate pos parameter
+        if (!Dimensions.Contains(pos)) throw new PositionOutOfBoundsException(pos, Dimensions);
+        
+        // get the targeted node
+        var node = GetNodeRef(Interleave(pos, _maxHeight));
         
         // overwrite the node with the new value
         _tree[node] = new QuadtreeNode(_data.Add(value));
@@ -156,18 +162,15 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         var nodePos = range.Bl; // the position of the current node
         var zValue = Interleave(range.Bl, _maxHeight); // the z-value of the current node
         var height = CalculateLargestHeight(zValue, _maxHeight); // the height of the current node
-        var nodeRef = GetNodeRef(nodePos, false, height, path); // a reference to the current node
+        var nodeRef = GetNodeRef(zValue, height, false, path); // a reference to the current node
         
         while (true)
         {
-            // if we have gone through the entire `range`, exit the loop
-            // if (zValue > maxZValue) break;
-            
             var nodeRange = NodeRangeFromPos(nodePos, height);
             var node = _tree[nodeRef];
             
-            // if the node is only partially contained or is the root node, step down into it, narrowing the area we can modify
-            if ((range.Overlaps(nodeRange) && !range.Contains(nodeRange)) || height == _maxHeight)
+            // if the node is only partially contained, step down into it, narrowing the area we can modify
+            if (range.Overlaps(nodeRange) && !range.Contains(nodeRange))
             {
                 // if it is a leaf node, subdivide it first
                 if (node.Type == Leaf)
@@ -190,7 +193,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
                     // delete the nodes children if we can, freeing up memory and preventing orphaned nodes
                     if (node.Type == Branch)
                     {
-                        DeleteChildren(nodeRef);
+                        DeleteChildren(zValue, height, nodeRef);
                     }
                     // replace the node with a copy of `valueNode`, containing the value to set
                     _tree[nodeRef] = valueNode;
@@ -210,8 +213,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// </summary>
     public void Clear()
     {
-        Set(Dimensions, _data[0]);
-        _modifications.Clear();
+        DeleteChildren(0, _maxHeight); // delete the root node's children
     }
     
     #endregion
@@ -273,7 +275,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         // set up variables, starting at the bottom-left-most point in the `range`
         var zValue = Interleave(range.Bl, _maxHeight); // the z-value of the current node
         var height = CalculateLargestHeight(zValue, _maxHeight); // the height of the current node
-        var nodeRef = GetNodeRef(range.Bl, false, height, path); // a reference to the current node
+        var nodeRef = GetNodeRef(zValue, height, false, path); // a reference to the current node
         
         while (true)
         {
@@ -357,7 +359,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             }
             
             // if we can compress this node, remove its children
-            DeleteChildren(parentRef);
+            DeleteChildren(zValue, height, parentRef);
             // set the parent node to a leaf node referencing the value that is common among all 4 of its children
             _tree[parentRef] = new QuadtreeNode(valueRef);
             
@@ -407,7 +409,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         // if the next node is one below the root node, its parent will be the root node, which is not in `path`
         var parentNodeRef = height == _maxHeight-1 ? 0 : path[height + 1];
         var parentNode = _tree[parentNodeRef];
-        if (parentNode.Type == Leaf) 
+        if (parentNode.Type == Leaf)
             throw new InvalidNodeTypeException(Leaf, Branch, "GetNextNode/parent node in path");
         
         // get the last "instruction" in the next z-value, which is the index within its parent node
@@ -452,30 +454,24 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     }
     
     /// <summary>
-    /// Traverses through the <see cref="Quadtree{T}"/> to find the index of the node within <see cref="_tree"/> that
-    /// corresponds to the supplied position.
+    /// Traverses through the <see cref="Quadtree{T}"/> to find the index of a node within <see cref="_tree"/> that
+    /// corresponds to the supplied z-value and height.
     /// </summary>
-    /// <param name="pos">the supplied position</param>
+    /// <param name="zValue">the z-value of the target node</param>
+    /// /// <param name="targetHeight">[optional] the height of the returned node. Defaults to 0. If <paramref name="readOnly"/> is set to
+    /// true, the returned node may have a higher height</param>
     /// <param name="readOnly">[optional] when set to true, prevents the quadtree from being modified.
     /// If set, it is no longer guaranteed that a reference to a 1x1 node will be returned</param>
-    /// <param name="targetHeight">[optional] the height of the returned node. Defaults to 0. If <paramref name="readOnly"/> is set to
-    /// true, the returned node may have a higher height</param>
     /// <param name="path">[optional] an <see cref="int"/>[<see cref="_maxHeight"/> + 1] into which the nodes traversed
     /// through by this method will be stored, in reference form</param>
     /// <returns>An index within <see cref="_tree"/> that refers to a node of height <paramref name="targetHeight"/> (unless <paramref name="readOnly"/> is set to true)</returns>
     /// <exception cref="PositionOutOfBoundsException">Thrown when the supplied position does not reside within the quadtree</exception>
-    private int GetNodeRef(Vec2<long> pos, bool readOnly = false, int targetHeight = 0, int[] path = null)
+    private int GetNodeRef(UInt128 zValue, int targetHeight = 0, bool readOnly = false, int[] path = null)
     {
-        // validate pos parameter
-        if (!Dimensions.Contains(pos)) throw new PositionOutOfBoundsException(pos, Dimensions);
-        
         // validate path parameter
         var usePath = path != null;
         if (usePath && path.Length != _maxHeight)
             throw new Exception($"Invalid path Length: Was: {path.Length}, Required: {_maxHeight}");
-        
-        // calculate the position's z-value
-        var zValue = Interleave(pos, _maxHeight);
         
         // start at root node
         var nodeRef = 0;
@@ -539,64 +535,89 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     }
     
     /// <summary>
-    /// Removes a node from the <see cref="Quadtree{T}"/>
-    /// </summary>
-    /// <param name="nodeRef">a reference to the node to delete</param>
-    /// <param name="recursive">whether to recursively delete all the nodes children</param>
-    /// <exception cref="ArgumentOutOfRangeException"></exception>
-    private void DeleteNode(int nodeRef, bool recursive = false)
-    {
-        var node = _tree[nodeRef];
-        
-        if (recursive && node.Type == Branch)
-            DeleteChildren(nodeRef);
-
-        // TODO: remove values (each value contains usage count maybe?)
-        _tree.Remove(nodeRef);
-    }
-    
-    /// <summary>
     /// Deletes all of a node's children.
     /// </summary>
-    /// <param name="parentNode">a reference to the node that will have its children deleted</param>
-    private void DeleteChildren(int parentNode)
+    /// <param name="zValue">the z-value of the target node</param>
+    /// <param name="height">the height of the target node</param>
+    /// <param name="nodeRef">[optional, will be retrieved if not set] a reference to the node that will have its
+    /// children deleted</param>
+    private void DeleteChildren(UInt128 zValue, int height, int nodeRef = -1)
     {
-        var nodeRef = parentNode; // a reference to the current node
-        var height = _maxHeight; // the current height, relative to the parentNode parameter
+        // nodes at height = 0 have no children
+        if (height == 0)
+            return;
+        var maxHeight = height;
+        var path = new int[_maxHeight]; // an array of all the nodes traversed through to get to the current node, indexed using height
+        if (nodeRef == -1) nodeRef = GetNodeRef(zValue, height); // resolve nodeRef if none was given
+        if (_tree[nodeRef].Type == Leaf) return; // if the target node is a leaf, it has no children and therefore none can be deleted
+        var targetNode = nodeRef;
         
-        var path = new int[_maxHeight + 1]; // an array of all the nodes traversed through to get to the current node, indexed using height. Includes the `parentNode`
-        var nextChildIndexes = new int[_maxHeight + 1]; // an array containing, for each branch node in `path`, the index of the next child to be deleted
+        var pathNextSibling = new int[_maxHeight]; // [height] = index (within parent) of the next sibling to be deleted
+        
+        // add initial value to path
+        if (height != _maxHeight) path[height] = nodeRef;
         
         while (true)
         {
-            // exit if we are at the root node, and we have fully explored all of its children
-            if (height == _maxHeight && nextChildIndexes[height] == 4)
-                break;
-            
-            path[height] = nodeRef;
             var node = _tree[nodeRef];
             
-            switch (node.Type)
+            // step down into branch nodes whose children have not been fully deleted
+            if (node.Type == Branch && height != 0 && pathNextSibling[height - 1] < 4)
             {
-                // if the node is a branch node that has not been fully deleted, step down into it
-                case Branch when nextChildIndexes[height] < 4:
-                    nodeRef = node.GetNodeRef(nextChildIndexes[height]);
-                    height--;
-                    continue;
-                // if the node is a leaf node that is below the root node and its immediate children, delete it
-                case Leaf when height < _maxHeight-2:
-                    DeleteNode(nodeRef);
-                    break;
+                // step down into the node
+                nodeRef = node.GetNodeRef(pathNextSibling[height - 1]);
+                height--;
+                // update the path to reflect what we just did
+                path[height] = nodeRef;
+                
+                continue;
             }
             
-            // update child indexes
-            nextChildIndexes[height+1]++;
-            nextChildIndexes[height] = 0;
+            // remove the node from _tree, without shrinking (done later, removing multiple calls to DynamicArray.Shrink())
+            _tree.Remove(nodeRef, false);
+            // TODO: remove values (each value contains usage count maybe?)
             
-            // step up into the parent node
+            // increment our next sibling counter
+            pathNextSibling[height]++;
+            
+            // if we are at the target node and have just deleted its last child, exit
+            if (height == maxHeight - 1 && pathNextSibling[height] == 4)
+                break;
+            
+            // if this node's siblings have not been fully deleted, go to it's next sibling
+            if (pathNextSibling[height] < 4)
+            {
+                // calculate the next z-value
+                zValue += (UInt128)0x1 << (2 * height);
+                
+                // get the parent node
+                var parentNode = _tree[height == _maxHeight - 1 ? 0 : path[height + 1]];
+                
+                // get the next sibling's ref
+                nodeRef = parentNode.GetNodeRef(pathNextSibling[height]);
+                
+                // update the path. nodes in the path with lower heights are now irrelevant and will be overridden when the time comes
+                path[height] = nodeRef;
+                
+                // reset the sibling's next child counter
+                if (height != 0) pathNextSibling[height - 1] = 0;
+                
+                continue;
+            }
+            
+            // otherwise, reset this node's next sibling counter, increment its parent's, and go to this node's parent
+            // pathNextSibling[height] = 0;
+            if (height != 0) pathNextSibling[height - 1] = 0;
             height++;
             nodeRef = path[height];
+            zValue = RoundZValue(zValue, height);
         }
+        
+        // replace the target node with a leaf node pointing to the default value
+        _tree[targetNode] = new QuadtreeNode(0);
+        
+        // shrink the tree, deallocating deleted QuadtreeNodes
+        _tree.Shrink();
     }
     
     #endregion
@@ -802,10 +823,10 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         var subsetRange = new Range2D(center, 0x1uL << maxHeight);
 
         // get the child nodes of the subset root
-        var ref0 = GetNodeRef(center + (-1, -1), true, maxHeight-1);
-        var ref1 = GetNodeRef(center + (+1, -1), true, maxHeight-1);
-        var ref2 = GetNodeRef(center + (-1, +1), true, maxHeight-1);
-        var ref3 = GetNodeRef(center + (+1, +1), true, maxHeight-1);
+        var ref0 = GetNodeRef(Interleave(center + (-1, -1), _maxHeight), maxHeight-1, true);
+        var ref1 = GetNodeRef(Interleave(center + (+1, -1), _maxHeight), maxHeight-1, true);
+        var ref2 = GetNodeRef(Interleave(center + (-1, +1), _maxHeight), maxHeight-1, true);
+        var ref3 = GetNodeRef(Interleave(center + (+1, +1), _maxHeight), maxHeight-1, true);
         
         // construct the subset root node
         QuadtreeNode subsetRoot;
