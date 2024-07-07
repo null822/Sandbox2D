@@ -201,15 +201,16 @@ public class DynamicArray<T> : IDisposable
     {
         (this[a], this[b]) = (this[b], this[a]);
     }
-    
+
     /// <summary>
     /// Removes a value from the array
     /// </summary>
     /// <param name="i">the index of the value to remove</param>
+    /// <param name="shrink">whether to try to shrink the <see cref="DynamicArray{T}"/></param>
     /// <remarks>This method only "soft-removes" the value, meaning it remains accessible,
     /// but will be overriden if new values are added. Consider using <see cref="Set"/> if this is not desired.
     /// Elements in the array are never shifted.</remarks>
-    public void Remove(int i)
+    public void Remove(int i, bool shrink = true)
     {
         // account for _start
         i += _start;
@@ -220,7 +221,7 @@ public class DynamicArray<T> : IDisposable
         _vacancies.Add(i);
         
         // if the last element in the array was removed, shrink the array
-        if (i == _totalLength - 1) Shrink();
+        if (shrink && i == _totalLength - 1) Shrink();
     }
     
     /// <summary>
@@ -261,8 +262,9 @@ public class DynamicArray<T> : IDisposable
         var workArr = new DynamicArray<T>(_arrayLength, false, false);
         CopyTo(in workArr);
         
-        // sort
-        MergeSort(this, workArr, 0, Length, comparison ?? Comparer<T>.Default);
+        // sort the arrays. note that workArr is passed into array "a", and this is passed into array "b".
+        // if they were the other way around, the sorted result would be in workArr, requiring another copy
+        MergeSort(workArr, this, 0, Length, comparison ?? Comparer<T>.Default);
         
         // dispose the work array
         workArr.Dispose();
@@ -390,7 +392,7 @@ public class DynamicArray<T> : IDisposable
     /// <summary>
     /// Returns as much data back to <see cref="_dataPool"/> as possible, and updates <see cref="_totalLength"/>.
     /// </summary>
-    private void Shrink()
+    public void Shrink()
     {
         // if there are vacant spaces, check if we can shrink
         if (_storeVacancies && _vacancies.Length > 0 && _totalLength > 0)
@@ -416,6 +418,10 @@ public class DynamicArray<T> : IDisposable
                 // go to the next vacancy
                 prevVacancy = vacancy;
             }
+            
+            // if the DynamicArray can not be shrunk, exit
+            if (i == _vacancies.Length - 1)
+                return;
             
             // set `Length` to this element
             _totalLength = _vacancies[i+1];
@@ -463,7 +469,7 @@ public class DynamicArray<T> : IDisposable
         MergeSort(b, a, start, middle, comparison);
         MergeSort(b, a, middle, end, comparison);
         
-        // sort the elements, while going up the stack (hence, starting at arrays with length = 2)
+        // sort and combine the elements into b, while going up the stack (hence, starting at arrays with length = 2)
         var l = start;
         var r = middle;
         
@@ -565,7 +571,7 @@ public class DynamicArray<T> : IDisposable
         Exception("Unable to remove element: Vacancies are not stored");
     
     private class InvalidIndexException(int i, int length) :
-        Exception($"Index {i} out of range for {nameof(DynamicArray<T>)} length of {length}");
+        Exception($"Index {i} out of range for {nameof(DynamicArray<T>)} of length {length}");
 }
 
 /// <summary>

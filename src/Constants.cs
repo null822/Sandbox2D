@@ -14,7 +14,7 @@ public static class Constants
     /// <remarks>
     /// The maximum value is 64, and the minimum is 2.
     /// </remarks>
-    public const int WorldHeight = 64;
+    public const int WorldHeight = 16;
     
     /// <summary>
     /// The TPS (Ticks Per Second) the game logic will attempt to run at.
