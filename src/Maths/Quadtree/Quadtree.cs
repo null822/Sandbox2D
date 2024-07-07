@@ -214,6 +214,9 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     public void Clear()
     {
         DeleteChildren(0, _maxHeight); // delete the root node's children
+        
+        // shrink the tree
+        _tree.Shrink();
     }
     
     #endregion
@@ -258,6 +261,9 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         {
             CompressRange(modification);
         }
+        
+        // shrink the tree section
+        _tree.Shrink();
         
         _modifications.Clear();
         combinedMods.Clear();
@@ -541,6 +547,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// <param name="height">the height of the target node</param>
     /// <param name="nodeRef">[optional, will be retrieved if not set] a reference to the node that will have its
     /// children deleted</param>
+    /// <remarks>Does not call <see cref="DynamicArray{T}.Shrink()"/> on the <see cref="_tree"/> or <see cref="_data"/></remarks>
     private void DeleteChildren(UInt128 zValue, int height, int nodeRef = -1)
     {
         // nodes at height = 0 have no children
@@ -615,9 +622,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         
         // replace the target node with a leaf node pointing to the default value
         _tree[targetNode] = new QuadtreeNode(0);
-        
-        // shrink the tree, deallocating deleted QuadtreeNodes
-        _tree.Shrink();
     }
     
     #endregion
