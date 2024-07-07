@@ -101,7 +101,7 @@ public static class GameManager
             }
         }
         
-        // _world.Compress();
+        _world.Compress();
         // _world.UpdateSubset(screenRange); //TODO: implement subset
         
         if (action != null)
