@@ -270,6 +270,21 @@ public class DynamicArray<T> : IDisposable
         workArr.Dispose();
     }
     
+    public bool Contains(Predicate<T> match)
+    {
+        return IndexOf(match) >= 0;
+    }
+    
+    public int IndexOf(Predicate<T> match)
+    {
+        for (var i = 0; i < Length; i++)
+        {
+            if (match.Invoke(this[i])) return i;
+        }
+
+        return -1;
+    }
+    
     /// <summary>
     /// Internally grows the <see cref="DynamicArray{T}"/> to contain at least <paramref name="length"/> elements.
     /// </summary>

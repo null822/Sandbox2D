@@ -1,41 +1,62 @@
 ﻿using System;
+using Sandbox2D.Graphics;
+using Sandbox2D.Maths.Quadtree;
+using Sandbox2D.Maths.Quadtree.FeatureNodeTypes;
 
 namespace Sandbox2D.World;
 
-public readonly struct Tile
+public readonly partial struct Tile : IQuadtreeElement<Tile>,
+    IFeatureModificationStore,
+    IFeatureFileSerialization<Tile>,
+    IFeatureElementColor,
+    IFeatureCellularAutomata
 {
+    
     /// <summary>
-    /// The data of this tile. Consists of 16 bytes of <see cref="Id"/> and 48 bytes of <see cref="Data"/>.
+    /// The data of this tile.
     /// </summary>
-    private readonly ulong _data;
+    private readonly TileData _data;
     
     /// <summary>
     /// The id of this tile. 16 bits total.
     /// </summary>
-    public ushort Id => (ushort)(_data >> 48);
+    public ushort Id => _data.Id;
     /// <summary>
     /// The data of this tile. 48 bits total.
     /// </summary>
-    public ulong Data => _data & 0x0000ffffffffffff;
+    public ulong Data => _data.Data;
     
     
-    public Tile()
+    public int SerializeLength => TileData.Size;
+    
+    
+    private Tile(TileData data)
     {
-        _data = 0;
+        _data = data;
     }
     
-    public Tile(ushort id)
+    public byte[] Serialize()
     {
-        _data = (ulong)id << 48;
+        return _data.Serialize();
     }
     
-    public Tile(ushort id, ulong data)
+    public static Tile Deserialize(Span<byte> bytes)
     {
-        _data = ((ulong)id << 48) | data;
+        return new Tile(new TileData(QuadtreeUtil.GetULong(bytes)));
     }
     
-    public bool Equals(Tile t)
+    public TileData GpuSerialize()
     {
-        return _data == t._data;
+        return _data;
+    }
+    
+    bool IQuadtreeElement<Tile>.CanCombine(Tile other)
+    {
+        return _data.Equals(other._data);
+    }
+    
+    Color IFeatureElementColor.GetColor()
+    {
+        return GetColor(this);
     }
 }

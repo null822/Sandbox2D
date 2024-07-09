@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Sandbox2D.Maths.Quadtree;
 
@@ -149,6 +150,73 @@ public static class QuadtreeUtil
     public static UInt128 Pow2Min1U128(int v)
     {
         return ~(v == 128 ? 0 : ~(UInt128)0x0 << v);
+    }
+    
+    public static byte[] GetBytes(int v)
+    {
+        return [(byte)((v >> 24) & 0xFF), (byte)((v >> 16) & 0xFF), (byte)((v >> 8) & 0xFF), (byte)(v & 0xFF)];
+    }
+    
+    public static byte[] GetBytes(uint v)
+    {
+        return [(byte)((v >> 24) & 0xFF), (byte)((v >> 16) & 0xFF), (byte)((v >> 8) & 0xFF), (byte)(v & 0xFF)];
+    }
+    
+    public static byte[] GetBytes(long v)
+    {
+        return [
+            (byte)((v >> 56) & 0xff),
+            (byte)((v >> 48) & 0xff),
+            (byte)((v >> 40) & 0xff),
+            (byte)((v >> 32) & 0xff),
+            (byte)((v >> 24) & 0xff),
+            (byte)((v >> 16) & 0xff),
+            (byte)((v >>  8) & 0xff),
+            (byte)((v >>  0) & 0xff),
+        ];
+    }
+    
+    public static byte[] GetBytes(ulong v)
+    {
+        return [
+            (byte)((v >> 56) & 0xff),
+            (byte)((v >> 48) & 0xff),
+            (byte)((v >> 40) & 0xff),
+            (byte)((v >> 32) & 0xff),
+            (byte)((v >> 24) & 0xff),
+            (byte)((v >> 16) & 0xff),
+            (byte)((v >>  8) & 0xff),
+            (byte)((v >>  0) & 0xff),
+        ];
+    }
+    
+    
+    public static int GetInt(Span<byte> d)
+    {
+        return (d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3];
+    }
+    
+    public static uint GetUint(Span<byte> d)
+    {
+        return (uint)(d[0] << 24) | (uint)(d[1] << 16) | (uint)(d[2] << 8) | (uint)d[3];
+    }
+    
+    public static long GetLong(Span<byte> d)
+    {
+        return (d[0] << 24) | (d[1] << 16) | (d[2] << 8) | (d[3] << 8) | (d[4] << 24) | (d[5] << 16) | (d[6] << 8) | d[7];
+    }
+    
+    public static ulong GetULong(Span<byte> d)
+    {
+        return ((ulong)d[0] << 56) | (ulong)d[1] << 48 | (ulong)d[2] << 40 | (ulong)d[3] << 32 | (ulong)d[4] << 24 | (ulong)d[5] << 16 | (ulong)d[6] << 8 | (ulong)d[7];
+    }
+    
+    
+    public static bool CompareBytes(byte[] a, byte[] b)
+    {
+        if (a.Length != b.Length) return false;
+
+        return !a.Where((t, i) => t != b[i]).Any();
     }
     
     /// <summary>

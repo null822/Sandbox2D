@@ -12,7 +12,6 @@ using Sandbox2D.GUI;
 using Sandbox2D.Maths;
 using Sandbox2D.Maths.Quadtree;
 using Sandbox2D.World;
-using Sandbox2D.World.TileTypes;
 using static Sandbox2D.Util;
 using static Sandbox2D.Constants;
 
@@ -29,14 +28,14 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     private static readonly Random Random = new();
     // world geometry
     private static readonly ManualResetEventSlim GeometryLock = new (true);
-    private static QuadtreeModifications<ITile> _modifications = new([], []);
+    private static QuadtreeModifications<Tile> _modifications = new([], []);
     private static int _treeLength;
     private static int _dataLength;
     private static QuadtreeNode _renderRoot;
     private static Range2D _renderRange;
     
     // world editing
-    private static ITile _activeBrush = new Air();
+    private static Tile _activeBrush = new(TileId.Air);
     private static uint _brushId;
     private static Range2D _brushRange;
     private static Vec2<long> _leftMouseWorldCoords = new(0);
@@ -259,9 +258,9 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         {
             _brushId = (_brushId + 64) % (2 << 24);
             
-            _activeBrush = new Paint((uint)(Random.Next() & 0x00ffffff));
+            _activeBrush = new Tile(TileId.Paint, (uint)(Random.Next() & 0x00ffffff));
             
-            Log($"Brush Changed to #{(_activeBrush.Tile.Data & 0x00ffffff):X6}");
+            Log($"Brush Changed to #{(_activeBrush.Data & 0x00ffffff):X6}");
         }
         
         
@@ -386,7 +385,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     /// <param name="renderRoot">the root node for rendering</param>
     /// <param name="renderRange">the dimensions of <paramref name="renderRoot"/></param>
     /// <remarks>Causes the quadtree to be partially re-uploaded to the gpu.</remarks>
-    public static void UpdateGeometry(QuadtreeModifications<ITile> modifications, int treeLength, int dataLength, QuadtreeNode renderRoot, Range2D renderRange)
+    public static void UpdateGeometry(QuadtreeModifications<Tile> modifications, int treeLength, int dataLength, QuadtreeNode renderRoot, Range2D renderRange)
     {
         if (!GeometryLock.IsSet && !GeometryLock.Wait(RenderLockTimeout))
         {
@@ -431,7 +430,17 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     {
         _mspt = mspt;
     }
-
+    
+    /// <summary>
+    /// Overrides the current <see cref="WorldAction"/>, setting it to a new value.
+    /// </summary>
+    /// <param name="action">the new <see cref="WorldAction"/></param>
+    /// <param name="args">the new args</param>
+    public static void SetWorldAction(WorldAction action, string args)
+    {
+        _worldAction = (action, args);
+    }
+    
     public override void Dispose()
     {
         GC.SuppressFinalize(this);
@@ -443,8 +452,8 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     }
 }
 
-public readonly struct WorldModification(Range2D range, ITile tile)
+public readonly struct WorldModification(Range2D range, Tile tile)
 {
     public readonly Range2D Range = range;
-    public readonly ITile Tile = tile;
+    public readonly Tile Tile = tile;
 }

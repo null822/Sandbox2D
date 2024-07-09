@@ -5,7 +5,6 @@ using System.Threading;
 using Sandbox2D.Maths;
 using Sandbox2D.Maths.Quadtree;
 using Sandbox2D.World;
-using Sandbox2D.World.TileTypes;
 using static Sandbox2D.Constants;
 using static Sandbox2D.Util;
 
@@ -15,7 +14,7 @@ namespace Sandbox2D;
 
 public static class GameManager
 {
-    private static Quadtree<ITile> _world;
+    private static Quadtree<Tile> _world;
     
     // camera
     public static Vec2<decimal> Translation { private set; get; }
@@ -132,18 +131,10 @@ public static class GameManager
     private static void Initialize()
     {
         Log("===============[ LOGIC LOADING  ]===============", OutputSource.Load);
-
         
-        // create tiles
-        Tiles.Instantiate(new ITile[]
-        {
-            new Air(),
-            new Stone(),
-            new Dirt()
-        });
         
         // create world
-        _world = new Quadtree<ITile>(WorldHeight, new Air(), true);
+        _world = new Quadtree<Tile>(WorldHeight, new Tile(TileId.Air));
         
         Log("Created World", OutputSource.Load);
         
@@ -162,6 +153,7 @@ public static class GameManager
                 var save = File.Create("save.qdt");
                 _world.Serialize(save);
                 save.Close();
+                save.Dispose();
                 
                 Log("QuadTree Saved"); 
                 break;
@@ -169,8 +161,10 @@ public static class GameManager
             case WorldAction.Load: 
             { 
                 var save = File.Open(action.arg, FileMode.Open);
-                _world = Quadtree<ITile>.Deserialize(save, new Air(), true);
+                _world.Dispose();
+                _world = Quadtree<Tile>.Deserialize<Tile>(save);
                 save.Close();
+                save.Dispose();
                 
                 Log("QuadTree Loaded");
                 break;
@@ -189,6 +183,7 @@ public static class GameManager
                 var map = File.CreateText(action.arg);
                 map.Write(svgMap);
                 map.Close();
+                map.Dispose();
                 
                 Log("QuadTree Mapped");
                 break; 

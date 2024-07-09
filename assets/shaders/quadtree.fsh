@@ -108,14 +108,11 @@ int GetNode(ivec2 coords) {
     uint zValue = Interleave(coords);
     
     // start at the render root, not the acutal root, since the actual root may encompass an area too large for 32-bit z-values
-    int nodeRef = 1;
-    QuadtreeNode node = Tree[1];
+    int nodeRef = 0;
+    QuadtreeNode node = Tree[0];
     
     for (int height = MaxHeight-1; height >= 0; height--)
     {
-        // get the current node
-        node = Tree[nodeRef];
-        
         // if we found a leaf node, exit the loop and return it
         if (node.Type == Leaf) break;
         
@@ -129,6 +126,9 @@ int GetNode(ivec2 coords) {
         if (nodeRef < 0) return nodeRef;
         if (nodeRef == 0) return -3;
         if (nodeRef > Tree.length()) return -2;
+
+        // get the next node
+        node = Tree[nodeRef];
     }
     
     // if we have not found a leaf node, return an error
@@ -168,15 +168,19 @@ void main()
             break;
         }
         case 1: {
-            uint color = tile.Upper & 0x00ffffffu;
-            outputColor = vec4((color >> 16) / 256.0, ((color >> 8) & 0xffu) / 256.0, (color & 0xffu) / 256.0, 1);
-            return;
+            outVal = 1;
+            break;
         }
         case 2: {
             outVal = 2;
             break;
         }
-            
+        case 3: {
+            uint color = tile.Upper & 0x00ffffffu;
+            outputColor = vec4((color >> 16) / 256.0, ((color >> 8) & 0xffu) / 256.0, (color & 0xffu) / 256.0, 1);
+            return;
+        }
+        
     }
     
     outputColor = vec4(((outVal / 256) % 16) / 16f, ((outVal / 16) % 16) / 16f, (outVal % 16) / 16f, 1);

@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Threading;
 using OpenTK.Windowing.Common.Input;
 using Sandbox2D.Maths;
@@ -9,7 +7,6 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using Image = OpenTK.Windowing.Common.Input.Image;
 using static Sandbox2D.Util;
-using Color = Sandbox2D.Graphics.Color;
 
 namespace Sandbox2D;
 
@@ -17,7 +14,7 @@ public static class Program
 {
     private static readonly RenderManager RenderManager = new (Constants.InitialScreenSize.X, Constants.InitialScreenSize.Y, "Sandbox2D");
     
-    private static void Main()
+    private static void Main(string[] args)
     {
         Console.Clear();
         
@@ -31,13 +28,17 @@ public static class Program
         RenderManager.Icon = icon;
         RenderManager.VSync = Constants.Vsync;
         
+        if (args.Length == 1)
+        {
+            RenderManager.SetWorldAction(WorldAction.Load, args[0]);
+        }
+        
         // start up game logic
         var gameLogicThread = new Thread(GameManager.Run)
         {
             Name = "Logic Thread",
             IsBackground = true,
         };
-        
         gameLogicThread.Start();
         
         Thread.Sleep(100);

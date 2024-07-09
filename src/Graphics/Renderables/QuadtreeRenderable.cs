@@ -47,7 +47,7 @@ public class QuadtreeRenderable : Renderable
     ];
 
     private static readonly int QuadTreeNodeSize = Marshal.SizeOf(new QuadtreeNode());
-    private static readonly int TileSize = Marshal.SizeOf(new Tile());
+    private static readonly int TileSize = Marshal.SizeOf(new TileData());
     
     public QuadtreeRenderable(Shader shader, BufferUsageHint hint = BufferUsageHint.StaticDraw) : base(shader, hint)
     {
@@ -143,7 +143,7 @@ public class QuadtreeRenderable : Renderable
     /// <param name="treeLength">the total length of the tree</param>
     /// <param name="dataLength">the total length of the data</param>
     /// <param name="renderRoot">the root node for rendering</param>
-    public unsafe void SetGeometry(QuadtreeModifications<ITile> modifications, int treeLength, int dataLength, QuadtreeNode renderRoot)
+    public unsafe void SetGeometry(QuadtreeModifications<Tile> modifications, int treeLength, int dataLength, QuadtreeNode renderRoot)
     {
         // resize buffers if needed
         ResizeBuffers(treeLength, dataLength);
@@ -151,13 +151,16 @@ public class QuadtreeRenderable : Renderable
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _treeBuffer);
         var treePtr = (QuadtreeNode*)GL.MapBuffer(BufferTarget.ShaderStorageBuffer, BufferAccess.ReadWrite).ToPointer();
         
+        
         var tree = modifications.Tree;
         foreach (var element in tree)
         {
             treePtr[element.Index] = element.Value;
         }
         Array.Clear(tree);
-        treePtr[1] = renderRoot;
+        
+        // upload the render root
+        treePtr[0] = renderRoot;
         
         GL.UnmapBuffer(BufferTarget.ShaderStorageBuffer);
         PrintGlErrors();
@@ -167,11 +170,11 @@ public class QuadtreeRenderable : Renderable
         {
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _dataBuffer);
             
-            var dataPtr = (Tile*)GL.MapBuffer(BufferTarget.ShaderStorageBuffer, BufferAccess.WriteOnly).ToPointer();
+            var dataPtr = (TileData*)GL.MapBuffer(BufferTarget.ShaderStorageBuffer, BufferAccess.WriteOnly).ToPointer();
             
             foreach (var element in data)
             {
-                dataPtr[element.Index] = element.Value?.GpuSerialize() ?? default;
+                dataPtr[element.Index] = element.Value.GpuSerialize();
             }
             Array.Clear(data);
 
@@ -274,7 +277,7 @@ public class QuadtreeRenderable : Renderable
             // allocate data for a new buffer
             var newBuffer = GL.GenBuffer();
             GL.BindBuffer(BufferTarget.CopyWriteBuffer, newBuffer);
-            GL.BufferData(BufferTarget.CopyWriteBuffer, newDataBufferLength * TileSize, Array.Empty<Tile>(), Hint);
+            GL.BufferData(BufferTarget.CopyWriteBuffer, newDataBufferLength * TileSize, Array.Empty<TileData>(), Hint);
             
             var copySize = Math.Min(_dataBufferLength, newDataBufferLength) * TileSize;
             

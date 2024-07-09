@@ -46,62 +46,64 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     public readonly Range2D Dimensions;
     
     /// <summary>
-    /// The dimensions of the subset node (stored in <see cref="_tree"/>[1]).
+    /// The subset root node.
     /// </summary>
-    private Range2D _subsetDimensions; // TODO: actually implement the subset
+    private QuadtreeNode _subset; // TODO: actually implement the subset
+    
+    /// <summary>
+    /// The dimensions of the subset root node (stored in <see cref="_subset"/>).
+    /// </summary>
+    private Range2D _subsetDimensions;
     
     /// <summary>
     /// Stores which features have been enabled. Indexed using <see cref="QuadtreeFeature"/>.
     /// </summary>
-    private readonly bool[] _enabledFeatures;
-
-
+    private readonly uint _enabledFeatures;
+    
     /// <summary>
     /// Constructs a new <see cref="Quadtree{T}"/>.
     /// </summary>
     /// <param name="maxHeight">the maximum height of the quadtree, where width = 2^maxHeight. range: 2-64</param>
     /// <param name="defaultValue">the default value that everything will be initialized to</param>
-    /// <param name="storeModifications">[optional] whether to store modifications. Calling <see cref="GetModifications"/> will
-    /// throw an exception if this is disabled</param>
     /// <exception cref="InvalidMaxHeightException">Thrown when <paramref name="maxHeight"/> is not valid (ie. not 2-64)</exception>
-    public Quadtree(int maxHeight, T defaultValue, bool storeModifications = false)
+    public Quadtree(int maxHeight, T defaultValue)
     {
+        // validate maxHeight
         if (maxHeight is < 2 or > 64)
             throw new InvalidMaxHeightException(maxHeight);
         
+        // figure out which features to enable
+        if (defaultValue is IFeatureModificationStore)
+            _enabledFeatures |= 0x1u << (int)QuadtreeFeature.ModificationStore;
+        if (defaultValue is IFeatureFileSerialization<T>)
+            _enabledFeatures |= 0x1u << (int)QuadtreeFeature.FileSerialization;
+        if (defaultValue is IFeatureElementColor)
+            _enabledFeatures |= 0x1u << (int)QuadtreeFeature.ElementColor;
+        if (defaultValue is IFeatureCellularAutomata)
+            _enabledFeatures |= 0x1u << (int)QuadtreeFeature.CellularAutomata;
+        
+        var storeModifications = CheckFeatures(QuadtreeFeature.ModificationStore);
+        
+        // assign maxHeight and dimensions
         _maxHeight = maxHeight;
         var halfSize = -1L << (_maxHeight - 1);
         Dimensions = NodeRangeFromPos(new Vec2<long>(halfSize), _maxHeight);
         
-        const int arrLen = 2048;
+        // create tree and data arrays
+        _tree = new DynamicArray<QuadtreeNode>(Constants.QuadtreeArrayLength, storeModifications);
+        _data = new DynamicArray<T>(Constants.QuadtreeArrayLength, storeModifications);
         
-        _tree = new DynamicArray<QuadtreeNode>(arrLen, storeModifications);
-        _data = new DynamicArray<T>(arrLen, storeModifications);
-        
+        // initialize the data section
         _data.Add(defaultValue);
         
-        // initialize the tree
-        var rootNode = new QuadtreeNode(0);
-        _tree.Add(rootNode); // create the root
-        _tree.Add(rootNode); // create a space for the subset root
-        Subdivide(0); // subdivide root
-        _tree[1] = _tree[0]; // clone root and put it into the space for subset root
-
-        _modifications = new DynamicArray<Range2D>(arrLen, false, false);
+        // initialize the tree section
+        _tree.Add(new QuadtreeNode(0));
         
-        // figure out which features to enable
-        
-        _enabledFeatures = new bool[Enum.GetNames(typeof(QuadtreeFeature)).Length];
-        
-        if (defaultValue is IFeatureCellularAutomata)
-            _enabledFeatures[(int)QuadtreeFeature.CellularAutomata] = true;
-        if (defaultValue is IFeatureFileSerialization)
-            _enabledFeatures[(int)QuadtreeFeature.FileSerialization] = true;
-        if (defaultValue is IFeatureElementColor)
-            _enabledFeatures[(int)QuadtreeFeature.ElementColor] = true;
-
+        // create modifications array
+        if (storeModifications)
+            _modifications = new DynamicArray<Range2D>(Constants.QuadtreeArrayLength, false, false);
     }
-    
+
     #region Get / Set
     
     /// <summary>
@@ -136,7 +138,9 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         // overwrite the node with the new value
         _tree[node] = new QuadtreeNode(_data.Add(value));
         
-        _modifications.Add(NodeRangeFromPos(pos, 0));
+        // store the modification
+        if (CheckFeatures(QuadtreeFeature.ModificationStore))
+            _modifications.Add(NodeRangeFromPos(pos, 0));
     }
     
     /// <summary>
@@ -150,7 +154,9 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         if (!Dimensions.Contains(range))
             throw new RangeOutOfBoundsException(range, Dimensions);
         
-        _modifications.Add(range);
+        // store the modification
+        if (CheckFeatures(QuadtreeFeature.ModificationStore))
+            _modifications.Add(range);
         
         // store the `value` and keep a reference to it
         var valueRef = value == null ? 0 : _data.Add(value);
@@ -214,7 +220,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     public void Clear()
     {
         DeleteChildren(0, _maxHeight); // delete the root node's children
-        
+        //TODO: still doesn't delete everything...
         // shrink the tree
         _tree.Shrink();
     }
@@ -228,13 +234,19 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// </summary>
     public void Compress()
     {
+        // if we do not store modifications, compress the entire quadtree
+        if (!CheckFeatures(QuadtreeFeature.ModificationStore))
+        {
+            CompressRange(Dimensions);
+            return;
+        }
+        
         // exit if there have been no modifications since the last time this method was called
         if (_modifications.Length == 0)
             return;
         
+        // combine the modifications to reduce the amount of times the same area is compressed multiple times
         _modifications.Sort(RangeBlComparer);
-        
-        // combine the modification to reduce the amount of times the same area is compressed multiple times
         var combinedMods = new List<Range2D>(_modifications.Length) { _modifications[0] };
         for (var i = 1; i < _modifications.Length; i++)
         {
@@ -375,6 +387,326 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     }
     
     #endregion
+    
+    
+    #region Serialization
+    
+    /// <summary>
+    /// Serializes this <see cref="Quadtree{T}"/> into a <see cref="Stream"/>, using the format described in
+    /// src/Maths/Quadtree/quadtree-format.md.
+    /// </summary>
+    /// <param name="stream">the stream into which this <see cref="Quadtree{T}"/> will be serialized into</param>
+    public void Serialize(Stream stream)
+    {
+        RequireFeatures(QuadtreeFeature.FileSerialization);
+
+        var header = new MemoryStream();
+        var tree = new MemoryStream();
+        var data = new MemoryStream();
+        
+        // create the header (excluding data pointer)
+        header.Write([(byte)_maxHeight]); // maxHeight
+        header.Write(GetBytes(_enabledFeatures)); // features
+        header.Write(GetBytes(((IFeatureFileSerialization<T>)_data[0]).SerializeLength)); // size of T
+        
+        // serialize the quadtree
+        SerializeBody(tree, data);
+        
+        header.Write(GetBytes(13 + (int)tree.Length)); // pointer to data section
+        
+        // copy the sections into the stream
+        header.Position = 0;
+        header.CopyTo(stream);
+        header.Dispose();
+        tree.Position = 0;
+        tree.CopyTo(stream);
+        tree.Dispose();
+        data.Position = 0;
+        data.CopyTo(stream);
+        data.Dispose();
+    }
+    
+    /// <summary>
+    /// Serializes the body of this <see cref="Quadtree{T}"/> into a <see cref="Stream"/>. See <see cref="Serialize"/>
+    /// for more information.
+    /// </summary>
+    /// <param name="treeStream">the stream which will contain the tree section</param>
+    /// <param name="dataStream">the stream which will contain the data section</param>
+    private void SerializeBody(MemoryStream treeStream, MemoryStream dataStream)
+    {
+        var height = _maxHeight;
+        UInt128 zValue = 0;
+        var path = new int[_maxHeight]; // an array of all the nodes traversed through to get to the current node, indexed using height
+        var nodeRef = 0; // start at the root node
+        
+        var pathNextSibling = new int[_maxHeight]; // [height] = index (within parent) of the next sibling to be deleted
+        
+        // add initial value to path
+        if (height != _maxHeight) path[height] = nodeRef;
+        
+        var data = new DynamicArray<byte[]>(Constants.QuadtreeArrayLength, false, false);
+        
+        while (true)
+        {
+            var node = _tree[nodeRef];
+            
+            // add node to stream
+            if (node.Type == Branch)
+            {
+                // start a new branch node if we just entered this branch node for the first time
+                if (pathNextSibling[height - 1] == 0)
+                    treeStream.Write([0]); // start of a branch node
+            }
+            else
+            {
+                treeStream.Write([1]); // leaf node
+                var value = ((IFeatureFileSerialization<T>)_data[node.GetValueRef()]).Serialize();
+                int i;
+                if (data.Contains(v => CompareBytes(v, value)))
+                {
+                    i = data.IndexOf(v => CompareBytes(v, value));
+                }
+                else
+                {
+                    i = data.Length;
+                    data.Add(value);
+                    dataStream.Write(value); // add serialized value
+                }
+                treeStream.Write(GetBytes(i)); // value reference
+                
+                // if this (leaf) node is the root node, exit since there are no more nodes to serialize
+                if (height == _maxHeight) break;
+            }
+            
+            // step down into branch nodes whose children have not been fully serialized
+            if (node.Type == Branch && height != 0 && pathNextSibling[height - 1] < 4)
+            {
+                // step down into the node
+                nodeRef = node.GetNodeRef(pathNextSibling[height - 1]);
+                height--;
+                // update the path to reflect what we just did
+                path[height] = nodeRef;
+                
+                continue;
+            }
+            
+            // increment our next sibling counter
+            if (height != _maxHeight) pathNextSibling[height]++;
+            
+            // if this node's siblings have not been fully serialized, go to it's next sibling
+            if (height != _maxHeight && pathNextSibling[height] < 4)
+            {
+                // calculate the next z-value
+                zValue += (UInt128)0x1 << (2 * height);
+                
+                // get the parent node
+                var parentNode = _tree[height == _maxHeight - 1 ? 0 : path[height + 1]];
+                
+                // get the next sibling's ref
+                nodeRef = parentNode.GetNodeRef(pathNextSibling[height]);
+                
+                // update the path. nodes in the path with lower heights are now irrelevant and will be overridden when the time comes
+                path[height] = nodeRef;
+                
+                // reset the sibling's next child counter
+                if (height != 0) pathNextSibling[height - 1] = 0;
+                
+                continue;
+            }
+            
+            // if we have just handled the last child of the root node, exit
+            if (height == _maxHeight - 1 && pathNextSibling[height] == 4)
+                break;
+            
+            // otherwise, reset this node's next sibling counter, increment its parent's, and go to this node's parent
+            if (height != 0) pathNextSibling[height - 1] = 0;
+            height++;
+            nodeRef = path[height];
+            zValue = RoundZValue(zValue, height);
+        }
+        
+        data.Dispose();
+    }
+    
+    /// <summary>
+    /// Constructs a new <see cref="Quadtree{T}"/> with explicit maxHeight and features. Does not initialize the
+    /// <see cref="_tree"/> or <see cref="_data"/> sections.
+    /// </summary>
+    private Quadtree(int maxHeight, uint enabledFeatures)
+    {
+        _maxHeight = maxHeight;
+        _enabledFeatures = enabledFeatures;
+
+        var storeModifications = CheckFeatures(QuadtreeFeature.ModificationStore);
+        
+        var halfSize = -1L << (_maxHeight - 1);
+        Dimensions = NodeRangeFromPos(new Vec2<long>(halfSize), _maxHeight);
+        
+        // create tree and data arrays
+        _tree = new DynamicArray<QuadtreeNode>(Constants.QuadtreeArrayLength, storeModifications);
+        _data = new DynamicArray<T>(Constants.QuadtreeArrayLength, storeModifications);
+        
+        // create the modifications array
+        if (storeModifications)
+            _modifications = new DynamicArray<Range2D>(Constants.QuadtreeArrayLength, false, false);
+    }
+    
+    /// <summary>
+    /// Deserializes a <see cref="Quadtree{T}"/> in a <see cref="Stream"/> that has been serialized by
+    /// <see cref="Serialize"/>, and returns the deserialized <see cref="Quadtree{T}"/>.
+    /// </summary>
+    /// <param name="stream">the stream that contains the serialized <see cref="Quadtree{T}"/></param>
+    /// <param name="disableFeatureWarning">whether to disable the <see cref="Util.Warn"/> message printed to console if
+    /// the feature set of the serialized <see cref="Quadtree"/> does not match the feature set of <see cref="T2"/></param>
+    /// <typeparam name="T2">The type of the elements in the returned <see cref="Quadtree{T}"/></typeparam>
+    /// <returns>the deserialized quadtree</returns>
+    public static Quadtree<T2> Deserialize<T2>(Stream stream, bool disableFeatureWarning = false) where T2 : IQuadtreeElement<T2>, IFeatureFileSerialization<T2>
+    {
+        var enabledFeatures = 0u;
+        if (typeof(T2).GetInterface(nameof(IFeatureModificationStore)) != null)
+            enabledFeatures |= 0x1u << (int)QuadtreeFeature.ModificationStore;
+        enabledFeatures |= 0x1u << (int)QuadtreeFeature.FileSerialization; // always enable file serialization
+        if (typeof(T2).GetInterface(nameof(IFeatureElementColor)) != null)
+            enabledFeatures |= 0x1u << (int)QuadtreeFeature.ElementColor;
+        if (typeof(T2).GetInterface(nameof(IFeatureCellularAutomata)) != null)
+            enabledFeatures |= 0x1u << (int)QuadtreeFeature.CellularAutomata;
+        
+        // get the header
+        var header = new Span<byte>(new byte[13]);
+        stream.ReadExactly(header);
+        
+        // read the header
+        var maxHeight = header[0]; // maxHeight
+        var features = GetUint(header[1..5]); // enabled features
+        var tSize = GetInt(header[5..9]); // size of T
+        var dataStart = GetInt(header[9..13]); // start of data section
+                
+        // compare the features in the stream to the ones specified in T2
+        if (!disableFeatureWarning && enabledFeatures != features)
+            Util.Warn($"Quadtree deserialized with feature set {enabledFeatures:b32}, but loading quadtree with " +
+                      $"feature set {features:b32}. Overwriting feature set to {enabledFeatures:b32}");
+        
+        // construct the quadtree
+        var q = new Quadtree<T2>(maxHeight, enabledFeatures);
+        
+        // read tree and data sections
+        var treeData = new Span<byte>(new byte[dataStart - 13]);
+        var dataData = new Span<byte>(new byte[stream.Length - dataStart]);
+        stream.ReadExactly(treeData);
+        stream.ReadExactly(dataData);
+        
+        // populate the data array
+        for (var i = 0; i < dataData.Length; i+= tSize)
+        {
+            q._data.Add(T2.Deserialize(dataData[i..(i + tSize)]));
+        }
+        
+        // populate the tree array
+        q.PopulateTree(treeData);
+        
+        // clean up
+        header.Clear();
+        treeData.Clear();
+        dataData.Clear();
+        
+        // return
+        return q;
+    }
+    
+    /// <summary>
+    /// Populates the <see cref="_tree"/> section of this <see cref="Quadtree{T}"/>, given a (correctly formatted)
+    /// sequence of bytes.
+    /// </summary>
+    /// <param name="treeData">the sequence of bytes containing the tree data</param>
+    /// <exception cref="InvalidNodeTypeException">thrown when an invalid <see cref="NodeType"/> is encountered in the
+    /// <paramref name="treeData"/>.</exception>
+    private void PopulateTree(Span<byte> treeData)
+    {
+        // extract and populate the tree array
+        var path = new int[_maxHeight];
+        var pathNextSibling = new int[_maxHeight]; // [height] = index (within parent) of the next sibling to be added
+        var height = _maxHeight;
+        var p = 0; // the position, in bytes, in `tree`
+        while (p < treeData.Length)
+        {
+            // read the next node's type and increment the position by 1 byte
+            var type = (NodeType)treeData[p];
+            p += 1;
+            
+            int nodeRef;
+            if (type == Branch)
+            {
+                // add the new branch node
+                var b = _tree.Add(new QuadtreeNode(-1, -1, -1, -1));
+                nodeRef = b;
+
+                // add the node to path
+                if (height != _maxHeight)
+                    path[height] = nodeRef;
+            }
+            else if (type == Leaf)
+            {
+                // read the leaf node's value
+                var valueRef = GetInt(treeData[p..(p + 4)]);
+                // create the leaf node
+                nodeRef = _tree.Add(new QuadtreeNode(valueRef));
+                
+                // if this (leaf) node is the root node, exit since there are no more nodes to deserialize
+                if (height == _maxHeight) break;
+                
+                // add the node to path
+                if (height != _maxHeight)
+                    path[height] = nodeRef;
+                
+                // increment the position by 4 bytes
+                p += 4;
+            }
+            else 
+            {
+                throw new InvalidNodeTypeException(type, "PopulateTree()/treeData");
+            }
+            
+            // unless this node is the root node, modify the newly added node's parent to point to its new child
+            if (height != _maxHeight)
+            {
+                // get the parent node
+                var parentRef = height == _maxHeight-1 ? 0 : path[height + 1];
+                var parent = _tree[parentRef];
+                if (parent.Type == Leaf)
+                    throw new InvalidNodeTypeException(parent.Type, Branch, "PopulateTree()/path");
+                
+                // modify its sibling references
+                int[] siblings = [parent.Ref0, parent.Ref1, parent.Ref2, parent.Ref3];
+                siblings[pathNextSibling[height]] = nodeRef;
+                
+                // replace the parent node
+                _tree[parentRef] = new QuadtreeNode(siblings[0], siblings[1], siblings[2], siblings[3]);
+            }
+            
+            // increment the next sibling counter
+            if (height != _maxHeight) pathNextSibling[height]++;
+            
+            // if we added a branch node, step down into it
+            if (type == Branch)
+            {
+                height--;
+                continue;
+            }
+            
+            // otherwise, if we have just added the last node in its parent,
+            while (height != _maxHeight && pathNextSibling[height] == 4)
+            {
+                // reset the current node's next sibling counter
+                pathNextSibling[height] = 0;
+                
+                // step into the parent node
+                height++;
+            }
+        }
+    }
+    
+    #endregion
+    
     
     #region Quadtree Traversing
 
@@ -553,6 +885,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         // nodes at height = 0 have no children
         if (height == 0)
             return;
+        
         var maxHeight = height;
         var path = new int[_maxHeight]; // an array of all the nodes traversed through to get to the current node, indexed using height
         if (nodeRef == -1) nodeRef = GetNodeRef(zValue, height); // resolve nodeRef if none was given
@@ -613,7 +946,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             }
             
             // otherwise, reset this node's next sibling counter, increment its parent's, and go to this node's parent
-            // pathNextSibling[height] = 0;
             if (height != 0) pathNextSibling[height - 1] = 0;
             height++;
             nodeRef = path[height];
@@ -626,45 +958,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     
     #endregion
     
-    
-    #region Serialization
-    
-    /// <summary>
-    /// NYI
-    /// </summary>
-    /// <param name="file"></param>
-    /// <exception cref="NotImplementedException">thrown.</exception>
-    public void Serialize(FileStream file)
-    {
-        RequireFeatures(QuadtreeFeature.FileSerialization);
-        
-        throw new NotImplementedException();
-    }
-    
-    /// <summary>
-    /// NYI
-    /// </summary>
-    /// <param name="file"></param>
-    /// <param name="defaultValue"></param>
-    /// <param name="storeModifications"></param>
-    /// <returns></returns>
-    /// <exception cref="Quadtree{T}.DisabledFeatureException"></exception>
-    /// <exception cref="NotImplementedException">thrown.</exception>
-    public static Quadtree<T> Deserialize(FileStream file, T defaultValue, bool storeModifications)
-    {
-        var enabledFeatures = new bool[Enum.GetNames(typeof(QuadtreeFeature)).Length];
-        if (defaultValue is IFeatureCellularAutomata)
-            enabledFeatures[(int)QuadtreeFeature.CellularAutomata] = true;
-        if (defaultValue is IFeatureFileSerialization)
-            enabledFeatures[(int)QuadtreeFeature.FileSerialization] = true;
-        
-        if (!enabledFeatures[(int)QuadtreeFeature.FileSerialization])
-            throw new DisabledFeatureException(QuadtreeFeature.FileSerialization);
-        
-        throw new NotImplementedException();
-    }
-    
-    #endregion
     
     #region SVG Export
     
@@ -743,7 +1036,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         {
             var value = _data[_tree[nodeRef].GetValueRef()];
             
-            if (_enabledFeatures[(int)QuadtreeFeature.ElementColor])
+            if (CheckFeatures(QuadtreeFeature.ElementColor))
             {
                 fillColor = ((IFeatureElementColor)value).GetColor();
             }
@@ -849,7 +1142,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// </summary>
     public void UpdateSubset(Range2D minRange)
     {
-        (_tree[1], _subsetDimensions) = GetSubset(minRange);
+        (_subset, _subsetDimensions) = GetSubset(minRange);
     }
     
     #endregion
@@ -906,6 +1199,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// <returns>a <see cref="QuadtreeModifications{T}"/> struct</returns>
     public QuadtreeModifications<T> GetModifications()
     {
+        RequireFeatures(QuadtreeFeature.ModificationStore);
         return new QuadtreeModifications<T>(_tree.GetModifications(), _data.GetModifications());
     }
     
@@ -933,7 +1227,22 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     
 
     #region Private Util
-
+    
+    /// <summary>
+    /// Checks whether each supplied feature is enabled in this <see cref="Quadtree{T}"/>. If any are not enabled, returns false.
+    /// </summary>
+    /// <param name="features">all the features that need to be enabled</param>
+    private bool CheckFeatures(params QuadtreeFeature[] features)
+    {
+        foreach (var feature in features)
+        {
+            if (((_enabledFeatures >> (int)feature) & 0x1) == 0)
+                return false;
+        }
+        
+        return true;
+    }
+    
     /// <summary>
     /// Checks whether each supplied feature is enabled in this <see cref="Quadtree{T}"/>. If any are not enabled, throws a <see cref="DisabledFeatureException"/>.
     /// </summary>
@@ -942,7 +1251,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     {
         foreach (var feature in features)
         {
-            if (!_enabledFeatures[(int)feature])
+            if (((_enabledFeatures >> (int)feature) & 0x1) == 0)
                 throw new DisabledFeatureException(feature);
         }
     }
@@ -968,12 +1277,18 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     
     #endregion
     
-    private enum QuadtreeFeature
-    {
-        FileSerialization = 0,
-        ElementColor = 1,
-        CellularAutomata = 2
-    }
+    
+}
+
+/// <summary>
+/// Stores the indexes of bits within <see cref="Quadtree{T}._enabledFeatures"/> that correspond to different features.
+/// </summary>
+public enum QuadtreeFeature : uint
+{
+    ModificationStore = 0,
+    FileSerialization = 1,
+    ElementColor = 2,
+    CellularAutomata = 3
 }
 
 
@@ -1002,4 +1317,7 @@ public class InvalidNodeTypeException : Exception
     
     public InvalidNodeTypeException(NodeType type, NodeType expectedType, string location) :
         base($"Invalid node type found. Found a {type} node, but expected a {expectedType} node in {location}") {}
+    
+    public InvalidNodeTypeException(NodeType type, string location) :
+        base($"Node Type {type} is not valid. Found in {location}") {}
 }

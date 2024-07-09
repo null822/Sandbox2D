@@ -1,5 +1,6 @@
 ﻿#nullable enable
 using System;
+using System.Buffers;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Security.Cryptography;
