@@ -26,7 +26,7 @@ public class DynamicArray<T> : IDisposable
     /// </summary>
     private readonly int _arrayLength;
     
-    private readonly DynamicArray<int> _vacancies = null!;
+    private readonly DynamicArray<long> _vacancies = null!;
     
     /// <summary>
     /// Whether to store vacant spaces in this <see cref="DynamicArray{T}"/>. If set to false, <see cref="Remove"/>
@@ -49,30 +49,30 @@ public class DynamicArray<T> : IDisposable
     /// The index of the first element in this <see cref="DynamicArray{T}"/>. Will be non-zero if the first element(s) in
     /// this <see cref="DynamicArray{T}"/> are removed.
     /// </summary>
-    private int _start;
+    private long _start;
     
     
     /// <summary>
     /// The number of elements in the array, including vacant spaces and spaces before <see cref="_start"/>.
     /// </summary>
-    private int _totalLength;
+    private long _totalLength;
     
     /// <summary>
     /// The number of elements in the array, including vacant spaces.
     /// </summary>
-    public int Length => _totalLength - _start;
+    public long Length => _totalLength - _start;
     
     /// <summary>
     /// Contains the same thing as <see cref="_totalLength"/>, except that any modifications that are still stored in this
     /// <see cref="DynamicArray{T}"/> are guaranteed to access only elements within this length.
     /// </summary>
     /// <remarks>Uninitialized if <see cref="_storeModifications"/> is false.</remarks>
-    public int ModificationLength { private set; get; }
+    public long ModificationLength { private set; get; }
     
     /// <summary>
     /// The maximum number of elements that can fit into this <see cref="DynamicArray{T}"/> before more memory has to be allocated.
     /// </summary>
-    private int AllocatedLength => _data.Count * _arrayLength;
+    private long AllocatedLength => (long)_data.Count * _arrayLength;
     
     /// <summary>
     /// Constructs a new <see cref="DynamicArray{T}"/>.
@@ -89,7 +89,7 @@ public class DynamicArray<T> : IDisposable
         _storeVacancies = storeVacancies;
         
         if (storeModifications) _modifications = new DynamicArray<ArrayModification<T>>(arrayLength, false, false);
-        if (storeVacancies) _vacancies = new DynamicArray<int>(arrayLength, false, false);
+        if (storeVacancies) _vacancies = new DynamicArray<long>(arrayLength, false, false);
         
         _arrayLength = arrayLength;
         _dataPool = ArrayPool<T>.Create(_arrayLength, 2048);
@@ -103,7 +103,7 @@ public class DynamicArray<T> : IDisposable
         : this(arrayLength, storeModifications, storeVacancies)
     {
         EnsureCapacity(data.Length);
-        for (var i = 0; i < data.Length; i++)
+        for (long i = 0; i < data.Length; i++)
         {
             this[i] = data[i];
         }
@@ -113,7 +113,7 @@ public class DynamicArray<T> : IDisposable
     /// Gets or sets a value in the array.
     /// </summary>
     /// <param name="i">the index at which to get or set</param>
-    public T this[int i]
+    public T this[long i]
     {
         get => Get(i + _start);
         set => Set(i + _start, value);
@@ -124,7 +124,7 @@ public class DynamicArray<T> : IDisposable
     /// </summary>
     /// <param name="i">the index to retrieve the value at</param>
     /// <returns>the value retrieved</returns>
-    private T Get(int i)
+    private T Get(long i)
     {
         if (i < _start) throw new InvalidIndexException(i - _start, Length);
         if (i >= _totalLength) throw new InvalidIndexException(i - _start, Length);
@@ -141,7 +141,7 @@ public class DynamicArray<T> : IDisposable
     /// <param name="value">the value to set</param>
     /// <remarks>When setting an index past <see cref="_totalLength"/>, the <see cref="DynamicArray{T}"/> will automatically
     /// grow to accomodate for the new value</remarks>
-    private void Set(int i, T value)
+    private void Set(long i, T value)
     {
         if (i < _start) throw new InvalidIndexException(i - _start, Length);
         
@@ -164,7 +164,7 @@ public class DynamicArray<T> : IDisposable
     /// <param name="value">the value to add</param>
     /// <returns>the position the value was added at</returns>
     /// <remarks>Does not always add the value to the end of the array.</remarks>
-    public int Add(T value)
+    public long Add(T value)
     {
         var i = GetNextIndex();
         SetData(i, value);
@@ -182,11 +182,11 @@ public class DynamicArray<T> : IDisposable
     /// <param name="start">the index of the first element to copy, in this <see cref="DynamicArray{T}"/></param>
     /// <param name="destStart">the index of where, in <paramref name="dest"/>, to put the first element that is copied</param>
     /// <param name="length">the amount of elements to copy</param>
-    public void CopyTo(ref readonly DynamicArray<T> dest, int start = 0, int destStart = 0, int length = -1)
+    public void CopyTo(ref readonly DynamicArray<T> dest, long start = 0, long destStart = 0, long length = -1)
     {
         if (length == -1) length = Length - start;
         
-        for (var i = 0; i < length; i++)
+        for (long i = 0; i < length; i++)
         {
             dest[i + destStart] = this[i + start];
         }
@@ -197,11 +197,14 @@ public class DynamicArray<T> : IDisposable
     /// </summary>
     /// <param name="a"></param>
     /// <param name="b"></param>
-    public void Swap(int a, int b)
+    public void Swap(long a, long b)
     {
         (this[a], this[b]) = (this[b], this[a]);
-    }
 
+        _modifications.Add(new ArrayModification<T>(a, this[a]));
+        _modifications.Add(new ArrayModification<T>(b, this[b]));
+    }
+    
     /// <summary>
     /// Removes a value from the array
     /// </summary>
@@ -210,7 +213,7 @@ public class DynamicArray<T> : IDisposable
     /// <remarks>This method only "soft-removes" the value, meaning it remains accessible,
     /// but will be overriden if new values are added. Consider using <see cref="Set"/> if this is not desired.
     /// Elements in the array are never shifted.</remarks>
-    public void Remove(int i, bool shrink = true)
+    public void Remove(long i, bool shrink = true)
     {
         // account for _start
         i += _start;
@@ -228,7 +231,7 @@ public class DynamicArray<T> : IDisposable
     /// Removes all elements after and including the specified index, keeping only the ones before it.
     /// </summary>
     /// <param name="i">the index</param>
-    public void RemoveEnd(int i)
+    public void RemoveEnd(long i)
     {
         // account for the array start
         i += _start;
@@ -241,7 +244,7 @@ public class DynamicArray<T> : IDisposable
     /// Removes all elements before and including the specified index, keeping only the ones after it.
     /// </summary>
     /// <param name="i">the index</param>
-    public void RemoveStart(int i)
+    public void RemoveStart(long i)
     {
         // account for the array start
         i += _start;
@@ -275,9 +278,9 @@ public class DynamicArray<T> : IDisposable
         return IndexOf(match) >= 0;
     }
     
-    public int IndexOf(Predicate<T> match)
+    public long IndexOf(Predicate<T> match)
     {
-        for (var i = 0; i < Length; i++)
+        for (long i = 0; i < Length; i++)
         {
             if (match.Invoke(this[i])) return i;
         }
@@ -290,13 +293,12 @@ public class DynamicArray<T> : IDisposable
     /// </summary>
     /// <param name="length">the minimum length of the <see cref="DynamicArray{T}"/></param>
     /// <remarks>Useful when adding large amounts of elements to the <see cref="DynamicArray{T}"/> to prevent constant
-    /// resizing.</remarks>
-    public void EnsureCapacity(int length)
+    /// resizing. Does not make newly added elements accessible by indexing.</remarks>
+    public void EnsureCapacity(long length)
     {
-        if (length <= _totalLength) return;
+        if (length <= Length) return;
         
-        _totalLength = length;
-        Grow();
+        Grow(length + _start);
     }
     
     /// <summary>
@@ -361,7 +363,7 @@ public class DynamicArray<T> : IDisposable
     /// <summary>
     /// Gets the next available and empty index.
     /// </summary>
-    private int GetNextIndex()
+    private long GetNextIndex()
     {
         var i = _totalLength;
         
@@ -383,7 +385,7 @@ public class DynamicArray<T> : IDisposable
         }
         
         if (_storeModifications)
-            ModificationLength = int.Max(ModificationLength, _totalLength);
+            ModificationLength = long.Max(ModificationLength, _totalLength);
         
         return i;
     }
@@ -393,15 +395,17 @@ public class DynamicArray<T> : IDisposable
     /// <see cref="_totalLength"/>.
     /// </summary>
     /// <remarks>The newly allocated memory is not guaranteed to be empty</remarks>
-    private void Grow()
+    private void Grow(long length = -1)
     {
-        for (var i = AllocatedLength; i < _totalLength; i+= _arrayLength)
+        if (length == -1) length = _totalLength;
+        
+        for (var i = AllocatedLength; i < length; i+= _arrayLength)
         {
             _data.Add(_dataPool.Rent(_arrayLength));
         }
         
         if (_storeModifications)
-            ModificationLength = int.Max(ModificationLength, _totalLength);
+            ModificationLength = long.Max(ModificationLength, _totalLength);
     }
     
     /// <summary>
@@ -417,7 +421,7 @@ public class DynamicArray<T> : IDisposable
             
             // check if all the vacancies form a continuous section of vacancy starting at the end of the list
             var prevVacancy = _totalLength;
-            int i;
+            long i;
             for (i = _vacancies.Length - 1; i >= 0; i--)
             {
                 var vacancy = _vacancies[i];
@@ -454,8 +458,8 @@ public class DynamicArray<T> : IDisposable
         }
         
         // return as many arrays as possible
-        var div = int.DivRem(_totalLength, _arrayLength);
-        var firstEmpty = div.Quotient + (div.Remainder > 0 ? 1 : 0);
+        var div = long.DivRem(_totalLength, _arrayLength);
+        var firstEmpty = (int)(div.Quotient + (div.Remainder > 0 ? 1 : 0));
         for (var i = firstEmpty; i < _data.Count; i++)
         {
             var arr = _data[i];
@@ -473,7 +477,7 @@ public class DynamicArray<T> : IDisposable
     /// <param name="start">the start index for sorting (inclusive)</param>
     /// <param name="end">the end index for sorting (exclusive)</param>
     /// <param name="comparison">the <see cref="Comparer{T}"/> to compare values</param>
-    private static void MergeSort(DynamicArray<T> a, DynamicArray<T> b, int start, int end, Comparer<T> comparison)
+    private static void MergeSort(DynamicArray<T> a, DynamicArray<T> b, long start, long end, Comparer<T> comparison)
     {
         // lists with less than 2 elements cannot be further sorted
         if (end - start < 2)
@@ -513,10 +517,10 @@ public class DynamicArray<T> : IDisposable
     /// in <see cref="_data"/>.
     /// </summary>
     /// <param name="i">the index</param>
-    private (int a, int b) SplitIndex(int i)
+    private (int a, int b) SplitIndex(long i)
     {
-        var div = int.DivRem(i, _arrayLength);
-        return (div.Quotient, div.Remainder);
+        var div = long.DivRem(i, _arrayLength);
+        return ((int)div.Quotient, (int)div.Remainder);
     }
     
     /// <summary>
@@ -524,7 +528,7 @@ public class DynamicArray<T> : IDisposable
     /// </summary>
     /// <param name="i">the index</param>
     /// <returns>the value</returns>
-    private T GetData(int i)
+    private T GetData(long i)
     {
         var (a, b) = SplitIndex(i);
         return _data[a][b];
@@ -535,7 +539,7 @@ public class DynamicArray<T> : IDisposable
     /// </summary>
     /// <param name="i">the index</param>
     /// <param name="value">the value</param>
-    private void SetData(int i, T value)
+    private void SetData(long i, T value)
     {
         var (a, b) = SplitIndex(i);
         _data[a][b] = value;
@@ -546,14 +550,14 @@ public class DynamicArray<T> : IDisposable
     /// </summary>
     /// <param name="start">the first element to factor into the hash</param>
     /// <param name="stop">the last element to factor into the hash</param>
-    public Hash Hash(int start = 0, int stop = -1)
+    public Hash Hash(long start = 0, long stop = -1)
     {
         if (_totalLength == 0) return new Hash();
         
         if (stop < 0) stop = _totalLength-1;
         if (start < 0) start = 0;
         if (stop > _totalLength-1) stop = _totalLength-1;
-        if (start > _totalLength-1 || start > stop) start = int.Min(_totalLength-1, stop);
+        if (start > _totalLength-1 || start > stop) start = long.Min(_totalLength-1, stop);
         var hash = new Hash();
         for (var i = start; i <= stop; i++)
         {
@@ -585,7 +589,7 @@ public class DynamicArray<T> : IDisposable
     private class StoredVacanciesException() :
         Exception("Unable to remove element: Vacancies are not stored");
     
-    private class InvalidIndexException(int i, int length) :
+    private class InvalidIndexException(long i, long length) :
         Exception($"Index {i} out of range for {nameof(DynamicArray<T>)} of length {length}");
 }
 
@@ -595,9 +599,9 @@ public class DynamicArray<T> : IDisposable
 /// <param name="index">the index</param>
 /// <param name="value">the new value</param>
 /// <typeparam name="T">the type of the new value</typeparam>
-public readonly struct ArrayModification<T>(int index, T? value)
+public readonly struct ArrayModification<T>(long index, T? value)
 {
-    public readonly int Index = index;
+    public readonly long Index = index;
     public readonly T? Value = value;
     
     public override string ToString()

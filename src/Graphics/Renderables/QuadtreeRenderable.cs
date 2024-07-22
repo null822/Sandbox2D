@@ -143,7 +143,7 @@ public class QuadtreeRenderable : Renderable
     /// <param name="treeLength">the total length of the tree</param>
     /// <param name="dataLength">the total length of the data</param>
     /// <param name="renderRoot">the root node for rendering</param>
-    public unsafe void SetGeometry(QuadtreeModifications<Tile> modifications, int treeLength, int dataLength, QuadtreeNode renderRoot)
+    public unsafe void SetGeometry(QuadtreeModifications<Tile> modifications, long treeLength, long dataLength, QuadtreeNode renderRoot)
     {
         // resize buffers if needed
         ResizeBuffers(treeLength, dataLength);
@@ -194,12 +194,12 @@ public class QuadtreeRenderable : Renderable
     /// <param name="data">the new data buffer</param>
     public void SetGeometry(QuadtreeNode[] tree, uint[] data)
     {
-        var newTreeLength = (int)NextPowerOf2((ulong)tree.Length);
+        var newTreeLength = (int)BitUtil.NextPowerOf2((ulong)tree.Length);
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _treeBuffer);
         GL.BufferData(BufferTarget.ShaderStorageBuffer, newTreeLength * QuadTreeNodeSize, tree, Hint);
         _treeBufferLength = newTreeLength;
         
-        var newDataLength = (int)NextPowerOf2((ulong)data.Length);
+        var newDataLength = (int)BitUtil.NextPowerOf2((ulong)data.Length);
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _dataBuffer);
         GL.BufferData(BufferTarget.ShaderStorageBuffer, newDataLength * sizeof(uint), data, Hint);
         _dataBufferLength = newDataLength;
@@ -234,13 +234,13 @@ public class QuadtreeRenderable : Renderable
         PrintGlErrors();
     }
     
-    private void ResizeBuffers(int treeLength, int dataLength)
+    private void ResizeBuffers(long treeLength, long dataLength)
     {
         if (treeLength < 8) treeLength = 8;
         if (dataLength < 8) dataLength = 8;
         
         // resize tree buffer if needed
-        var newTreeBufferLength = (int)NextPowerOf2((ulong)treeLength);
+        var newTreeBufferLength = (int)BitUtil.NextPowerOf2((ulong)treeLength);
         if (newTreeBufferLength > _treeBufferLength || newTreeBufferLength <= _treeBufferLength/2)
         {
             // bind the old buffer to `CopyReadBuffer`
@@ -268,7 +268,7 @@ public class QuadtreeRenderable : Renderable
         }
         
         // resize data buffer if needed
-        var newDataBufferLength = (int)NextPowerOf2((ulong)dataLength);
+        var newDataBufferLength = (int)BitUtil.NextPowerOf2((ulong)dataLength);
         if (newDataBufferLength > _dataBufferLength || newDataBufferLength <= _dataBufferLength/2)
         {
             // bind the old buffer to `CopyReadBuffer`

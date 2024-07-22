@@ -10,11 +10,18 @@ uniform int MaxHeight; // the amount of height levels in the quadtree to be rend
 struct QuadtreeNode
 {
     uint Type;
-
-    int Ref0;
-    int Ref1;
-    int Ref2;
-    int Ref3;
+    
+    uint Ref0L;
+    uint Ref0U;
+    
+    uint Ref1L;
+    uint Ref1U;
+    
+    uint Ref2L;
+    uint Ref2U;
+    
+    uint Ref3L;
+    uint Ref3U;
 
 };
 
@@ -87,13 +94,13 @@ int GetNodeRef(QuadtreeNode node, uint index) {
     
     switch (index) {
         case 0:
-            return node.Ref0;
+            return int(node.Ref0L);
         case 1:
-            return node.Ref1;
+            return int(node.Ref1L);
         case 2:
-            return node.Ref2;
+            return int(node.Ref2L);
         case 3:
-            return node.Ref3;
+            return int(node.Ref3L);
     }
     return -17;
 }
@@ -156,7 +163,7 @@ void main()
         return;
     }
     
-    Tile tile = Data[Tree[nodeRef].Ref0];
+    Tile tile = Data[Tree[nodeRef].Ref0L];
     
     uint id = GetTileId(tile);
     

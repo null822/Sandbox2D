@@ -1,5 +1,5 @@
 ﻿
-using Sandbox2D.Maths.Quadtree;
+using Sandbox2D.Maths;
 
 namespace Sandbox2D.World;
 
@@ -38,7 +38,7 @@ public readonly struct TileData
     
     public byte[] Serialize()
     {
-        return QuadtreeUtil.GetBytes(_data);
+        return BitUtil.GetBytes(_data);
     }
     
     public bool Equals(TileData t)

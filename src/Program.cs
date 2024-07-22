@@ -65,6 +65,8 @@ public static class Program
         Debug("debug text", OutputSource.Test);
         Warn("warn text", OutputSource.Test);
         Error("error text", OutputSource.Test);
+        
+        Console.WriteLine(BitUtil.LeadingZeros(0b00000000101000000000000000000000u));
 
         const int mh = 64;
         

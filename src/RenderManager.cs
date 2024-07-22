@@ -29,8 +29,8 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     // world geometry
     private static readonly ManualResetEventSlim GeometryLock = new (true);
     private static QuadtreeModifications<Tile> _modifications = new([], []);
-    private static int _treeLength;
-    private static int _dataLength;
+    private static long _treeLength;
+    private static long _dataLength;
     private static QuadtreeNode _renderRoot;
     private static Range2D _renderRange;
     
@@ -385,7 +385,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     /// <param name="renderRoot">the root node for rendering</param>
     /// <param name="renderRange">the dimensions of <paramref name="renderRoot"/></param>
     /// <remarks>Causes the quadtree to be partially re-uploaded to the gpu.</remarks>
-    public static void UpdateGeometry(QuadtreeModifications<Tile> modifications, int treeLength, int dataLength, QuadtreeNode renderRoot, Range2D renderRange)
+    public static void UpdateGeometry(QuadtreeModifications<Tile> modifications, long treeLength, long dataLength, QuadtreeNode renderRoot, Range2D renderRange)
     {
         if (!GeometryLock.IsSet && !GeometryLock.Wait(RenderLockTimeout))
         {

@@ -7,7 +7,7 @@ namespace Sandbox2D.Maths.Quadtree;
 /// <summary>
 /// Represents a single node within a <see cref="Quadtree{T}"/>, stored in <see cref="Quadtree{T}._tree"/>.
 /// </summary>
-[StructLayout(LayoutKind.Explicit, Size = 20)]
+[StructLayout(LayoutKind.Explicit, Size = 36)]
 public readonly struct QuadtreeNode
 {
     /// <summary>
@@ -21,28 +21,28 @@ public readonly struct QuadtreeNode
     /// </summary>
     /// <remarks>Also used to store the reference for a leaf node.</remarks>
     [FieldOffset(4)]
-    public readonly int Ref0;
+    public readonly long Ref0;
     /// <summary>
     /// The reference to the (+X +Y), or Top Right, node.
     /// </summary>
-    [FieldOffset(8)]
-    public readonly int Ref1;
+    [FieldOffset(12)]
+    public readonly long Ref1;
     /// <summary>
     /// The reference to the (-X -Y), or Bottom Left, node.
     /// </summary>
-    [FieldOffset(12)]
-    public readonly int Ref2;
+    [FieldOffset(20)]
+    public readonly long Ref2;
     /// <summary>
     /// The reference to the (+X -Y), or Bottom Right, node.
     /// </summary>
-    [FieldOffset(16)]
-    public readonly int Ref3;
+    [FieldOffset(28)]
+    public readonly long Ref3;
     
     /// <summary>
     /// Constructs a leaf node.
     /// </summary>
     /// <param name="refVal">an index within the data array storing the value of this node</param>
-    public QuadtreeNode(int refVal)
+    public QuadtreeNode(long refVal)
     {
         Type = NodeType.Leaf;
         Ref0 = refVal;
@@ -56,7 +56,7 @@ public readonly struct QuadtreeNode
     /// <param name="ref1">reference for (+X -Y), or BR, node</param>
     /// <param name="ref2">reference for (-X +Y), or TL, node</param>
     /// <param name="ref3">reference for (+X +Y), or TR, node</param>
-    public QuadtreeNode(int ref0, int ref1, int ref2, int ref3)
+    public QuadtreeNode(long ref0, long ref1, long ref2, long ref3)
     {
         Type = NodeType.Branch;
         
@@ -77,7 +77,7 @@ public readonly struct QuadtreeNode
     /// </param>
     /// <exception cref="InvalidNodeTypeException">Thrown when this node is not the correct type (if it is a leaf node).</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="nodeIndex"/> is out of range.</exception>
-    public int GetNodeRef(int nodeIndex)
+    public long GetNodeRef(int nodeIndex)
     {
         if (Type == NodeType.Leaf) throw new InvalidNodeTypeException(Type, NodeType.Branch);
         
@@ -95,7 +95,7 @@ public readonly struct QuadtreeNode
     /// Returns the reference to the value of this node
     /// </summary>
     /// <exception cref="InvalidNodeTypeException">Thrown when this node is not the correct type (if it is a branch node).</exception>
-    public int GetValueRef()
+    public long GetValueRef()
     {
         if (Type == NodeType.Branch) throw new InvalidNodeTypeException(Type, NodeType.Leaf);
         
@@ -117,7 +117,7 @@ public readonly struct QuadtreeNode
             case NodeType.Leaf:
                 return $"[ Leaf ] {Ref0}";
             default:
-                return $"[ERROR ] {(uint)Type:x8} {Ref0:x8} {Ref1:x8} {Ref2:x8} {Ref3:x8}]";
+                return $"[ERROR ] {(uint)Type:x16} {Ref0:x16} {Ref1:x16} {Ref2:x16} {Ref3:x16}]";
         }
     }
 }

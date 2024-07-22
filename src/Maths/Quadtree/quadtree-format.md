@@ -22,16 +22,17 @@ The structure is layed out as follows, and in this order:
 ## [ Header Section ]
 
 These values exist only once in a file, right at the beginning, and exist as metadata for the quadtree.
-This structure will always be exactly `13` bytes in size.
+This structure will always be exactly `18` bytes in size.
 
 ```
 byte (1): max height (Quadtree._maxHeight) of the entire quadtree
 
 uint (4): enabled features (Quadtree._enabledFeatures)
 
-uint (4): size (bytes) of one element [denoted as `T` in this file]
+byte (1): size (in bytes) of a reference to an element in the `[ Data Section ]`. denoted as `S` in this file.
+uint (4): size (in bytes) of one element [denoted as `T` in this file]
 
-uint (4): pointer to the start of the `[ Data Section ]`
+long (8): pointer to the start of the `[ Data Section ]`
 ```
 
 ## [ Tree Section ]
@@ -59,10 +60,11 @@ This structure will always be exactly `5` bytes in size.
     byte (1): 1 // states that this is a Leaf node
     
     // `_value` field
-    uint (4): index to the value
+    (S): index to the value
+    // the length of this value (`S`) is defined in the `[Header Section]`.
     // this is relative to the start of the `[ Data Section ]`
     // the absolute pointer to the value within the file can be calculated by multiplying this value by `T` and adding it to
-    // the pointer to the start of the `[ Data Section ]` (found in the `[Header Section]`)
+    // the pointer to the start of the `[ Data Section ]` (found in the `[Header Section]`).
 }
 
 ```

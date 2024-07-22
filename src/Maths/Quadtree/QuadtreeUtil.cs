@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Sandbox2D.Maths.Quadtree;
 
@@ -53,8 +52,8 @@ public static class QuadtreeUtil
     /// <returns>A 128-bit unsigned integer containing the Morton Code</returns>
     public static UInt128 Interleave(Vec2<long> coords, int maxHeight)
     {
-        var unsigned = new Vec2<ulong>(Unsign(coords.X, maxHeight), Unsign(coords.Y, maxHeight));
-        return Interleave(unsigned);
+        var unsigned = new Vec2<ulong>(BitUtil.Unsign(coords.X, maxHeight), BitUtil.Unsign(coords.Y, maxHeight));
+        return BitUtil.Interleave(unsigned);
     }
     
     /// <summary>
@@ -65,9 +64,9 @@ public static class QuadtreeUtil
     /// <returns>A vector containing the 2D coordinates</returns>
     public static Vec2<long> Deinterleave(UInt128 zValue, int maxHeight)
     {
-        var unsigned = Deinterleave(zValue);
+        var unsigned = BitUtil.Deinterleave(zValue);
         
-        return new Vec2<long>(Sign(unsigned.X, maxHeight), Sign(unsigned.Y, maxHeight));
+        return new Vec2<long>(BitUtil.Sign(unsigned.X, maxHeight), BitUtil.Sign(unsigned.Y, maxHeight));
     }
     
     /// <summary>
@@ -101,7 +100,7 @@ public static class QuadtreeUtil
     /// <returns>The node represented as a <see cref="Range2D"/></returns>
     public static Range2D NodeRangeFromPos(Vec2<long> bl, int height)
     {
-        var sizeM1 = Pow2Min1uL(height); 
+        var sizeM1 = BitUtil.Pow2Min1uL(height); 
         var tr = new Vec2<long>((long)((ulong)bl.X + sizeM1), (long)((ulong)bl.Y + sizeM1));
         
         return new Range2D(bl, tr);
@@ -121,102 +120,7 @@ public static class QuadtreeUtil
         
         if (target == 0) return 0;
         
-        return TrailingZeros(target) / 2;
-    }
-    
-    /// <summary>
-    /// Computes 2^n - 1, returning the result as a long, and never exceeding the limit of 2^63.
-    /// </summary>
-    /// <param name="v">n; the value to return 2^n - 1 of</param>
-    public static long Pow2Min1L(int v)
-    {
-        return ~(v == 63 ? 0 : ~0x0L << v);
-    }
-    
-    /// <summary>
-    /// Computes 2^n - 1, returning the result as a ulong, and never exceeding the limit of 2^64.
-    /// </summary>
-    /// <param name="v">n; the value to return 2^n - 1 of</param>
-    // ReSharper disable once InconsistentNaming
-    public static ulong Pow2Min1uL(int v)
-    {
-        return ~(v == 64 ? 0 : ~0x0uL << v);
-    }
-    
-    /// <summary>
-    /// Computes 2^n - 1, returning the result as a UInt128, and never exceeding the limit of 2^128.
-    /// </summary>
-    /// <param name="v">n; the value to return 2^n - 1 of</param>
-    public static UInt128 Pow2Min1U128(int v)
-    {
-        return ~(v == 128 ? 0 : ~(UInt128)0x0 << v);
-    }
-    
-    public static byte[] GetBytes(int v)
-    {
-        return [(byte)((v >> 24) & 0xFF), (byte)((v >> 16) & 0xFF), (byte)((v >> 8) & 0xFF), (byte)(v & 0xFF)];
-    }
-    
-    public static byte[] GetBytes(uint v)
-    {
-        return [(byte)((v >> 24) & 0xFF), (byte)((v >> 16) & 0xFF), (byte)((v >> 8) & 0xFF), (byte)(v & 0xFF)];
-    }
-    
-    public static byte[] GetBytes(long v)
-    {
-        return [
-            (byte)((v >> 56) & 0xff),
-            (byte)((v >> 48) & 0xff),
-            (byte)((v >> 40) & 0xff),
-            (byte)((v >> 32) & 0xff),
-            (byte)((v >> 24) & 0xff),
-            (byte)((v >> 16) & 0xff),
-            (byte)((v >>  8) & 0xff),
-            (byte)((v >>  0) & 0xff),
-        ];
-    }
-    
-    public static byte[] GetBytes(ulong v)
-    {
-        return [
-            (byte)((v >> 56) & 0xff),
-            (byte)((v >> 48) & 0xff),
-            (byte)((v >> 40) & 0xff),
-            (byte)((v >> 32) & 0xff),
-            (byte)((v >> 24) & 0xff),
-            (byte)((v >> 16) & 0xff),
-            (byte)((v >>  8) & 0xff),
-            (byte)((v >>  0) & 0xff),
-        ];
-    }
-    
-    
-    public static int GetInt(Span<byte> d)
-    {
-        return (d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3];
-    }
-    
-    public static uint GetUint(Span<byte> d)
-    {
-        return (uint)(d[0] << 24) | (uint)(d[1] << 16) | (uint)(d[2] << 8) | (uint)d[3];
-    }
-    
-    public static long GetLong(Span<byte> d)
-    {
-        return (d[0] << 24) | (d[1] << 16) | (d[2] << 8) | (d[3] << 8) | (d[4] << 24) | (d[5] << 16) | (d[6] << 8) | d[7];
-    }
-    
-    public static ulong GetULong(Span<byte> d)
-    {
-        return ((ulong)d[0] << 56) | (ulong)d[1] << 48 | (ulong)d[2] << 40 | (ulong)d[3] << 32 | (ulong)d[4] << 24 | (ulong)d[5] << 16 | (ulong)d[6] << 8 | (ulong)d[7];
-    }
-    
-    
-    public static bool CompareBytes(byte[] a, byte[] b)
-    {
-        if (a.Length != b.Length) return false;
-
-        return !a.Where((t, i) => t != b[i]).Any();
+        return (int)BitUtil.TrailingZeros(target) / 2;
     }
     
     /// <summary>
@@ -233,141 +137,4 @@ public static class QuadtreeUtil
         return 1;
     });
     
-    /// <summary>
-    /// Computes the amount of trailing zeros in a given 128-bit unsigned integer
-    /// </summary>
-    private static int TrailingZeros(UInt128 v)
-    {
-        if ((v & 0x1) == 0x1)
-            return 0;
-        
-        if (v == 0)
-            return 128;
-        
-        var c = 1;
-        if ((v & 0xffffffffffffffffL) == 0)
-        {
-            v >>= 64;
-            c += 64;
-        }
-        if ((v & 0xffffffffL) == 0)
-        {
-            v >>= 32;
-            c += 32;
-        }
-        if ((v & 0xffffL) == 0)
-        {
-            v >>= 16;
-            c += 16;
-        }
-        if ((v & 0xffL) == 0)
-        {
-            v >>= 8;
-            c += 8;
-        }
-        if ((v & 0b1111L) == 0)
-        {
-            v >>= 4;
-            c += 4;
-        }
-        if ((v & 0b11L) == 0)
-        {
-            v >>= 2;
-            c += 2;
-        }
-        c -= (int)(v & 0x1);
-        
-        return c;
-    }
-    
-    private static readonly UInt128[] Masks = [
-        new UInt128(0b0101010101010101010101010101010101010101010101010101010101010101uL, 0b0101010101010101010101010101010101010101010101010101010101010101uL),
-        new UInt128(0b0011001100110011001100110011001100110011001100110011001100110011uL, 0b0011001100110011001100110011001100110011001100110011001100110011uL),
-        new UInt128(0b0000111100001111000011110000111100001111000011110000111100001111uL, 0b0000111100001111000011110000111100001111000011110000111100001111uL),
-        new UInt128(0b0000000011111111000000001111111100000000111111110000000011111111uL, 0b0000000011111111000000001111111100000000111111110000000011111111uL),
-        new UInt128(0b0000000000000000111111111111111100000000000000001111111111111111uL, 0b0000000000000000111111111111111100000000000000001111111111111111uL),
-        new UInt128(0b0000000000000000000000000000000011111111111111111111111111111111uL, 0b0000000000000000000000000000000011111111111111111111111111111111uL),
-        new UInt128(0b0000000000000000000000000000000000000000000000000000000000000000uL, 0b1111111111111111111111111111111111111111111111111111111111111111uL),
-    ];
-
-    /// <summary>
-    /// Interleaves 2 64-bit unsigned integers, producing an unsigned 128-bit integer. Does the inverse of <see cref="Deinterleave(UInt128)"/>.
-    /// </summary>
-    /// <param name="vec">the 2 64-bit integers to interleave</param>
-    private static UInt128 Interleave(Vec2<ulong> vec)
-    {
-        var x = (UInt128)vec.X;
-        var y = (UInt128)vec.Y;
-        
-        x = (x | (x << 32)) & Masks[5];
-        x = (x | (x << 16)) & Masks[4];
-        x = (x | (x <<  8)) & Masks[3];
-        x = (x | (x <<  4)) & Masks[2];
-        x = (x | (x <<  2)) & Masks[1];
-        x = (x | (x <<  1)) & Masks[0];
-        
-        y = (y | (y << 32)) & Masks[5];
-        y = (y | (y << 16)) & Masks[4];
-        y = (y | (y <<  8)) & Masks[3];
-        y = (y | (y <<  4)) & Masks[2];
-        y = (y | (y <<  2)) & Masks[1];
-        y = (y | (y <<  1)) & Masks[0];
-        y <<= 1;
-        
-        return x | y;
-    }
-    
-    /// <summary>
-    /// Deinterleaves an unsigned 128-bit integer, producing 2 unsigned 64-bit integers. Does the inverse of <see cref="Interleave(Vec2{ulong})"/>.
-    /// </summary>
-    /// <param name="zValue">the unsigned 128-bit integer to deinterleave</param>
-    /// <returns></returns>
-    private static Vec2<ulong> Deinterleave(UInt128 zValue)
-    {
-        var x = zValue & Masks[0];
-        var y = (zValue >> 1) & Masks[0];
-
-        x = (x | (x >> 1)) & Masks[1];
-        x = (x | (x >> 2)) & Masks[2];
-        x = (x | (x >> 4)) & Masks[3];
-        x = (x | (x >> 8)) & Masks[4];
-        x = (x | (x >> 16)) & Masks[5];
-        x = (x | (x >> 32)) & Masks[6];
-
-        y = (y | (y >> 1)) & Masks[1];
-        y = (y | (y >> 2)) & Masks[2];
-        y = (y | (y >> 4)) & Masks[3];
-        y = (y | (y >> 8)) & Masks[4];
-        y = (y | (y >> 16)) & Masks[5];
-        y = (y | (y >> 32)) & Masks[6];
-
-        return ((ulong)x, (ulong)y);
-    }
-
-    /// <summary>
-    /// Converts an unsigned 64-bit integer into a signed 64-bit integer such that larger numbers remain larger after signing.
-    /// </summary>
-    /// <param name="u">the unsigned 64-bit integer to convert</param>
-    /// <param name="b">the amount of bits to consider</param>
-    /// <returns>A signed 64-bit integer representing the original unsigned version</returns>
-    private static long Sign(ulong u, int b)
-    {
-        var s = (long)u ^ (0x1L << (b - 1));
-        if (b == 64) return s;
-        return (-(s >> (b - 1) & 0x1) << b) | s;
-    }
-    
-    /// <summary>
-    /// Converts a signed 64-bit integer into an unsigned 64-bit integer such that larger numbers remain larger after unsigning.
-    /// </summary>
-    /// <param name="i">the signed 64-bit integer to convert</param>
-    /// <param name="b">the amount of bits to consider</param>
-    /// <returns>An unsigned 64-bit integer representing the original signed version</returns>
-    private static ulong Unsign(long i, int b)
-    {
-        var mask = b == 64 ? ~0uL : ~(~0uL << b);
-        return ((ulong)i & mask) ^ (0x1uL << (b - 1));
-    }
-    
-
 }

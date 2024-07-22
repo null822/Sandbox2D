@@ -1,5 +1,6 @@
 ﻿using System;
 using Sandbox2D.Graphics;
+using Sandbox2D.Maths;
 using Sandbox2D.Maths.Quadtree;
 using Sandbox2D.Maths.Quadtree.FeatureNodeTypes;
 
@@ -42,7 +43,7 @@ public readonly partial struct Tile : IQuadtreeElement<Tile>,
     
     public static Tile Deserialize(Span<byte> bytes)
     {
-        return new Tile(new TileData(QuadtreeUtil.GetULong(bytes)));
+        return new Tile(new TileData(BitUtil.GetULong(bytes)));
     }
     
     public TileData GpuSerialize()
