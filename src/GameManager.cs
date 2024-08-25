@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
+using OpenTK.Mathematics;
 using Sandbox2D.Maths;
 using Sandbox2D.Maths.Quadtree;
 using Sandbox2D.World;
@@ -15,6 +16,7 @@ namespace Sandbox2D;
 public static class GameManager
 {
     private static Quadtree<Tile> _world;
+    public static int WorldHeight { get; private set; } = 4;
     
     // camera
     public static Vec2<decimal> Translation { private set; get; }
@@ -105,7 +107,6 @@ public static class GameManager
         
         if (action != null)
             HandleAction(action.Value);
-        
     }
     
     /// <summary>
@@ -115,14 +116,17 @@ public static class GameManager
     {
         if (!RenderManager.CanUpdateGeometry()) return;
         
-        var renderDepth = Math.Min(WorldHeight, 16);
+        // update the modifications
+        var modificationArrays = RenderManager.GetModificationArrays();
+        _world.GetModifications(modificationArrays.Tree, modificationArrays.Data);
         
-        // get world modifications, buffer size and render root
+        // update the geometry parameters
+        var renderDepth = Math.Min(WorldHeight, 16);
         var (treeLength, dataLength) = _world.GetLength();
-        var modifications = _world.GetModifications();
         var (renderRoot, renderRange) = _world.GetSubset(CalculateScreenRange().Overlap(_world.Dimensions), renderDepth);
-        // update the geometry on the render thread
-        RenderManager.UpdateGeometry(modifications, treeLength, dataLength, renderRoot, renderRange);
+        RenderManager.UpdateGeometryParameters(treeLength, dataLength, renderRoot, renderRange);
+        
+        RenderManager.GeometryLock.Set();
     }
     
     /// <summary>
@@ -130,18 +134,11 @@ public static class GameManager
     /// </summary>
     private static void Initialize()
     {
-        Log("===============[ LOGIC LOADING  ]===============", OutputSource.Load);
-        
-        
         // create world
         _world = new Quadtree<Tile>(WorldHeight, new Tile(TileId.Air));
+        WorldHeight = _world.MaxHeight;
         
-        Log("Created World", OutputSource.Load);
-        
-        // run the system checks
-        Log("===============[ SYSTEM CHECKS  ]===============", OutputSource.Load);
-        Program.SystemChecks();
-        
+        Log("Created World", "Load/Logic");
     }
     
     private static void HandleAction((WorldAction action, string arg) action)
@@ -163,6 +160,7 @@ public static class GameManager
                 var save = File.Open(action.arg, FileMode.Open);
                 _world.Dispose();
                 _world = Quadtree<Tile>.Deserialize<Tile>(save);
+                WorldHeight = _world.MaxHeight;
                 save.Close();
                 save.Dispose();
                 

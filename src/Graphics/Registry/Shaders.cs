@@ -27,6 +27,6 @@ public static class Shaders
         
         GuiCheckbox = new Shader("gui/checkbox.vsh", "gui/checkbox.fsh");
         
-        Util.Log("Created Shaders", OutputSource.Load);
+        Util.Log("Loaded Shaders", "Load/Render");
     }
 }

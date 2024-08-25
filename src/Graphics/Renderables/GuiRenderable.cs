@@ -16,7 +16,7 @@ public class GuiRenderable : Renderable
     public GuiRenderable(Shader shader, BufferUsageHint hint = BufferUsageHint.StaticDraw) : base(shader, hint)
     {
         // update the vao (creates it, in this case)
-        UpdateVao(hint);
+        UpdateVao();
         
         // set up vertex coords
         var vertexLocation = Shader.GetAttribLocation("aPosition");
@@ -24,25 +24,18 @@ public class GuiRenderable : Renderable
         GL.VertexAttribPointer(vertexLocation, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
     }
     
-    public override void Render(RenderableCategory category = RenderableCategory.All)
+    public override void Render()
     {
-        if (!IsInCategory(category) || !ShouldRender)
-            return;
-
-        base.Render(category);
+        base.Render();
         
         GL.BindVertexArray(VertexArrayObject);
         Shader.Use();
         GL.DrawElements(PrimitiveType.Triangles, Indices.Count, DrawElementsType.UnsignedInt, 0);
     }
     
-    public sealed override void UpdateVao(BufferUsageHint? hint = null,
-        RenderableCategory category = RenderableCategory.All)
+    public sealed override void UpdateVao()
     {
-        if (!IsInCategory(category))
-            return;
-
-        base.UpdateVao(hint, category);
+        base.UpdateVao();
         
         // bind vao
         GL.BindVertexArray(VertexArrayObject);
@@ -94,19 +87,12 @@ public class GuiRenderable : Renderable
     /// <summary>
     /// Resets the geometry of this renderable. Does not update the VAO
     /// </summary>
-    public override void ResetGeometry(RenderableCategory category = RenderableCategory.All)
+    public override void ResetGeometry()
     {
-        if (!IsInCategory(category))
-            return;
-
-        base.ResetGeometry(category);
+        base.ResetGeometry();
         
         Vertices.Clear();
         Indices.Clear();
     }
 
-    protected override bool IsInCategory(RenderableCategory category)
-    {
-        return base.IsInCategory(category) || category == RenderableCategory.Gui;
-    }
 }

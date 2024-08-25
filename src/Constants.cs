@@ -9,14 +9,6 @@ namespace Sandbox2D;
 public static class Constants
 {
     /// <summary>
-    /// The height of the world <see cref="Maths.Quadtree.Quadtree{T}"/>.
-    /// </summary>
-    /// <remarks>
-    /// The maximum value is 64, and the minimum is 2.
-    /// </remarks>
-    public const int WorldHeight = 64;
-    
-    /// <summary>
     /// The TPS (Ticks Per Second) the game logic will attempt to run at.
     /// </summary>
     public const int Tps = 20;
@@ -25,6 +17,12 @@ public static class Constants
     /// The VSync mode to use.
     /// </summary>
     public const VSyncMode Vsync = VSyncMode.On;
+    
+    /// <summary>
+    /// Disables asynchronous OpenGL debug output. Synchronous OpenGL debug is slower than asynchronous, but provides a
+    /// stacktrace for all errors.
+    /// </summary>
+    public const bool SynchronousGlDebug = true;
     
     /// <summary>
     /// The global scale of GUIs.
@@ -41,7 +39,14 @@ public static class Constants
     /// the render thread
     /// </summary>
     public const int RenderLockTimeout = 100;
+    
+    /// <summary>
+    /// The timeout, in milliseconds, for how long to wait for a lock for transferring data from the logic thread to
+    /// the render thread
+    /// </summary>
+    public const int GpuUploadBatchSize = 2048;
 
+    
     /// <summary>
     /// The width/height of the SVG of an exported <see cref="Maths.Quadtree.Quadtree{T}"/> (see <see cref="Maths.Quadtree.Quadtree{T}.GetSvgMap"/>).
     /// </summary>

@@ -28,7 +28,7 @@ public readonly partial struct Tile : IQuadtreeElement<Tile>,
     public ulong Data => _data.Data;
     
     
-    public int SerializeLength => TileData.Size;
+    public int SerializeLength => 8;
     
     
     private Tile(TileData data)

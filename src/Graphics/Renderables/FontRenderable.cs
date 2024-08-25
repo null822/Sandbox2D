@@ -34,7 +34,7 @@ public class FontRenderable : Renderable
     public FontRenderable(Shader shader, BufferUsageHint hint = BufferUsageHint.StaticDraw) : base(shader, hint)
     {
         // update the vao (creates it, in this case)
-        UpdateVao(hint);
+        UpdateVao();
         
         // set up vertex coords
         var vertexLocation = Shader.GetAttribLocation("aPosition");
@@ -45,20 +45,18 @@ public class FontRenderable : Renderable
         GL.EnableVertexAttribArray(texCoordLocation);
         GL.VertexAttribPointer(texCoordLocation, 2, VertexAttribPointerType.Float, false, 5 * sizeof(float), 3 * sizeof(float));
         
+        Shader.Use();
         // set up uniforms
         var scaleLocation = GL.GetUniformLocation(Shader.Handle, "scale");
-        GL.Uniform1(scaleLocation, 1, ref _scale);
+        GL.Uniform1(scaleLocation, _scale);
         
         _texture = Textures.Font;
         _texture.Use(TextureUnit.Texture0);
     }
     
-    public override void Render(RenderableCategory category = RenderableCategory.All)
+    public override void Render()
     {
-        if (!IsInCategory(category) || !ShouldRender)
-            return;
-
-        base.Render(category);
+        base.Render();
         
         GL.BindVertexArray(VertexArrayObject);
         
@@ -79,13 +77,9 @@ public class FontRenderable : Renderable
 
     }
     
-    public sealed override void UpdateVao(BufferUsageHint? hint = null,
-        RenderableCategory category = RenderableCategory.All)
+    public sealed override void UpdateVao()
     {
-        if (!IsInCategory(category))
-            return;
-
-        base.UpdateVao(hint, category);
+        base.UpdateVao();
         
         // bind vao
         GL.BindVertexArray(VertexArrayObject);
@@ -288,12 +282,9 @@ public class FontRenderable : Renderable
     /// <summary>
     /// Resets the geometry of this renderable. Does not update the VAO
     /// </summary>
-    public override void ResetGeometry(RenderableCategory category = RenderableCategory.All)
+    public override void ResetGeometry()
     {
-        if (!IsInCategory(category))
-            return;
-
-        base.ResetGeometry(category);
+        base.ResetGeometry();
         
         _vertices.Clear();
         _indices.Clear();

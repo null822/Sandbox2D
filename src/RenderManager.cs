@@ -8,7 +8,6 @@ using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using Sandbox2D.Graphics.Registry;
 using Sandbox2D.Graphics.Renderables;
-using Sandbox2D.GUI;
 using Sandbox2D.Maths;
 using Sandbox2D.Maths.Quadtree;
 using Sandbox2D.World;
@@ -18,17 +17,21 @@ using static Sandbox2D.Constants;
 namespace Sandbox2D;
 
 public class RenderManager(int width, int height, string title) : GameWindow(GameWindowSettings.Default,
-    new NativeWindowSettings { ClientSize = (width, height), Title = title })
+    new NativeWindowSettings { ClientSize = (width, height), Title = title, Flags = ContextFlags.Debug})
 {
     // rendering
     private static QuadtreeRenderable _rQt;
     private static FontRenderable _rFont;
-    private static bool _unuploadedGeometry = true;
+    private static bool _unuploadedGeometry;
+    private static int _gpuWorldHeight = GameManager.WorldHeight;
     
     private static readonly Random Random = new();
     // world geometry
-    private static readonly ManualResetEventSlim GeometryLock = new (true);
-    private static QuadtreeModifications<Tile> _modifications = new([], []);
+    public static readonly ManualResetEventSlim GeometryLock = new (true);
+    private static long _treeIndex;
+    private static long _dataIndex;
+    private static DynamicArray<ArrayModification<QuadtreeNode>> _treeModifications = new(storeOccupied: false);
+    private static DynamicArray<ArrayModification<Tile>> _dataModifications = new(storeOccupied: false);
     private static long _treeLength;
     private static long _dataLength;
     private static QuadtreeNode _renderRoot;
@@ -62,7 +65,16 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     protected override void OnRenderFrame(FrameEventArgs args)
     {
         base.OnRenderFrame(args);
-
+        
+        // re-create the quadtree renderable if the world height changed
+        var newGpuWorldHeight = Math.Min(GameManager.WorldHeight, 16);
+        if (_gpuWorldHeight != newGpuWorldHeight)
+        {
+            _gpuWorldHeight = newGpuWorldHeight;
+            _rQt.ResetGeometry();
+            _rQt.SetMaxHeight(_gpuWorldHeight);
+        }
+        
         // only render when the game is running
         if (!GameManager.IsRunning)
             return;
@@ -76,10 +88,23 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
             GeometryLock.Reset();
             
             // update geometry
-            _rQt.SetGeometry(_modifications, _treeLength, _dataLength, _renderRoot);
+            _rQt.SetGeometry(ref _treeModifications, ref _dataModifications, _treeLength, _dataLength, ref _treeIndex, ref _dataIndex, _renderRoot);
             
-            // reset geometry flag
-            _unuploadedGeometry = false;
+            // if we have uploaded all modifications to the gpu
+            if (_treeIndex >= _treeModifications.Length && _dataIndex >= _dataModifications.Length)
+            {
+                if (_treeModifications.Length != 0 && _dataModifications.Length != 0)
+                {
+                    _treeIndex = 0;
+                    _dataIndex = 0;
+                    _treeModifications.Clear();
+                    _dataModifications.Clear();
+                }
+                
+                // reset geometry flag
+                _unuploadedGeometry = false;
+            }
+            
             
             // calculate the scale/translation to be uploaded to the GPU
             var renderScale = (float)Scale;
@@ -98,8 +123,9 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         
         // render the GUIs
-        GuiManager.UpdateGuis();
-        Renderables.Render(RenderableCategory.Gui);
+        //TODO: render the GUIs
+        // GuiManager.UpdateGuis(); (broken now)
+        // Renderables.Render(RenderableCategory.Gui);
         
         var center = GameManager.ScreenSize / 2;
         
@@ -119,8 +145,6 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         // swap buffers
         SwapBuffers();
-        
-        PrintGlErrors();
     }
     
     /// <summary>
@@ -129,7 +153,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     protected override void OnUpdateFrame(FrameEventArgs args)
     {
         base.OnUpdateFrame(args);
-
+        
         var isActive = CheckActive();
         
         if (!isActive)
@@ -142,8 +166,6 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         // update whether the game is running
         GameManager.SetRunning(isActive);
-        
-        PrintGlErrors();
     }
     
     /// <summary>
@@ -151,15 +173,12 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     /// </summary>
     private void UpdateControls()
     {
-        //TODO: make this method less unreadable and unmaintainable
+        //TODO: make this method less unreadable and unmaintainable, maybe with an Event/Callback system
         
         var mouseScreenCoords = new Vec2<int>((int)Math.Round(MouseState.X), (int)Math.Round(MouseState.Y));
         var mouseWorldCoords = ScreenToWorldCoords(mouseScreenCoords);
         
         var center = GameManager.ScreenSize / 2;
-        
-        // update GUIs
-        GuiManager.MouseOver(mouseScreenCoords - center);
         
         // world actions
         if (KeyboardState.IsKeyPressed(Keys.M))
@@ -184,21 +203,22 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
             
             var scale = (decimal)Math.Pow(1.1, -_scrollPos) * 1024;
             
-            const decimal min = 400m / ~(WorldHeight == 64 ? 0 : ~0x0uL << WorldHeight);
+            var min = 400m / ~(GameManager.WorldHeight == 64 ? 0 : ~0x0uL << GameManager.WorldHeight);
             const decimal max = 32m;
             
-            switch (scale)
+            if (scale < min)
             {
-                case < min:
-                    _scrollPos --;
-                    break;
-                case > max:
-                    _scrollPos ++;
-                    break;
-                default:
-                    newScale = scale;
-                    break;
+                _scrollPos --;
+
+            } else if (scale > max)
+            {
+                _scrollPos ++;
             }
+            else
+            {
+                newScale = scale;
+            }
+            
         }
         
         // mouse and keyboard controls
@@ -279,7 +299,11 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     /// </summary>
     protected override void OnLoad()
     {
-        Log("===============[GRAPHICS LOADING]===============", OutputSource.Load);
+        GL.DebugMessageCallback(DebugMessageDelegate, IntPtr.Zero);
+        GL.Enable(EnableCap.DebugOutput);
+        
+        if (SynchronousGlDebug)
+            GL.Enable(EnableCap.DebugOutputSynchronous);
         
         base.OnLoad();
         
@@ -292,14 +316,11 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         // create the textures
         Textures.Instantiate();
         
-        // create the renderables. must be done after creating the shaders
-        Renderables.Instantiate();
-
-        _rQt = new QuadtreeRenderable(Shaders.Qtr, BufferUsageHint.StreamDraw);
+        _rQt = new QuadtreeRenderable(Shaders.Qtr, Math.Min(GameManager.WorldHeight, 16), BufferUsageHint.StreamDraw);
         _rFont = new FontRenderable(Shaders.Font, BufferUsageHint.DynamicDraw);
         
         // create the GUIs. must be done after creating the renderables
-        GuiManager.Instantiate();
+        // TODO: re-implement GUIs
         
         // set translations
         _translation = -InitialScreenSize / 2;
@@ -309,7 +330,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         GameManager.SetRunning(true);
         
         
-        Log("===============[ BEGIN PROGRAM  ]===============", OutputSource.Load);
+        Log("===============[ BEGIN PROGRAM  ]===============", "Load");
     }
     
     
@@ -340,10 +361,6 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         // update screenSize on the logic thread
         GameManager.UpdateScreenSize(new Vec2<int>(e.Width, e.Height));
-        
-        // Update the GUIs, since the vertex coords are calculated on creation,
-        // and need to be updated with the new screen size
-        GuiManager.UpdateGuis();
     }
 
     /// <summary>
@@ -358,7 +375,10 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
 
         base.OnClosing(e);
     }
-
+    
+    private static readonly DebugProc DebugMessageDelegate = OnDebugMessage;
+    
+    
     // public setters/getters
     
     /// <summary>
@@ -375,51 +395,52 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         return (modifications, action);
     }
-
+    
     /// <summary>
-    /// Updates the geometry on the render thread.
+    /// Returns refs to the tree and data modification arrays, allowing new modification to be uploaded to the gpu.
     /// </summary>
-    /// <param name="modifications">the modifications to the world since the last time this method was called</param>
+    /// <remarks>Does not wait for <see cref="GeometryLock"/>.</remarks>
+    public static QuadtreeModifications GetModificationArrays()
+    {
+        return new QuadtreeModifications(_treeModifications, _dataModifications);
+    }
+    
+    /// <summary>
+    /// Updates the additional geometry information on the render thread. See <see cref="GetModificationArrays"/>.
+    /// </summary>
     /// <param name="treeLength">the length of the "tree" section</param>
     /// <param name="dataLength">the length of the "data" section</param>
     /// <param name="renderRoot">the root node for rendering</param>
     /// <param name="renderRange">the dimensions of <paramref name="renderRoot"/></param>
-    /// <remarks>Causes the quadtree to be partially re-uploaded to the gpu.</remarks>
-    public static void UpdateGeometry(QuadtreeModifications<Tile> modifications, long treeLength, long dataLength, QuadtreeNode renderRoot, Range2D renderRange)
+    /// <remarks>Does not wait for <see cref="GeometryLock"/>.</remarks>
+    public static void UpdateGeometryParameters(long treeLength, long dataLength, QuadtreeNode renderRoot, Range2D renderRange)
     {
-        if (!GeometryLock.IsSet && !GeometryLock.Wait(RenderLockTimeout))
-        {
-            // if we failed to get access in time but the new treeLength is significantly smaller, keep waiting
-            if (treeLength * 1.5 < _treeLength)
-                GeometryLock.Wait(Timeout.Infinite);
-            else return;
-        }
-        GeometryLock.Reset();
-        
-        _modifications = modifications;
         _treeLength = treeLength;
         _dataLength = dataLength;
+        _treeIndex = 0;
+        _dataIndex = 0;
+        
         _renderRoot = renderRoot;
         _renderRange = renderRange;
         
         _unuploadedGeometry = true;
-        
-        GeometryLock.Set();
     }
     
     /// <summary>
-    /// Checks whether new geometry can be uploaded. Will wait for <see cref="Constants.RenderLockTimeout"/> to get a lock.
+    /// Checks whether new geometry can be uploaded. Will wait for <see cref="Constants.RenderLockTimeout"/> to get a
+    /// lock, and keeps that lock open only when returning true.
     /// </summary>
     public static bool CanUpdateGeometry()
     {
         if (!GeometryLock.IsSet && !GeometryLock.Wait(RenderLockTimeout)) return false;
+        
         GeometryLock.Reset();
+        var canUpdate = !_unuploadedGeometry;
         
-        var val = !_unuploadedGeometry;
+        // set lock if we can't update geometry
+        if (canUpdate == false) GeometryLock.Set();
         
-        GeometryLock.Set();
-        
-        return val;
+        return canUpdate;
     }
     
     /// <summary>
@@ -456,4 +477,16 @@ public readonly struct WorldModification(Range2D range, Tile tile)
 {
     public readonly Range2D Range = range;
     public readonly Tile Tile = tile;
+}
+
+public readonly struct QuadtreeModifications
+{
+    public readonly DynamicArray<ArrayModification<QuadtreeNode>> Tree;
+    public readonly DynamicArray<ArrayModification<Tile>> Data;
+    
+    public QuadtreeModifications(DynamicArray<ArrayModification<QuadtreeNode>> tree, DynamicArray<ArrayModification<Tile>> data)
+    {
+        Tree = tree;
+        Data = data;
+    }
 }

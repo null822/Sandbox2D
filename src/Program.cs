@@ -12,20 +12,32 @@ namespace Sandbox2D;
 
 public static class Program
 {
-    private static readonly RenderManager RenderManager = new (Constants.InitialScreenSize.X, Constants.InitialScreenSize.Y, "Sandbox2D");
+    /// <summary>
+    /// The class responsible for interfacing with OpenGL to render everything, handle controls and handle all other 
+    /// actions that need to run every frame
+    /// </summary>
+    public static readonly RenderManager RenderManager = new (
+        Constants.InitialScreenSize.X,
+        Constants.InitialScreenSize.Y,
+        "Sandbox2D");
     
+    /// <summary>
+    /// The absolute path to the asset directory of <see cref="Sandbox2D"/>
+    /// </summary>
+    public static readonly string AssetDirectory = AppDomain.CurrentDomain.BaseDirectory + "assets";
+    
+    /// <summary>
+    /// The entrypoint
+    /// </summary>
+    /// <param name="args">Runtime arguments:
+    /// <code>
+    /// [0] = path to .qdt save file to load on start
+    /// </code></param>
     private static void Main(string[] args)
     {
         Console.Clear();
         
-        var image = (Image<Rgba32>)SixLabors.ImageSharp.Image.Load("assets/icon.png");
-        
-        var pixels = new byte[4 * image.Width * image.Height];
-        image.CopyPixelDataTo(pixels);
-        
-        var icon = new WindowIcon(new Image(1024, 1024, pixels));
-        
-        RenderManager.Icon = icon;
+        RenderManager.Icon = LoadIcon();
         RenderManager.VSync = Constants.Vsync;
         
         if (args.Length == 1)
@@ -33,19 +45,32 @@ public static class Program
             RenderManager.SetWorldAction(WorldAction.Load, args[0]);
         }
         
-        // start up game logic
+        // run the system checks
+        Log("===============[ SYSTEM CHECKS  ]===============", "Load");
+        SystemChecks();
+        
+        Log("===============[    STARTUP     ]===============", "Load");
+        
+        // start the logic thread
         var gameLogicThread = new Thread(GameManager.Run)
         {
             Name = "Logic Thread",
-            IsBackground = true,
+            IsBackground = true
         };
         gameLogicThread.Start();
         
-        Thread.Sleep(100);
-        
-        // start the RenderManager
+        // start the "join" the render thread
         RenderManager.Run();
+    }
+
+    private static WindowIcon LoadIcon()
+    {
+        var image = (Image<Rgba32>)SixLabors.ImageSharp.Image.Load($"{AssetDirectory}/icon.png");
         
+        var pixels = new byte[4 * image.Width * image.Height];
+        image.CopyPixelDataTo(pixels);
+        
+        return new WindowIcon(new Image(1024, 1024, pixels));
     }
     
     /// <summary>
@@ -56,18 +81,16 @@ public static class Program
         var setRemoveHash = new DynamicArray<int>([12, 32, 42]).Hash();
         var clearHash = new DynamicArray<int>([]).Hash();
         var sortHash = new DynamicArray<int>([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).Hash();
-
+        
         const int batchLength = 2;
         
         bool success;
         
-        Log("log text", OutputSource.Test);
-        Debug("debug text", OutputSource.Test);
-        Warn("warn text", OutputSource.Test);
-        Error("error text", OutputSource.Test);
+        Log("log text", "Test");
+        Debug("debug text", "Test");
+        Warn("warn text", "Test");
+        Error("error text", "Test");
         
-        Console.WriteLine(BitUtil.LeadingZeros(0b00000000101000000000000000000000u));
-
         const int mh = 64;
         
         var a1 = new Vec2<long>(69420, 123456);
@@ -100,8 +123,14 @@ public static class Program
         dynamicArray.Add(12);
         dynamicArray.Add(69);
         dynamicArray.Add(42);
+        
+        for (var i = 0; i < 128; i++)
+        {
+            dynamicArray.Add(13);
+        }
+        
         dynamicArray.Remove(1);
-        Assert(dynamicArray.Add(32), 1, "DynamicArray Vacancy Fill");
+        Assert(dynamicArray.Add(32), 1L, "DynamicArray Vacancy Fill");
         Assert(dynamicArray.Hash(), setRemoveHash, "DynamicArray Set/Remove");
         
         dynamicArray.Clear();
@@ -120,35 +149,41 @@ public static class Program
         dynamicArray.Remove(5);
         dynamicArray.Add(12);
         var dynamicArrayMirror = new DynamicArray<int>(batchLength);
-        var modifications = new ArrayModification<int>[batchLength];
+        var modifications = new DynamicArray<ArrayModification<int>>(batchLength, false, false);
         dynamicArrayMirror.EnsureCapacity(dynamicArray.Length);
-        while (modifications.Length != 0)
+        
+        dynamicArray.GetModifications(modifications);
+        for (var i = 0; i < modifications.Length; i++)
         {
-            modifications = dynamicArray.GetModifications();
-            foreach (var m in modifications)
-            {
-                dynamicArrayMirror[m.Index] = m.Value;
-            }
+            var m = modifications[i];
+            dynamicArrayMirror[m.Index] = m.Value;
         }
+        
         success = Assert(dynamicArray.Hash(), dynamicArrayMirror.Hash(), "DynamicArray Modifications");
         if (!success)
         {
-            Error($"Original ({dynamicArray.Hash()})");
+            Error($"         Original ({dynamicArray.Hash()})");
             for (var i = 0; i < dynamicArray.Length; i++)
             {
-                Warn($"[{i}] = {dynamicArray[i]}");
+                Warn($"         [{i}] = {dynamicArray[i]}");
             }
             
-            Error($"Mirror ({dynamicArrayMirror.Hash()})");
+            Error($"         Mirror ({dynamicArrayMirror.Hash()})");
             for (var i = 0; i < dynamicArrayMirror.Length; i++)
             {
-                Warn($"[{i}] = {dynamicArrayMirror[i]}");
+                Warn($"         [{i}] = {dynamicArrayMirror[i]}");
             }
         }
+        dynamicArrayMirror.Dispose();
+
+        dynamicArray.RemoveEnd(5);
+        Assert(dynamicArray.Length, 5L, "DynamicArray RemoveEnd");
+        dynamicArray.Clear();
+        Assert(dynamicArray.Length, 0L, "DynamicArray Shrink");
         
         dynamicArray.Dispose();
         dynamicArray = new DynamicArray<int>(batchLength, true);
-
+        
         dynamicArray.Add(9);
         dynamicArray.Add(0);
         dynamicArray.Add(1);
@@ -171,15 +206,5 @@ public static class Program
         }
         
         dynamicArray.Dispose();
-        dynamicArrayMirror.Dispose();
     }
-    
-    /// <summary>
-    /// Gets and returns the current <see cref="RenderManager"/>.
-    /// </summary>
-    public static RenderManager Get()
-    {
-        return RenderManager;
-    }
-    
 }

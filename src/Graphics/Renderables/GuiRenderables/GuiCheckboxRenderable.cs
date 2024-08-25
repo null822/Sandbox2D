@@ -12,23 +12,12 @@ public class GuiCheckboxRenderable : GuiElementRenderable
         
     }
     
-    public override void Render(RenderableCategory category = RenderableCategory.All)
+    public override void Render()
     {
-        if (!IsInCategory(category) || !ShouldRender)
-            return;
-
-        base.Render(category);
+        base.Render();
         
         GL.BindVertexArray(VertexArrayObject);
         Shader.Use();
         GL.DrawElements(PrimitiveType.Triangles, Indices.Count, DrawElementsType.UnsignedInt, 0);
     }
-
-    protected override bool IsInCategory(RenderableCategory category)
-    {
-        return base.IsInCategory(category) || category == RenderableCategory.Checkbox;
-    }
-    
-    
-    
 }

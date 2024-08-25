@@ -111,7 +111,7 @@ public readonly struct QuadtreeNode
         switch (Type)
         {
             case NodeType.Branch:
-                if (Ref0 == Ref1 && Ref0 == Ref2 && Ref0 == Ref1)
+                if (Ref0 == 0 && Ref1 == 0 && Ref2 == 0 && Ref3 == 0)
                     return "[ Null ]";
                 return $"[Branch] {Ref0} {Ref1} {Ref2} {Ref3}";
             case NodeType.Leaf:

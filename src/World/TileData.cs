@@ -1,13 +1,15 @@
-﻿
+﻿using System.Runtime.InteropServices;
 using Sandbox2D.Maths;
 
 namespace Sandbox2D.World;
 
+[StructLayout(LayoutKind.Explicit, Size = 8)]
 public readonly struct TileData
 {
     /// <summary>
     /// The data of this tile. Consists of 16 bytes of <see cref="Id"/> and 48 bytes of <see cref="Data"/>.
     /// </summary>
+    [FieldOffset(0)]
     private readonly ulong _data;
     
     /// <summary>
@@ -18,8 +20,6 @@ public readonly struct TileData
     /// The data of this tile. 48 bits total.
     /// </summary>
     public ulong Data => _data & 0x0000ffffffffffff;
-
-    public const int Size = sizeof(ulong);
     
     public TileData(ushort id)
     {

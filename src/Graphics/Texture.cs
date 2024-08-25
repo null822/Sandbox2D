@@ -27,7 +27,7 @@ public class Texture(int glHandle)
         StbImage.stbi_set_flip_vertically_on_load(1);
             
         // open a stream to the image, and load it
-        using (Stream stream = File.OpenRead("assets/textures/" + path))
+        using (Stream stream = File.OpenRead($"{Program.AssetDirectory}/textures/{path}"))
         {
             var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
                 

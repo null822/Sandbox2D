@@ -6,7 +6,6 @@ using Sandbox2D.Maths;
 using Sandbox2D.Maths.Quadtree;
 using Sandbox2D.World;
 using Vector2 = OpenTK.Mathematics.Vector2;
-using static Sandbox2D.Util;
 
 namespace Sandbox2D.Graphics.Renderables;
 
@@ -15,22 +14,23 @@ public class QuadtreeRenderable : Renderable
     private Vector2 _translation = Vector2.Zero;
     private float _scale = 1;
     
-    private static readonly int MaxHeight = Math.Min(Constants.WorldHeight, 16);
+    private int _maxHeight;
+    private static Vector2 ScreenSize => GameManager.ScreenSize;
     
     private readonly Texture _dynTilemap;
-
+    
     private int _treeBufferLength;
     private int _dataBufferLength;
     
     /// <summary>
     /// The buffer that contains the tree array of the quadtree to be rendered
     /// </summary>
-    private int _treeBuffer = GL.GenBuffer();
-    
+    private int _treeBuffer;
+
     /// <summary>
     /// The buffer that contains the data array of the quadtree to be rendered
     /// </summary>
-    private int _dataBuffer = GL.GenBuffer();
+    private int _dataBuffer;
     
     // geometry arrays
     private readonly float[] _vertices =
@@ -45,50 +45,58 @@ public class QuadtreeRenderable : Renderable
         0, 1, 3,   // first triangle
         1, 2, 3    // second triangle
     ];
-
-    private static readonly int QuadTreeNodeSize = Marshal.SizeOf(new QuadtreeNode());
-    private static readonly int TileSize = Marshal.SizeOf(new TileData());
     
-    public QuadtreeRenderable(Shader shader, BufferUsageHint hint = BufferUsageHint.StaticDraw) : base(shader, hint)
+    /// <summary>
+    /// The size, in bytes, of a single instance of <see cref="QuadtreeNode"/>
+    /// </summary>
+    private static readonly int QuadtreeNodeSize = Marshal.SizeOf<QuadtreeNode>();
+    /// <summary>
+    /// The size, in bytes, of a single instance of <see cref="TileData"/>
+    /// </summary>
+    private static readonly int TileDataSize = Marshal.SizeOf<TileData>();
+    
+    public QuadtreeRenderable(Shader shader, int quadtreeMaxHeight, BufferUsageHint hint = BufferUsageHint.StaticDraw) : base(shader, hint)
     {
+        if (quadtreeMaxHeight > 16) throw new Exception($"Invalid Max Height for Quadtree. Was: {quadtreeMaxHeight}, Range: 2-16.");
+        _maxHeight = quadtreeMaxHeight;
+        
+        _treeBuffer = GL.GenBuffer();
+        _dataBuffer = GL.GenBuffer();
+        
         // update the vao (creates it, in this case)
-        UpdateVao(hint);
+        UpdateVao();
         
         // set up vertex coords
         var vertexLocation = Shader.GetAttribLocation("aPosition");
         GL.EnableVertexAttribArray(vertexLocation);
         GL.VertexAttribPointer(vertexLocation, 3, VertexAttribPointerType.Float, false, 3 * sizeof(int), 0);
         
-        int loc;
+        Shader.Use();
         
+        int loc;
         // set up uniforms
         loc = GL.GetUniformLocation(Shader.Handle, "Scale");
-        GL.Uniform1(loc, 1, ref _scale);
+        GL.Uniform1(loc, _scale);
         
         loc = GL.GetUniformLocation(Shader.Handle, "Translation");
-        GL.Uniform2(loc, ref _translation);
+        GL.Uniform2(loc, _translation);
         
         loc = GL.GetUniformLocation(Shader.Handle, "ScreenSize");
-        GL.Uniform2(loc, GameManager.ScreenSize);
+        GL.Uniform2(loc, ScreenSize);
         
         loc = GL.GetUniformLocation(Shader.Handle, "MaxHeight");
-        GL.Uniform1(loc, MaxHeight);
+        GL.Uniform1(loc, _maxHeight);
         
         _dynTilemap = Textures.DynTilemap;
         _dynTilemap.Use(TextureUnit.Texture0);
         
         // initialize the buffers
         ResizeBuffers(8, 8);
-        
-        PrintGlErrors();
     }
     
-    public override void Render(RenderableCategory category = RenderableCategory.All)
+    public override void Render()
     {
-        if (!IsInCategory(category) || !ShouldRender)
-            return;
-        
-        base.Render(category);
+        base.Render();
         
         // bind vao / ssbos
         GL.BindVertexArray(VertexArrayObject);
@@ -104,109 +112,90 @@ public class QuadtreeRenderable : Renderable
         // set the uniforms
         Shader.SetFloat("Scale", _scale);
         Shader.SetVector2("Translation", _translation);
-        Shader.SetVector2("ScreenSize", Program.Get().ClientSize);
-        Shader.SetInt("MaxHeight", MaxHeight);
+        Shader.SetVector2("ScreenSize", Program.RenderManager.ClientSize);
+        Shader.SetInt("MaxHeight", _maxHeight);
         
         // render the geometry
         GL.DrawElements(PrimitiveType.Triangles, _indices.Length, DrawElementsType.UnsignedInt, 0);
         
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0);
-
-        PrintGlErrors();
     }
     
-    public sealed override void UpdateVao(BufferUsageHint? hint = null, RenderableCategory category = RenderableCategory.All)
+    public sealed override void UpdateVao()
     {
-        if (!IsInCategory(category))
-            return;
-
-        base.UpdateVao(hint, category);
+        base.UpdateVao();
         
-        // bind vao
+        // bind VAO
         GL.BindVertexArray(VertexArrayObject);
         
-        // bind/update vbo
+        // bind/update VBO
         GL.BindBuffer(BufferTarget.ArrayBuffer, VertexBufferObject);
         GL.BufferData(BufferTarget.ArrayBuffer, _vertices.Length * sizeof(int), _vertices, Hint);
         
-        // bind/update ebo (must be done after vbo)
+        // bind/update EBO (must be done after VBO)
         GL.BindBuffer(BufferTarget.ElementArrayBuffer, ElementBufferObject);
         GL.BufferData(BufferTarget.ElementArrayBuffer, _indices.Length * sizeof(uint), _indices, Hint);
-        
-        PrintGlErrors();
     }
 
     /// <summary>
     /// Updates the geometry, modifying the existing buffers
     /// </summary>
-    /// <param name="modifications">the modifications to the tree and data buffers</param>
-    /// <param name="treeLength">the total length of the tree</param>
-    /// <param name="dataLength">the total length of the data</param>
+    /// <param name="tree">the modifications to the tree section to upload</param>
+    /// <param name="data">the modifications to the tree section to upload</param>
+    /// <param name="treeLength">the total length of the tree section</param>
+    /// <param name="dataLength">the total length of the data section</param>
+    /// <param name="treeIndex">index within the tree modifications to start uploading at</param>
+    /// <param name="dataIndex">index within the data modifications to start uploading at</param>
     /// <param name="renderRoot">the root node for rendering</param>
-    public unsafe void SetGeometry(QuadtreeModifications<Tile> modifications, long treeLength, long dataLength, QuadtreeNode renderRoot)
+    public unsafe void SetGeometry(
+        ref DynamicArray<ArrayModification<QuadtreeNode>> tree, ref DynamicArray<ArrayModification<Tile>> data,
+        long treeLength, long dataLength,
+        ref long treeIndex, ref long dataIndex,
+        QuadtreeNode renderRoot)
     {
         // resize buffers if needed
         ResizeBuffers(treeLength, dataLength);
         
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _treeBuffer);
-        var treePtr = (QuadtreeNode*)GL.MapBuffer(BufferTarget.ShaderStorageBuffer, BufferAccess.ReadWrite).ToPointer();
-        
-        
-        var tree = modifications.Tree;
-        foreach (var element in tree)
+        var tMax = Math.Min(tree.Length, treeIndex + Constants.GpuUploadBatchSize);
+        for (var i = treeIndex; i < tMax; i++)
         {
-            treePtr[element.Index] = element.Value;
+            var element = tree[i];
+            GL.BufferSubData(
+                BufferTarget.ShaderStorageBuffer,
+                (int)element.Index * sizeof(QuadtreeNode),
+                1 * sizeof(QuadtreeNode),
+                [element.Value]);
         }
-        Array.Clear(tree);
-        
         // upload the render root
-        treePtr[0] = renderRoot;
+        GL.BufferSubData(
+            BufferTarget.ShaderStorageBuffer,
+            0 * sizeof(QuadtreeNode),
+            1 * sizeof(QuadtreeNode),
+            [renderRoot]);
         
-        GL.UnmapBuffer(BufferTarget.ShaderStorageBuffer);
-        PrintGlErrors();
+        treeIndex = tMax;
         
-        var data = modifications.Data;
         if (data.Length != 0)
         {
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _dataBuffer);
-            
-            var dataPtr = (TileData*)GL.MapBuffer(BufferTarget.ShaderStorageBuffer, BufferAccess.WriteOnly).ToPointer();
-            
-            foreach (var element in data)
+            var dMax = Math.Min(data.Length, dataIndex + Constants.GpuUploadBatchSize);
+            for (var i = dataIndex; i < dMax; i++)
             {
-                dataPtr[element.Index] = element.Value.GpuSerialize();
+                var element = data[i];
+                GL.BufferSubData(
+                    BufferTarget.ShaderStorageBuffer,
+                    (int)element.Index * element.Value.SerializeLength,
+                    1 * element.Value.SerializeLength,
+                    [element.Value.GpuSerialize()]);
             }
-            Array.Clear(data);
-
-            GL.UnmapBuffer(BufferTarget.ShaderStorageBuffer);
+            dataIndex = dMax;
             
-            PrintGlErrors();
         }
         
+        GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0);
         
         ShouldRender = true;
-    }
-    
-    /// <summary>
-    /// Sets the new geometry and updates the VAO
-    /// </summary>
-    /// <param name="tree">the new tree buffer</param>
-    /// <param name="data">the new data buffer</param>
-    public void SetGeometry(QuadtreeNode[] tree, uint[] data)
-    {
-        var newTreeLength = (int)BitUtil.NextPowerOf2((ulong)tree.Length);
-        GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _treeBuffer);
-        GL.BufferData(BufferTarget.ShaderStorageBuffer, newTreeLength * QuadTreeNodeSize, tree, Hint);
-        _treeBufferLength = newTreeLength;
-        
-        var newDataLength = (int)BitUtil.NextPowerOf2((ulong)data.Length);
-        GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _dataBuffer);
-        GL.BufferData(BufferTarget.ShaderStorageBuffer, newDataLength * sizeof(uint), data, Hint);
-        _dataBufferLength = newDataLength;
-        
-        PrintGlErrors();
-        
-        ShouldRender = tree.Length != 0;
     }
     
     public void SetTransform(Vec2<float> translation, float scale)
@@ -215,23 +204,22 @@ public class QuadtreeRenderable : Renderable
         _scale = scale;
     }
     
-    public override void ResetGeometry(RenderableCategory category = RenderableCategory.All)
+    public override void ResetGeometry()
     {
-        if (!IsInCategory(category))
-            return;
-        
-        base.ResetGeometry(category);
-        
+        base.ResetGeometry();
         
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _treeBuffer);
         GL.BufferData(BufferTarget.ShaderStorageBuffer, 0, Array.Empty<QuadtreeNode>(), Hint);
         _treeBufferLength = 0;
         
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _dataBuffer);
-        GL.BufferData(BufferTarget.ShaderStorageBuffer, 0, Array.Empty<uint>(), Hint);
+        GL.BufferData(BufferTarget.ShaderStorageBuffer, 0, Array.Empty<TileData>(), Hint);
         _dataBufferLength = 0;
-        
-        PrintGlErrors();
+    }
+
+    public void SetMaxHeight(int maxHeight)
+    {
+        _maxHeight = maxHeight;
     }
     
     private void ResizeBuffers(long treeLength, long dataLength)
@@ -243,57 +231,46 @@ public class QuadtreeRenderable : Renderable
         var newTreeBufferLength = (int)BitUtil.NextPowerOf2((ulong)treeLength);
         if (newTreeBufferLength > _treeBufferLength || newTreeBufferLength <= _treeBufferLength/2)
         {
-            // bind the old buffer to `CopyReadBuffer`
-            GL.BindBuffer(BufferTarget.CopyReadBuffer, _treeBuffer);
-            
-            // allocate data for a new buffer
-            var newBuffer = GL.GenBuffer();
-            GL.BindBuffer(BufferTarget.CopyWriteBuffer, newBuffer);
-            GL.BufferData(BufferTarget.CopyWriteBuffer, newTreeBufferLength * QuadTreeNodeSize, Array.Empty<QuadtreeNode>(), Hint);
-            
-            var copySize = Math.Min(_treeBufferLength, newTreeBufferLength) * QuadTreeNodeSize;
-            
-            // copy all the data from `CopyReadBuffer` to `CopyWriteBuffer`
-            GL.CopyBufferSubData(BufferTarget.CopyReadBuffer, BufferTarget.CopyWriteBuffer, 0, 0, copySize);
-            
-            // unbind/delete buffers
-            GL.DeleteBuffer(_treeBuffer);
-            GL.BindBuffer(BufferTarget.CopyReadBuffer, 0);
-            GL.BindBuffer(BufferTarget.CopyWriteBuffer, 0);
-            
-            _treeBuffer = newBuffer;
-            _treeBufferLength = newTreeBufferLength;
-            
-            PrintGlErrors();
+            (_treeBuffer, _treeBufferLength) =
+                ResizeBuffer<QuadtreeNode>(_treeBuffer, _treeBufferLength, newTreeBufferLength, QuadtreeNodeSize);
         }
         
         // resize data buffer if needed
         var newDataBufferLength = (int)BitUtil.NextPowerOf2((ulong)dataLength);
         if (newDataBufferLength > _dataBufferLength || newDataBufferLength <= _dataBufferLength/2)
         {
-            // bind the old buffer to `CopyReadBuffer`
-            GL.BindBuffer(BufferTarget.CopyReadBuffer, _dataBuffer);
-            
-            // allocate data for a new buffer
-            var newBuffer = GL.GenBuffer();
-            GL.BindBuffer(BufferTarget.CopyWriteBuffer, newBuffer);
-            GL.BufferData(BufferTarget.CopyWriteBuffer, newDataBufferLength * TileSize, Array.Empty<TileData>(), Hint);
-            
-            var copySize = Math.Min(_dataBufferLength, newDataBufferLength) * TileSize;
-            
-            // copy all the data from `CopyReadBuffer` to `CopyWriteBuffer`
-            GL.CopyBufferSubData(BufferTarget.CopyReadBuffer, BufferTarget.CopyWriteBuffer, 0, 0, copySize);
-            
-            // unbind/delete buffers
-            GL.DeleteBuffer(_dataBuffer);
-            GL.BindBuffer(BufferTarget.CopyReadBuffer, 0);
-            GL.BindBuffer(BufferTarget.CopyWriteBuffer, 0);
-            
-            _dataBuffer = newBuffer;
-            _dataBufferLength = newDataBufferLength;
-            
-            PrintGlErrors();
+            (_dataBuffer, _dataBufferLength) =
+                ResizeBuffer<TileData>(_dataBuffer, _dataBufferLength, newDataBufferLength, TileDataSize);
         }
     }
+
+    private (int NewBuffer, int NewBufferLength) ResizeBuffer<T>(int buffer, int currentLength, int newLength, int typeSize) where T : struct
+    {
+        // bind the old buffer to `CopyReadBuffer`
+        GL.BindBuffer(BufferTarget.CopyReadBuffer, buffer);
+        
+        // allocate data for a new buffer
+        var newBuffer = GL.GenBuffer();
+        GL.BindBuffer(BufferTarget.CopyWriteBuffer, newBuffer);
+        GL.BufferData(BufferTarget.CopyWriteBuffer, newLength * typeSize, Array.Empty<T>(), Hint);
+        
+        // copy all the data from `CopyReadBuffer` to `CopyWriteBuffer`
+        var copySize = Math.Min(currentLength, newLength) * typeSize;
+        GL.CopyBufferSubData(BufferTarget.CopyReadBuffer, BufferTarget.CopyWriteBuffer, IntPtr.Zero, IntPtr.Zero, copySize);
+        
+        // unbind buffer / delete old buffer
+        GL.DeleteBuffer(buffer);
+        GL.BindBuffer(BufferTarget.CopyReadBuffer, 0);
+        GL.BindBuffer(BufferTarget.CopyWriteBuffer, 0);
+        
+        return (newBuffer, newLength);
+    }
     
+    public override void Dispose()
+    {
+        base.Dispose();
+        GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0);
+        GL.DeleteBuffer(_treeBuffer);
+        GL.DeleteBuffer(_dataBuffer);
+    }
 }

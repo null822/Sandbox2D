@@ -12,6 +12,6 @@ public static class Textures
         Font = Texture.LoadFromFile("font.png");
         DynTilemap = Texture.LoadFromFile("dynamic_tilemap.png");
         
-        Util.Log("Created Textures", OutputSource.Load);
+        Util.Log("Loaded Textures", "Load/Render");
     }
 }

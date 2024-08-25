@@ -22,12 +22,10 @@ public class BaseRenderable : Renderable
         1, 2, 3    // second triangle
     ];
     
-    
     public BaseRenderable(Shader shader, BufferUsageHint hint = BufferUsageHint.StaticDraw) : base(shader, hint)
     {
         // update the vao (creates it, in this case)
-        UpdateVao(hint);
-        
+        UpdateVao();
         
         // set up vertex coords
         var vertexLocation = Shader.GetAttribLocation("aPosition");
@@ -35,25 +33,18 @@ public class BaseRenderable : Renderable
         GL.VertexAttribPointer(vertexLocation, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
     }
     
-    public override void Render(RenderableCategory category = RenderableCategory.All)
+    public override void Render()
     {
-        if (!IsInCategory(category) || !ShouldRender)
-            return;
-
-        base.Render(category);
+        base.Render();
         
         GL.BindVertexArray(VertexArrayObject);
         Shader.Use();
         GL.DrawElements(PrimitiveType.Triangles, _indices.Count, DrawElementsType.UnsignedInt, 0);
     }
     
-    public sealed override void UpdateVao(BufferUsageHint? hint = null,
-        RenderableCategory category = RenderableCategory.All)
+    public sealed override void UpdateVao()
     {
-        if (!IsInCategory(category))
-            return;
-
-        base.UpdateVao(hint, category);
+        base.UpdateVao();
         
         // bind vao
         GL.BindVertexArray(VertexArrayObject);
@@ -99,12 +90,9 @@ public class BaseRenderable : Renderable
     /// <summary>
     /// Resets the geometry of this renderable. Does not update the VAO
     /// </summary>
-    public override void ResetGeometry(RenderableCategory category = RenderableCategory.All)
+    public override void ResetGeometry()
     {
-        if (!IsInCategory(category))
-            return;
-
-        base.ResetGeometry(category);
+        base.ResetGeometry();
 
         _vertices.Clear();
         _indices.Clear();

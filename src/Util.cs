@@ -1,11 +1,12 @@
 ﻿#nullable enable
 using System;
-using System.Buffers;
-using System.IO;
-using System.Runtime.Serialization.Formatters.Binary;
+using System.Reflection;
+using System.Reflection.Emit;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
-using OpenTK.Graphics.OpenGL;
+using OpenTK.Graphics.OpenGL4;
 using Sandbox2D.Maths;
 
 namespace Sandbox2D;
@@ -19,6 +20,12 @@ public static class Util
     private const bool EnableWarn = true;
     private const bool EnableError = true;
     
+    private const bool GlEnablePrint = false;
+    private const bool GlEnableLog = false;
+    private const bool GlEnableDebug = true;
+    private const bool GlEnableWarn = true;
+    private const bool GlEnableError = true;
+
     private const ConsoleColor ErrorColor = ConsoleColor.Red;
     private const ConsoleColor WarnColor = ConsoleColor.Yellow;
     private const ConsoleColor DebugColor = ConsoleColor.Green;
@@ -85,31 +92,7 @@ public static class Util
         return vertexCoords;
     }
     
-    // the following methods are (partially modified) versions from: https://graphics.stanford.edu/%7Eseander/bithacks.html
-    
-    
-    /// <summary>
-    /// Prints any thrown OpenGL errors
-    /// </summary>
-    public static bool PrintGlErrors()
-    {
-        var hadErrors = false;
-        while (true)
-        {
-            var error = GL.GetError();
-            if (error != ErrorCode.NoError)
-            {
-                Error(error.ToString(), OutputSource.OpenGl);
-                hadErrors = true;
-                continue;
-            }
-            break;
-        }
-        
-        return hadErrors;
-    }
-    
-    public static void Out(object text, LogLevel level = LogLevel.Print, OutputSource source = OutputSource.None)
+    public static void Out(object text, LogLevel level = LogLevel.Print, string source = "")
     {
         switch (level)
         {
@@ -125,73 +108,142 @@ public static class Util
             case LogLevel.Log:
                 Log(text, source);
                 break;
+            case LogLevel.Print:
+                Print(text, source);
+                break;
             default:
                 Print(text, source);
                 break;
         }
     }
-    
+
     /// <summary>
     /// Prints whether <paramref name="value"/> and <paramref name="expected"/> are equal.
     /// </summary>
     /// <param name="value">the value</param>
     /// <param name="expected">the expected value</param>
     /// <param name="name">[optional] the name of what was performed to get <paramref name="value"/></param>
-    public static bool Assert(object value, object expected, string name = "")
+    /// <param name="source">[optional] the source of the assertion</param>
+    public static bool Assert(object value, object expected, string name = "", string source = "Test")
     {
         if (Equals(value, expected))
         {
-            Debug($"[ PASS ]: {name}", OutputSource.Test);
+            Debug($"[ PASS ]: {name}", source);
             return true;
         }
-        Error($"[ FAIL ]: {name}", OutputSource.Test);
-        Error($"  {value} != {expected}");
+        Error($"[ FAIL ]: {name}", source);
+        Error( $"         {value} != {expected}");
         return false;
     }
     
-    public static void Error(object text, OutputSource source = OutputSource.None)
+    public static void Error(object text, string source = "")
     {
         if (!EnableError) return;
         
         Console.ForegroundColor = ErrorColor;
-        Console.Out.WriteLine($"{(source == OutputSource.None ? "[Error]:" : $"[{source}]")} {text}");
+        Console.Out.WriteLine($"{(source == "" ? "[Error]:" : $"[{source,-5}]")} {text}");
         Console.ForegroundColor = DefaultColor;
     }
     
-    public static void Warn(object text, OutputSource source = OutputSource.None)
+    public static void Warn(object text, string source = "")
     {
         if (!EnableWarn) return;
         
         Console.ForegroundColor = WarnColor;
-        Console.Out.WriteLine($"{(source == OutputSource.None ? "[Warn ]:" : $"[{source}]")} {text}");
+        Console.Out.WriteLine($"{(source == "" ? "[Warn ]:" : $"[{source,-5}]")} {text}");
         Console.ForegroundColor = DefaultColor;
     }
     
-    public static void Debug(object text, OutputSource source = OutputSource.None)
+    public static void Debug(object text, string source = "")
     {
         if (!EnableDebug) return;
         
         Console.ForegroundColor = DebugColor;
-        Console.Out.WriteLine($"{(source == OutputSource.None ? "[Debug]:" : $"[{source}]")} {text}");
+        Console.Out.WriteLine($"{(source == "" ? "[Debug]:" : $"[{source,-5}]")} {text}");
         Console.ForegroundColor = DefaultColor;
     }
     
-    public static void Log(object text, OutputSource source = OutputSource.None)
+    public static void Log(object text, string source = "")
     {
         if (!EnableLog) return;
         
         Console.ForegroundColor = LogColor;
-        Console.Out.WriteLine($"{(source == OutputSource.None ? "[ Log ]:" : $"[{source}]")} {text}");
+        Console.Out.WriteLine($"{(source == "" ? "[ Log ]:" : $"[{source,-5}]")} {text}");
         Console.ForegroundColor = DefaultColor;
     }
     
-    public static void Print(object text, OutputSource source = OutputSource.None)
+    public static void Print(object text, string source = "")
     {
         if (!EnablePrint) return;
         
         Console.ForegroundColor = PrintColor;
-        Console.Out.WriteLine($"{(source == OutputSource.None ? "" : $"[{source}]")} {text}");
+        Console.Out.WriteLine($"{(source == "" ? "" : $"[{source,-5}]")} {text}");
         Console.ForegroundColor = DefaultColor;
+    }
+    
+    
+    public static void OnDebugMessage(DebugSource source, DebugType type, int id, DebugSeverity severity, int length,
+        IntPtr pMessage, IntPtr pUserParam)
+    {
+        // The rest of the function is up to you to implement, however a debug output
+        // is always useful.
+        var logLevel = severity switch
+        {
+            DebugSeverity.DontCare => LogLevel.Print,
+            DebugSeverity.DebugSeverityNotification => LogLevel.Log,
+            DebugSeverity.DebugSeverityLow => LogLevel.Debug,
+            DebugSeverity.DebugSeverityMedium => LogLevel.Warn,
+            DebugSeverity.DebugSeverityHigh => LogLevel.Error,
+            _ => (LogLevel)5
+        };
+        
+        switch (logLevel)
+        {
+            case LogLevel.Print when !GlEnablePrint:
+            case LogLevel.Log when !GlEnableLog:
+            case LogLevel.Debug when !GlEnableDebug:
+            case LogLevel.Warn when !GlEnableWarn:
+            case LogLevel.Error when !GlEnableError:
+                return;
+        }
+        
+        var message = Marshal.PtrToStringUTF8(pMessage, length);
+        
+
+        var outString = new StringBuilder($"[{id}: {type}] {message}");
+        
+        if (Constants.SynchronousGlDebug)
+        {
+            var frames = new System.Diagnostics.StackTrace(true).GetFrames();
+            for (var i = 1; i < frames.Length; i++)
+            {
+                var method = frames[i].GetMethod();
+                if (method == null) continue;
+                
+                outString.Append($"{Environment.NewLine}    at {GetMethodSignature(method)} in {frames[i].GetFileName()}:{frames[i].GetFileLineNumber()}");
+            }
+        }
+        
+        Out(outString, logLevel, $"OpenGL/{source}");
+    }
+    
+    private static string GetMethodSignature(MethodBase method)
+    {
+        var signature = new StringBuilder($"{method.Name}(");
+
+        var parameters = method.GetParameters();
+        foreach (var parameter in parameters)
+        {
+            signature.Append($"{parameter.ParameterType.Name}, ");
+        }
+        
+        if (parameters.Length > 0)
+        {
+            signature.Remove(signature.Length - 2, 2);
+        }
+        signature.Append(')');
+        
+        return signature.ToString();
     }
     
 }
@@ -202,20 +254,10 @@ public enum LogLevel
     Warn,
     Debug,
     Log,
-    Print
+    Print,
 }
 
-public enum OutputSource
-{
-    None,
-    Test,
-    Load,
-    Render,
-    OpenGl,
-    Logic,
-}
-
-public readonly struct Hash
+public readonly struct Hash : IEquatable<Hash>
 {
     private readonly ulong _d0;
     private readonly ulong _d1;
@@ -283,5 +325,10 @@ public readonly struct Hash
     public static Hash operator ^(Hash left, Hash right)
     {
         return new Hash(left._d0 ^ right._d0, left._d1 ^ right._d1, left._d2 ^ right._d2, left._d3 ^ right._d3);
+    }
+    
+    public bool Equals(Hash other)
+    {
+        return _d0 == other._d0 && _d1 == other._d1 && _d2 == other._d2 && _d3 == other._d3;
     }
 }
