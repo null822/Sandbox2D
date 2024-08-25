@@ -16,7 +16,7 @@ namespace Sandbox2D;
 public static class GameManager
 {
     private static Quadtree<Tile> _world;
-    public static int WorldHeight { get; private set; } = 4;
+    public static int WorldHeight { get; private set; } = 64;
     
     // camera
     public static Vec2<decimal> Translation { private set; get; }
