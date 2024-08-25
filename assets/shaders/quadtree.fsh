@@ -159,7 +159,7 @@ void main()
     // error display
     if (nodeRef < 0) {
         uint error = -nodeRef;
-        outputColor = vec4(1, ((error / 16) % 16) / 16f, (error % 16) / 16f, 1);
+        outputColor = vec4(1, ((error / 16) % 16) / 16.0, (error % 16) / 16.0, 1);
         return;
     }
     
@@ -190,5 +190,5 @@ void main()
         
     }
     
-    outputColor = vec4(((outVal / 256) % 16) / 16f, ((outVal / 16) % 16) / 16f, (outVal % 16) / 16f, 1);
+    outputColor = vec4(((outVal / 256) % 16) / 16.0, ((outVal / 16) % 16) / 16.0, (outVal % 16) / 16.0, 1);
 }

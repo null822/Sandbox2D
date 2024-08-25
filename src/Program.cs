@@ -24,7 +24,7 @@ public static class Program
     /// <summary>
     /// The absolute path to the asset directory of <see cref="Sandbox2D"/>
     /// </summary>
-    public static readonly string AssetDirectory = AppDomain.CurrentDomain.BaseDirectory + "assets";
+    public static readonly string AssetDirectory = (AppDomain.CurrentDomain.BaseDirectory + "assets").Replace('\\', '/');
     
     /// <summary>
     /// The entrypoint
@@ -39,6 +39,8 @@ public static class Program
         
         RenderManager.Icon = LoadIcon();
         RenderManager.VSync = Constants.Vsync;
+        
+        Console.WriteLine(AssetDirectory);
         
         if (args.Length == 1)
         {

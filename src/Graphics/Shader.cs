@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
@@ -16,13 +17,12 @@ namespace Sandbox2D.Graphics
         {
             // create vertex shader
             var vertexShader = GL.CreateShader(ShaderType.VertexShader);
-
             // bind the vertex shader source
             var vertexSource = File.ReadAllText($"{Program.AssetDirectory}/shaders/{vertPath}");
             GL.ShaderSource(vertexShader, vertexSource);
-
+            
             // compile the vertex shader
-            CompileShader(vertexShader);
+            GL.CompileShader(vertexShader);
 
             // create fragment shader
             var fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
@@ -32,7 +32,7 @@ namespace Sandbox2D.Graphics
             GL.ShaderSource(fragmentShader, fragmentSource);
             
             // compile the fragment shader
-            CompileShader(fragmentShader);
+            GL.CompileShader(fragmentShader);
 
             // create the shader program
             Handle = GL.CreateProgram();
@@ -42,64 +42,31 @@ namespace Sandbox2D.Graphics
             GL.AttachShader(Handle, fragmentShader);
 
             // link them together
-            LinkProgram(Handle);
-
+            GL.LinkProgram(Handle);
+            
             // detach and delete the old vertex/fragment shaders
             GL.DetachShader(Handle, vertexShader);
             GL.DetachShader(Handle, fragmentShader);
             GL.DeleteShader(fragmentShader);
             GL.DeleteShader(vertexShader);
-
             
             // get amount of active uniforms
             GL.GetProgram(Handle, GetProgramParameterName.ActiveUniforms, out var numberOfUniforms);
-
-            // next, allocate the dictionary to hold the locations.
+            
+            // allocate the dictionary to hold the locations
             _uniformLocations = new Dictionary<string, int>();
             
             // for each uniform,
             for (var i = 0; i < numberOfUniforms; i++)
             {
-                // get the name
-                var key = GL.GetActiveUniform(Handle, i, out _, out _);
+                // get the name and location
+                var name = GL.GetActiveUniform(Handle, i, out _, out _);
+                var location = GL.GetUniformLocation(Handle, name);
                 
-                // and location
-                var location = GL.GetUniformLocation(Handle, key);
-                
-                // and add them to the dictionary.
-                _uniformLocations.Add(key, location);
+                // and add them to the dictionary
+                _uniformLocations.Add(name, location);
             }
         }
-
-        private static void CompileShader(int shader)
-        {
-            // compile the shader
-            GL.CompileShader(shader);
-
-            // check for compilation errors
-            GL.GetShader(shader, ShaderParameter.CompileStatus, out var code);
-            if (code != (int)All.True)
-            {
-                // if there was an error, log it
-                var infoLog = GL.GetShaderInfoLog(shader);
-                Util.Error($"Error occurred whilst compiling Shader({shader}): {infoLog[..^2]}");
-            }
-        }
-
-        private static void LinkProgram(int program)
-        {
-            // link the program
-            GL.LinkProgram(program);
-
-            // check for linking errors
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out var code);
-            if (code != (int)All.True)
-            {
-                // if there was an error, log it
-                Util.Error($"Error occurred whilst linking Program ({program}): {code}");
-            }
-        }
-
         
         public void Use()
         {
