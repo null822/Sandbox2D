@@ -218,9 +218,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     public void Clear()
     {
         DeleteChildren(0, MaxHeight, 0); // delete the root node's children
-        
-        // shrink the tree
-        _tree.Shrink();
+        _tree.Shrink(); // shrink the tree
     }
     
     #endregion
@@ -336,8 +334,8 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// <summary>
     /// Tries to compress a single node and all of its parents, merging identical siblings.
     /// </summary>
-    /// <param name="zValue">the z-value of the node</param>
-    /// <param name="height">the height of the node</param>
+    /// <param name="zValue">the z-value of the initial node to compress</param>
+    /// <param name="height">the height of the initial node to compress</param>
     /// <param name="path">an array containing all the nodes traversed through to get to this node, indexed using height</param>
     /// <param name="forceFull">whether to compress every node regardless of if it is the last node in its parent</param>
     /// <exception cref="InvalidNodeTypeException">thrown when a node in <paramref name="path"/> has a parent node that is a <see cref="NodeType.Leaf"/> node</exception>
@@ -347,18 +345,19 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         while (true)
         {
             // don't compress the root node or its immediate children since they are needed for subsets
-            if (height >= MaxHeight-1) break;
+            if (height >= MaxHeight) break;
             
-            // if this not is the last node in its parent, don't try to compress it, since it's parents will be reached
-            // by CompressRange() later anyway
+            // if this node is not the last node in its parent, don't try to compress it, since it's parent will be
+            // reached by CompressRange() later anyway
             if (ZValueIndex(zValue, height) != 3 && !forceFull) return;
             
-            // get the parent
-            var parentRef = path[height + 1];
+            // get this node's parent
+            var parentRef = height == MaxHeight - 1 ? 0 : path[height + 1];
             var parent = _tree[parentRef];
             
             // if the parent node is a leaf, something went very wrong
-            if (parent.Type == Leaf) throw new InvalidNodeTypeException(Leaf, Branch, "CompressNode/path");
+            if (parent.Type == Leaf)
+                throw new InvalidNodeTypeException(Leaf, Branch, "CompressNode/path");
             
             // get the parent's siblings' value refs
             var valueRef = 0L;
@@ -366,7 +365,8 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             for (var i = 0; i < 4; i++)
             {
                 var node = _tree[parent.GetNodeRef(i)];
-                if (node.Type == Branch) return; // exit out of this method if any child is a branch node, since we can compress no further nodes
+                // exit out of this method if any child is a branch node, since we can compress no further nodes
+                if (node.Type == Branch) return;
                 var val = node.GetValueRef();
                 // store the first value for later use
                 if (i == 0)
@@ -389,7 +389,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     }
     
     #endregion
-    
     
     #region Serialization
 
@@ -716,7 +715,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     
     #endregion
     
-    
     #region Quadtree Traversing
 
     /// <summary>
@@ -805,7 +803,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// corresponds to the supplied z-value and height.
     /// </summary>
     /// <param name="zValue">the z-value of the target node</param>
-    /// /// <param name="targetHeight">[optional] the height of the returned node. Defaults to 0. If <paramref name="readOnly"/> is set to
+    /// <param name="targetHeight">[optional] the height of the returned node. Defaults to 0. If <paramref name="readOnly"/> is set to
     /// true, the returned node may have a higher height</param>
     /// <param name="readOnly">[optional] when set to true, prevents the quadtree from being modified.
     /// If set, it is no longer guaranteed that a reference to a 1x1 node will be returned</param>
@@ -968,7 +966,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     
     #endregion
     
-    
     #region SVG Export
     
     /// <summary>
@@ -1081,7 +1078,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     
     #endregion
     
-    
     #region Subset
     
     /// <summary>
@@ -1101,6 +1097,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         
         if (maxHeight > MaxHeight)
             throw new InvalidHeightException(maxHeight, MaxHeight);
+
         
         // calculate minimum height needed if none is set
         if (maxHeight == -1)
@@ -1128,7 +1125,9 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         
         // create the range
         var subsetRange = new Range2D(center, 0x1uL << maxHeight);
-
+        
+        QuadtreeNode subsetRoot;
+        
         // get the child nodes of the subset root
         var ref0 = GetNodeRef(Interleave(center + (-1, -1), MaxHeight), maxHeight-1, true);
         var ref1 = GetNodeRef(Interleave(center + (+1, -1), MaxHeight), maxHeight-1, true);
@@ -1136,7 +1135,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         var ref3 = GetNodeRef(Interleave(center + (+1, +1), MaxHeight), maxHeight-1, true);
         
         // construct the subset root node
-        QuadtreeNode subsetRoot;
         if (ref0 == ref1 && ref0 == ref2 && ref0 == ref3)
             subsetRoot = new QuadtreeNode(_tree[ref0].GetValueRef());
         else
@@ -1234,9 +1232,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     }
     
     #endregion
-
     
-
     #region Private Util
     
     /// <summary>

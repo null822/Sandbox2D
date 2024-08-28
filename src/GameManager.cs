@@ -80,7 +80,6 @@ public static class GameManager
         Translation = RenderManager.Translation;
         Scale = RenderManager.Scale;
         var (modifications, action) = RenderManager.GetWorldModifications();
-        
         // apply any world modifications
         foreach (var modification in modifications)
         {
@@ -147,7 +146,7 @@ public static class GameManager
         {
             case WorldAction.Save: 
             {
-                var save = File.Create("save.qdt");
+                var save = File.Create(action.arg);
                 _world.Serialize(save);
                 save.Close();
                 save.Dispose();

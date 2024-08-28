@@ -12,5 +12,6 @@ Global
 		{4AF5CADC-24FE-471E-8623-17F7E3BDD1A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4AF5CADC-24FE-471E-8623-17F7E3BDD1A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4AF5CADC-24FE-471E-8623-17F7E3BDD1A1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4AF5CADC-24FE-471E-8623-17F7E3BDD1A1}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
 	EndGlobalSection
 EndGlobal

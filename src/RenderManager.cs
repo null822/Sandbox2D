@@ -173,12 +173,9 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     /// </summary>
     private void UpdateControls()
     {
-        //TODO: make this method less unreadable and unmaintainable, maybe with an Event/Callback system
-        
+        //TODO: make this method less unreadable and unmaintainable
         var mouseScreenCoords = new Vec2<int>((int)Math.Round(MouseState.X), (int)Math.Round(MouseState.Y));
         var mouseWorldCoords = ScreenToWorldCoords(mouseScreenCoords);
-        
-        var center = GameManager.ScreenSize / 2;
         
         // world actions
         if (KeyboardState.IsKeyPressed(Keys.M))
@@ -375,9 +372,6 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
 
         base.OnClosing(e);
     }
-    
-    private static readonly DebugProc DebugMessageDelegate = OnDebugMessage;
-    
     
     // public setters/getters
     

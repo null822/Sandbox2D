@@ -181,8 +181,9 @@ public static class Util
         Console.ForegroundColor = DefaultColor;
     }
     
+    public static readonly DebugProc DebugMessageDelegate = OnDebugMessage;
     
-    public static void OnDebugMessage(DebugSource source, DebugType type, int id, DebugSeverity severity, int length,
+    private static void OnDebugMessage(DebugSource source, DebugType type, int id, DebugSeverity severity, int length,
         IntPtr pMessage, IntPtr pUserParam)
     {
         // The rest of the function is up to you to implement, however a debug output
@@ -217,10 +218,14 @@ public static class Util
             var frames = new System.Diagnostics.StackTrace(true).GetFrames();
             for (var i = 1; i < frames.Length; i++)
             {
-                var method = frames[i].GetMethod();
+                var frame = frames[i];
+                var method = frame.GetMethod();
                 if (method == null) continue;
                 
-                outString.Append($"{Environment.NewLine}    at {GetMethodSignature(method)} in {frames[i].GetFileName()}:{frames[i].GetFileLineNumber()}");
+                outString.Append($"{Environment.NewLine}    at {GetMethodSignature(method)}");
+                
+                if (frame.GetFileName() != null)
+                    outString.Append($" in {frames[i].GetFileName()}:{frames[i].GetFileLineNumber()}");
             }
         }
         

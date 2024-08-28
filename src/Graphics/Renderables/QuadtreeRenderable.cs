@@ -161,6 +161,10 @@ public class QuadtreeRenderable : Renderable
         for (var i = treeIndex; i < tMax; i++)
         {
             var element = tree[i];
+            
+            // skip elements residing outside the buffer
+            if (element.Index >= treeLength) continue;
+            
             GL.BufferSubData(
                 BufferTarget.ShaderStorageBuffer,
                 (int)element.Index * sizeof(QuadtreeNode),
@@ -183,6 +187,10 @@ public class QuadtreeRenderable : Renderable
             for (var i = dataIndex; i < dMax; i++)
             {
                 var element = data[i];
+                
+                // skip elements residing outside the buffer
+                if (element.Index >= dataLength) continue;
+                
                 GL.BufferSubData(
                     BufferTarget.ShaderStorageBuffer,
                     (int)element.Index * element.Value.SerializeLength,
