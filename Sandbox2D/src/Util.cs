@@ -39,11 +39,11 @@ public static class Util
     /// Converts coords from the screen (like mouse pos) into game coords (like positions of objects)
     /// </summary>
     /// <param name="screenCoords">The coords from the screen to convert</param>
-    public static Vec2<long> ScreenToWorldCoords(Vec2<int> screenCoords)
+    public static Vec2<long> ScreenToWorldCoords(Vec2<float> screenCoords)
     {
         var screenSize = GameManager.ScreenSize;
         
-        screenCoords = new Vec2<int>(screenCoords.X, screenSize.Y - screenCoords.Y);
+        screenCoords = new Vec2<float>(screenCoords.X, screenSize.Y - screenCoords.Y);
         
         var center = (Vec2<decimal>)screenSize / 2;
         var value = ((Vec2<decimal>)screenCoords - center) / GameManager.Scale + GameManager.Translation + center;

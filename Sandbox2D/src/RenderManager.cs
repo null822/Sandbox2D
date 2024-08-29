@@ -42,7 +42,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     private static uint _brushId;
     private static Range2D _brushRange;
     private static Vec2<long> _leftMouseWorldCoords = new(0);
-    private static Vec2<int> _middleMouseScreenCoords = new(0);
+    private static Vec2<float> _middleMouseScreenCoords = new(0);
 
     private static (WorldAction action, string arg)? _worldAction;
     private static readonly List<WorldModification> WorldModifications = [];
@@ -137,7 +137,8 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         _rFont.ResetGeometry();
         
         // Mouse Coordinate Display
-        _rFont.SetText(ScreenToWorldCoords(Vector2ToVec(MousePosition)).ToString(), -center + (0,30), 1f, false);
+        var mouseScreenCoords = new Vec2<float>(MouseState.X, MouseState.Y);
+        _rFont.SetText(ScreenToWorldCoords(mouseScreenCoords).ToString(), -center + (0,30), 1f, false);
         
         _rFont.UpdateVao();
         _rFont.Render();
@@ -174,7 +175,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     private void UpdateControls()
     {
         //TODO: make this method less unreadable and unmaintainable
-        var mouseScreenCoords = new Vec2<int>((int)Math.Round(MouseState.X), (int)Math.Round(MouseState.Y));
+        var mouseScreenCoords = new Vec2<float>(MouseState.X, MouseState.Y);
         var mouseWorldCoords = ScreenToWorldCoords(mouseScreenCoords);
         
         // world actions
