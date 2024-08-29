@@ -1,6 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sandbox2D", "Sandbox2D.csproj", "{4AF5CADC-24FE-471E-8623-17F7E3BDD1A1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sandbox2D", "Sandbox2D/Sandbox2D.csproj", "{4AF5CADC-24FE-471E-8623-17F7E3BDD1A1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Math2D", "Math2D\Math2D.csproj", "{A3AD8628-CC57-4AFD-AC31-E44ABB4BDB25}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -13,5 +15,9 @@ Global
 		{4AF5CADC-24FE-471E-8623-17F7E3BDD1A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4AF5CADC-24FE-471E-8623-17F7E3BDD1A1}.Release|Any CPU.Build.0 = Release|Any CPU
 		{4AF5CADC-24FE-471E-8623-17F7E3BDD1A1}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{A3AD8628-CC57-4AFD-AC31-E44ABB4BDB25}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3AD8628-CC57-4AFD-AC31-E44ABB4BDB25}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3AD8628-CC57-4AFD-AC31-E44ABB4BDB25}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3AD8628-CC57-4AFD-AC31-E44ABB4BDB25}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
