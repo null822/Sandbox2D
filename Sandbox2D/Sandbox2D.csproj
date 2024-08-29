@@ -29,6 +29,22 @@
       <ProjectReference Include="..\Math2D\Math2D.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Compile Remove="assets\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Remove="assets\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="assets\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <_DeploymentManifestIconFile Remove="assets\icon.ico" />
+    </ItemGroup>
+
     <PropertyGroup>
         <ApplicationIcon>assets/icon.ico</ApplicationIcon>
     </PropertyGroup>
