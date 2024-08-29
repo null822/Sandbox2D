@@ -2,3 +2,4 @@ bin
 obj
 /.config/
 /.idea/
+*.sln.DotSettings.user
