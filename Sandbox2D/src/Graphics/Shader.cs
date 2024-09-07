@@ -18,7 +18,7 @@ namespace Sandbox2D.Graphics
             // create vertex shader
             var vertexShader = GL.CreateShader(ShaderType.VertexShader);
             // bind the vertex shader source
-            var vertexSource = File.ReadAllText($"{GlobalValues.AssetDirectory}/shaders/{vertPath}");
+            var vertexSource = File.ReadAllText($"{GlobalVariables.AssetDirectory}/shaders/{vertPath}");
             GL.ShaderSource(vertexShader, vertexSource);
             
             // compile the vertex shader
@@ -28,7 +28,7 @@ namespace Sandbox2D.Graphics
             var fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
             
             // bind the fragment shader source
-            var fragmentSource = File.ReadAllText($"{GlobalValues.AssetDirectory}/shaders/{fragPath}");
+            var fragmentSource = File.ReadAllText($"{GlobalVariables.AssetDirectory}/shaders/{fragPath}");
             GL.ShaderSource(fragmentShader, fragmentSource);
             
             // compile the fragment shader

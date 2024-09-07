@@ -302,8 +302,13 @@ public class DynamicArray<T> : IDisposable
         // set the length to 0
         Length = 0;
         
-        // deallocate the cleared memory
-        Shrink();
+        // delete all data chunks
+        foreach (var arr in _data)
+        {
+            _dataPool.Return(arr, true);
+            Array.Clear(arr);
+        }
+        _data.RemoveRange(0, _data.Count);
     }
 
     #endregion

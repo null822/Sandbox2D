@@ -2,11 +2,11 @@
 using Math2D;
 using Math2D.Quadtree;
 using Math2D.Quadtree.FeatureNodeTypes;
-using Sandbox2D.Graphics;
+using Sandbox2D.Registry;
 
 namespace Sandbox2D.World;
 
-public readonly partial struct Tile : IQuadtreeElement<Tile>,
+public abstract class Tile : IQuadtreeElement<Tile>,
     IFeatureModificationStore,
     IFeatureFileSerialization<Tile>,
     IFeatureElementColor,
@@ -14,50 +14,41 @@ public readonly partial struct Tile : IQuadtreeElement<Tile>,
 {
     
     /// <summary>
-    /// The data of this tile.
+    /// The data of this tile
     /// </summary>
-    private readonly TileData _data;
-    
-    /// <summary>
-    /// The id of this tile. 16 bits total.
-    /// </summary>
-    public ushort Id => _data.Id;
-    /// <summary>
-    /// The data of this tile. 48 bits total.
-    /// </summary>
-    public ulong Data => _data.Data;
-    
+    protected readonly TileData TileData;
     
     public int SerializeLength => 8;
     
-    
-    private Tile(TileData data)
+    protected Tile(TileData data)
     {
-        _data = data;
+        TileData = data;
+    }
+    
+    protected Tile(Span<byte> bytes)
+    {
+        TileData = new TileData(bytes);
     }
     
     public byte[] Serialize()
     {
-        return _data.Serialize();
+        return TileData.Serialize();
     }
     
     public static Tile Deserialize(Span<byte> bytes)
     {
-        return new Tile(new TileData(BitUtil.GetULong(bytes)));
+        return Registry.Tiles.Create(bytes);
     }
     
     public TileData GpuSerialize()
     {
-        return _data;
+        return TileData;
     }
     
-    bool IQuadtreeElement<Tile>.CanCombine(Tile other)
+    public bool CanCombine(Tile other)
     {
-        return _data.Equals(other._data);
+        return TileData.Equals(other.TileData);
     }
     
-    Color IFeatureElementColor.GetColor()
-    {
-        return GetColor(this);
-    }
+    public abstract Color GetColor();
 }

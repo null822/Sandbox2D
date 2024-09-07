@@ -9,26 +9,35 @@ uniform vec2 ScreenSize; // the size of the screen, in pixels
 out vec2 WorldPos;
 
 // converts vertex coordinates to screen cordinates
-uvec2 VertexToScreenCoordinates(vec2 vertexCoords) {
-
-    // add 1 tp vertexCoords, to get it to a 0-2 range
+vec2 VertexToScreenCoordinates(vec2 vertexCoords) {
+    
+    // flip Y axis
+    vertexCoords = vec2(vertexCoords.x, -vertexCoords.y);
+    
+    // add 1 to vertexCoords, to get it to a 0-2 range
     vertexCoords += 1.0;
-
-    // divide screenCoords by 2, to get it to a 0-1 range
+    
+    // divide vertexCoords by 2, to get it to a 0-1 range
     vertexCoords /= 2.0;
-
+    
     // multiply screenCoords by screenSize
     vertexCoords *= ScreenSize;
-
-    // convert to uvec2, and return
-    return uvec2(vertexCoords);
+    
+    // return
+    return vertexCoords;
 }
 
 // converts screen corrdinates to world coordinates
 vec2 ScreenToWorldCoordinates(vec2 screenCoords) {
-
+    
+    
     vec2 center = ScreenSize / 2.0;
-    return ((screenCoords - center) / Scale) + Translation + center;
+    
+    screenCoords -= center;
+    
+    screenCoords = vec2(screenCoords.x, -screenCoords.y);
+    
+    return screenCoords / Scale + Translation;
 }
 
 void main(void)

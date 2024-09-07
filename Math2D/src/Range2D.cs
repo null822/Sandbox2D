@@ -113,6 +113,17 @@ public readonly struct Range2D : IEquatable<Range2D>
     }
     
     /// <summary>
+    /// Constructs a <see cref="Range2D"/> given a two corner coordinates.
+    /// </summary>
+    public Range2D(Vec2<long> v)
+    {
+        MinX = v.X;
+        MinY = v.Y;
+        MaxX = v.X;
+        MaxY = v.Y;
+    }
+    
+    /// <summary>
     /// Constructs a <see cref="Range2D"/> given a Center coordinate and a width and height.
     /// </summary>
     public Range2D(Vec2<long> center, ulong width, ulong height)

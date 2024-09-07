@@ -4,7 +4,9 @@ using System.IO;
 using System.Threading;
 using Math2D;
 using Math2D.Quadtree;
+using Sandbox2D.Registry;
 using Sandbox2D.World;
+using Sandbox2D.World.Tiles;
 using static Sandbox2D.Constants;
 using static Sandbox2D.Util;
 
@@ -22,7 +24,7 @@ public static class GameManager
     // camera
     public static Vec2<decimal> Translation { private set; get; }
     public static decimal Scale { private set; get; } = 1;
-    public static Vec2<int> ScreenSize { private set; get; }
+    public static Vec2<float> ScreenSize { private set; get; }
     
     // game state
     public static bool IsRunning { private set; get; }
@@ -134,8 +136,13 @@ public static class GameManager
     /// </summary>
     private static void Initialize()
     {
+        Tiles.Register((int)TileType.Air, bytes => new Air(bytes));
+        Tiles.Register((int)TileType.Dirt, bytes => new Dirt(bytes));
+        Tiles.Register((int)TileType.Stone, bytes => new Stone(bytes));
+        Tiles.Register((int)TileType.Paint, bytes => new Paint(bytes));
+        
         // create world
-        _world = new Quadtree<Tile>(WorldHeight, new Tile(TileId.Air));
+        _world = new Quadtree<Tile>(WorldHeight, new Air());
         WorldHeight = _world.MaxHeight;
         
         Log("Created World", "Load/Logic");
@@ -227,7 +234,7 @@ public static class GameManager
     /// </summary>
     /// <param name="size">the new screen size</param>
     /// <remarks>Causes the world to be re-uploaded to the gpu.</remarks>
-    public static void UpdateScreenSize(Vec2<int> size)
+    public static void UpdateScreenSize(Vec2<float> size)
     {
         ScreenSize = size;
     }

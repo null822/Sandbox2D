@@ -16,6 +16,13 @@ public readonly struct QuadtreeNode
     public readonly NodeType Type;
     
     /// <summary>
+    /// The reference to the value of this node, if <see cref="Type"/> = <see cref="NodeType.Leaf"/>
+    /// </summary>
+    /// <remarks>Also used to store the reference for a leaf node.</remarks>
+    [FieldOffset(4)]
+    public readonly long LeafRef;
+    
+    /// <summary>
     /// The reference to the (-X +Y), or Top Left, node.
     /// </summary>
     /// <remarks>Also used to store the reference for a leaf node.</remarks>
@@ -44,7 +51,7 @@ public readonly struct QuadtreeNode
     public QuadtreeNode(long refVal)
     {
         Type = NodeType.Leaf;
-        Ref0 = refVal;
+        LeafRef = refVal;
     }
     
     /// <summary>
@@ -98,7 +105,7 @@ public readonly struct QuadtreeNode
     {
         if (Type == NodeType.Branch) throw new InvalidNodeTypeException(Type, NodeType.Leaf);
         
-        return Ref0;
+        return LeafRef;
     }
     
     /// <summary>
@@ -114,7 +121,7 @@ public readonly struct QuadtreeNode
                     return "[ Null ]";
                 return $"[Branch] {Ref0} {Ref1} {Ref2} {Ref3}";
             case NodeType.Leaf:
-                return $"[ Leaf ] {Ref0}";
+                return $"[ Leaf ] {LeafRef}";
             default:
                 return $"[ERROR ] {(uint)Type:x16} {Ref0:x16} {Ref1:x16} {Ref2:x16} {Ref3:x16}]";
         }
@@ -132,8 +139,8 @@ public enum NodeType : uint
     /// </summary>
     Branch = 0,
     /// <summary>
-    /// Represents a type of node that contains no child nodes (indexes within <see cref="Quadtree{T}._tree"/>), and one
+    /// Represents a type of node that contains no child nodes (elements within <see cref="Quadtree{T}._tree"/>), and one
     /// value (an index within <see cref="Quadtree{T}._data"/>).
     /// </summary>
-    Leaf = 1,
+    Leaf = 1
 }

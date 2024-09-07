@@ -2,12 +2,18 @@
 using System.Collections.Generic;
 using Math2D;
 using OpenTK.Graphics.OpenGL4;
-using Sandbox2D.Graphics.Registry;
 
 namespace Sandbox2D.Graphics.Renderables;
 
-public class BaseRenderable : Renderable
+public class BaseRenderable : IRenderable
 {
+    public Shader Shader { get; }
+    public BufferUsageHint Hint { get; init; }
+    
+    public int VertexArrayObject { get; init; } = GL.GenVertexArray();
+    public int VertexBufferObject { get; init; } = GL.GenBuffer();
+    public int ElementBufferObject { get; init; } = GL.GenBuffer();
+    
     // geometry arrays
     private readonly List<float> _vertices = 
     [
@@ -22,8 +28,11 @@ public class BaseRenderable : Renderable
         1, 2, 3    // second triangle
     ];
     
-    public BaseRenderable(Shader shader, BufferUsageHint hint = BufferUsageHint.StaticDraw) : base(shader, hint)
+    public BaseRenderable(Shader shader, BufferUsageHint hint = BufferUsageHint.StaticDraw)
     {
+        Shader = shader;
+        Hint = hint;
+        
         // update the vao (creates it, in this case)
         UpdateVao();
         
@@ -32,20 +41,16 @@ public class BaseRenderable : Renderable
         GL.EnableVertexAttribArray(vertexLocation);
         GL.VertexAttribPointer(vertexLocation, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
     }
-    
-    public override void Render()
+
+    public void Render()
     {
-        base.Render();
-        
         GL.BindVertexArray(VertexArrayObject);
         Shader.Use();
         GL.DrawElements(PrimitiveType.Triangles, _indices.Count, DrawElementsType.UnsignedInt, 0);
     }
     
-    public sealed override void UpdateVao()
+    public void UpdateVao()
     {
-        base.UpdateVao();
-        
         // bind vao
         GL.BindVertexArray(VertexArrayObject);
         
@@ -83,17 +88,13 @@ public class BaseRenderable : Renderable
             indexOffset + 0, indexOffset + 1, indexOffset + 3,   // first triangle
             indexOffset + 1, indexOffset + 2, indexOffset + 3    // second triangle
         });
-
-        GeometryAdded();
     }
 
     /// <summary>
     /// Resets the geometry of this renderable. Does not update the VAO
     /// </summary>
-    public override void ResetGeometry()
+    public void ResetGeometry()
     {
-        base.ResetGeometry();
-
         _vertices.Clear();
         _indices.Clear();
     }

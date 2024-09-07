@@ -418,7 +418,6 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         header.Write(GetBytes(_enabledFeatures)); // features
         header.Write([(byte)dataRefSize]); // data ref size
         header.Write(GetBytes(((IFeatureFileSerialization<T>)_data[0]).SerializeLength)); // size of T
-        
         // serialize the quadtree
         SerializeBody(tree, data, (int)dataRefSize);
         
@@ -456,7 +455,8 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         if (height != MaxHeight) path[height] = nodeRef;
         
         var data = new DynamicArray<byte[]>(ArrayLength, false, false);
-        
+
+        var serializeLength = ((IFeatureFileSerialization<T>)_data[0]).SerializeLength;
         while (true)
         {
             var node = _tree[nodeRef];
@@ -471,7 +471,10 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             else
             {
                 treeStream.Write([1]); // leaf node
-                var value = ((IFeatureFileSerialization<T>)_data[node.GetValueRef()]).Serialize();
+                var serializeInstance = _data[node.GetValueRef()];
+                var value = ((IFeatureFileSerialization<T>)serializeInstance).Serialize();
+                if (value.Length != serializeLength)
+                    throw new Exception($"Invalid byte count. Expected {serializeLength} but got {value.Length} from {serializeInstance}");
                 long i;
                 if (data.Contains(v => CompareBytes(v, value)))
                 {
@@ -583,7 +586,7 @@ public class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         // populate the data
         stream.Position = dataStart;
         var valueBytes = new byte[tSize];
-        for (var i = 0; i < stream.Length - dataStart; i+= tSize)
+        for (var i = dataStart; i < stream.Length - (tSize - 1); i+= tSize)
         {
             stream.ReadExactly(valueBytes);
             q._data.Add(T2.Deserialize(valueBytes));

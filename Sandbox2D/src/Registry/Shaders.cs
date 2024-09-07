@@ -1,4 +1,6 @@
-﻿namespace Sandbox2D.Graphics.Registry;
+﻿using Sandbox2D.Graphics;
+
+namespace Sandbox2D.Registry;
 
 public static class Shaders
 {

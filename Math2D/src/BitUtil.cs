@@ -1,7 +1,23 @@
 ﻿namespace Math2D;
 
+/// <summary>
+/// Utilities performing bit/byte manipulation
+/// </summary>
 public static class BitUtil
 {
+    #region Other
+    
+    /// <summary>
+    /// Returns 2 ^ <paramref name="v"/>.
+    /// </summary>
+    /// <param name="v">the value. Maximum is 64</param>
+    public static ulong Pow2(int v)
+    {
+        return ~(v == 64 ? 0 : ~0x0uL << v);
+    }
+    
+    #endregion
+    
     #region Zero Count
     
     public static uint TrailingZeros(uint v)
@@ -101,7 +117,7 @@ public static class BitUtil
     }
     
     #endregion
-
+    
     #region Powers of 2
     
     /// <summary>
@@ -175,7 +191,7 @@ public static class BitUtil
     }
     
     #endregion
-
+    
     #region Interleaving and Deinterleaving
     
     private static readonly UInt128[] Masks = [
@@ -243,7 +259,7 @@ public static class BitUtil
     }
     
     #endregion
-
+    
     #region Signed and Unsigned Conversion
     
     /// <summary>
@@ -272,8 +288,18 @@ public static class BitUtil
     }
     
     #endregion
-
+    
     #region Byte[] Actions
+    
+    public static byte[] GetBytes(short v)
+    {
+        return [(byte)((v >> 8) & 0xFF), (byte)(v & 0xFF)];
+    }
+    
+    public static byte[] GetBytes(ushort v)
+    {
+        return [(byte)((v >> 8) & 0xFF), (byte)(v & 0xFF)];
+    }
     
     public static byte[] GetBytes(int v)
     {
@@ -313,6 +339,15 @@ public static class BitUtil
         ];
     }
     
+    public static short GetShort(Span<byte> d)
+    {
+        return (short)((d[0] << 8) | d[1]);
+    }
+    
+    public static ushort GetUshort(Span<byte> d)
+    {
+        return (ushort)((d[0] << 8) | d[1]);
+    }
     
     public static int GetInt(Span<byte> d)
     {

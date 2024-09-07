@@ -3,18 +3,26 @@ using System;
 using System.Collections.Generic;
 using Math2D;
 using OpenTK.Graphics.OpenGL4;
-using Sandbox2D.Graphics.Registry;
+using Sandbox2D.Registry;
 
 namespace Sandbox2D.Graphics.Renderables;
 
-public class FontRenderable : Renderable
+public class FontRenderable : IRenderable
 {
+    public Shader Shader { get; }
+    public BufferUsageHint Hint { get; init; }
+    
+    public int VertexArrayObject { get; init; } = GL.GenVertexArray();
+    public int VertexBufferObject { get; init; } = GL.GenBuffer();
+    public int ElementBufferObject { get; init; } = GL.GenBuffer();
+    
+    
+    private readonly Texture _texture;
+
     private static readonly Vec2<int> GlyphSize = (5, 9);
     private static readonly Vec2<int> TextureSize = (64, 96);
     
     private float _scale;
-
-    private readonly Texture _texture;
     
     // geometry arrays
     private readonly List<float> _vertices = 
@@ -31,8 +39,11 @@ public class FontRenderable : Renderable
     ];
     
     
-    public FontRenderable(Shader shader, BufferUsageHint hint = BufferUsageHint.StaticDraw) : base(shader, hint)
+    public FontRenderable(Shader shader, BufferUsageHint hint = BufferUsageHint.StaticDraw)
     {
+        Shader = shader;
+        Hint = hint;
+        
         // update the vao (creates it, in this case)
         UpdateVao();
         
@@ -54,10 +65,8 @@ public class FontRenderable : Renderable
         _texture.Use(TextureUnit.Texture0);
     }
     
-    public override void Render()
+    public void Render()
     {
-        base.Render();
-        
         GL.BindVertexArray(VertexArrayObject);
         
         // enable transparency
@@ -77,10 +86,8 @@ public class FontRenderable : Renderable
 
     }
     
-    public sealed override void UpdateVao()
+    public void UpdateVao()
     {
-        base.UpdateVao();
-        
         // bind vao
         GL.BindVertexArray(VertexArrayObject);
         
@@ -100,7 +107,7 @@ public class FontRenderable : Renderable
     /// <param name="tl">the top left vertex, in screen coordinates</param>
     /// <param name="size">the size of the text</param>
     /// <param name="center"></param>
-    public void SetText(string text, Vec2<int> tl, float size, bool center = true)
+    public void SetText(string text, Vec2<float> tl, float size, bool center = true)
     {
         _scale = size;
         
@@ -109,22 +116,20 @@ public class FontRenderable : Renderable
 
         var textScreenSize = new Vec2<float>(text.Length * (GlyphSize.X + 1) * size, GlyphSize.Y * size);
         
-        var tlScreen = (Vec2<int>)((Vec2<float>)tl / size) + screenCenter + 
+        var tlScreen = ((Vec2<float>)tl / size) + screenCenter + 
                        (center 
-                           ? new Vec2<int>((int)(-textScreenSize.X / 2f), (int)(textScreenSize.Y / 2f)) 
-                           : new Vec2<int>(0));
-
-        // flip coordinate the correct way
-        tlScreen = new Vec2<int>(tlScreen.X, screenSize.Y-tlScreen.Y);
+                           ? (-textScreenSize.X / 2f, textScreenSize.Y / 2f)
+                           : (0, 0));
         
-        var glyphArea = (Vec2<int>)((Vec2<float>)(GlyphSize + (1, 1)) * new Vec2<float>(_scale));
-
+        // flip coordinates the correct way
+        tlScreen = new Vec2<float>(tlScreen.X, screenSize.Y-tlScreen.Y);
+        
+        var glyphArea = (Vec2<float>)(GlyphSize + (1, 1)) * new Vec2<float>(_scale);
+        
         for (var i = 0; i < text.Length; i++)
         {
-            AddGlyph(text[i], tlScreen + new Vec2<int>(i * glyphArea.X, 0));
+            AddGlyph(text[i], tlScreen + new Vec2<float>(i * glyphArea.X, 0f));
         }
-        
-        GeometryAdded();
     }
     
     /// <summary>
@@ -282,10 +287,8 @@ public class FontRenderable : Renderable
     /// <summary>
     /// Resets the geometry of this renderable. Does not update the VAO
     /// </summary>
-    public override void ResetGeometry()
+    public void ResetGeometry()
     {
-        base.ResetGeometry();
-        
         _vertices.Clear();
         _indices.Clear();
     }

@@ -36,17 +36,18 @@ public static class Util
     
     
     /// <summary>
-    /// Converts coords from the screen (like mouse pos) into game coords (like positions of objects)
+    /// Converts coords from the screen (like mouse pos) into game coords (like positions of the world).
     /// </summary>
     /// <param name="screenCoords">The coords from the screen to convert</param>
     public static Vec2<long> ScreenToWorldCoords(Vec2<float> screenCoords)
     {
-        var screenSize = GameManager.ScreenSize;
+        var center = GameManager.ScreenSize / 2;
         
-        screenCoords = new Vec2<float>(screenCoords.X, screenSize.Y - screenCoords.Y);
+        screenCoords -= center;
         
-        var center = (Vec2<decimal>)screenSize / 2;
-        var value = ((Vec2<decimal>)screenCoords - center) / GameManager.Scale + GameManager.Translation + center;
+        screenCoords = screenCoords.FlipY();
+        
+        var value = (Vec2<decimal>)screenCoords / GameManager.Scale + GameManager.Translation;
         
         return new Vec2<long>(
             (long)Math.Clamp(Math.Floor(value.X), long.MinValue, long.MaxValue),
@@ -61,24 +62,24 @@ public static class Util
     {
         var screenSize = GameManager.ScreenSize;
 
-        var center = (Vec2<float>)screenSize / 2f;
+        var center = screenSize / 2f;
         var value = ((Vec2<decimal>)worldCoords + GameManager.Translation - (Vec2<decimal>)center) * GameManager.Scale + (Vec2<decimal>)center;
         
         return new Vec2<int>(
                            (int)Math.Clamp(Math.Floor(value.X), int.MinValue, int.MaxValue), 
-            screenSize.Y - (int)Math.Clamp(Math.Floor(value.Y), int.MinValue, int.MaxValue));
+            (int)screenSize.Y - (int)Math.Clamp(Math.Floor(value.Y), int.MinValue, int.MaxValue));
     }
 
-    public static Vec2<float> ScreenToVertexCoords(Vec2<int> screenCoords)
+    public static Vec2<float> ScreenToVertexCoords(Vec2<float> screenCoords)
     {
         // get the screen size
         var screenSize = GameManager.ScreenSize;
         
         // cast screenCoords to a float
-        var vertexCoords = (Vec2<float>)screenCoords;
+        var vertexCoords = screenCoords;
         
         // divide vertexCoords by screenSize, to get it to a 0-1 range
-        vertexCoords /= (Vec2<float>)screenSize;
+        vertexCoords /= screenSize;
         
         // multiply vertexCoords by 2, to get it to a 0-2 range
         vertexCoords *= 2;
@@ -87,7 +88,7 @@ public static class Util
         vertexCoords -= new Vec2<float>(1);
         
         // negate the Y axis to flip the coords correctly
-        vertexCoords = new Vec2<float>(vertexCoords.X, -vertexCoords.Y);
+        vertexCoords = vertexCoords.FlipY();
         
         // return vertex coords
         return vertexCoords;

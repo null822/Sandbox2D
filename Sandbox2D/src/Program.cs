@@ -2,10 +2,11 @@
 using System.Threading;
 using Math2D;
 using Math2D.Quadtree;
-using OpenTK.Mathematics;
 using OpenTK.Windowing.Common.Input;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using Image = OpenTK.Windowing.Common.Input.Image;
 using static Sandbox2D.Util;
 
@@ -20,14 +21,14 @@ public static class Program
     /// <code>
     /// [0] = path to .qdt save file to load on start
     /// </code></param>
-    private static void Main(string[] args)
+    private static int Main(string[] args)
     {
         Console.Clear();
         
-        GlobalValues.RenderManager.Icon = LoadIcon();
-        GlobalValues.RenderManager.VSync = Constants.Vsync;
+        GlobalVariables.RenderManager.Icon = LoadIcon($"{GlobalVariables.AssetDirectory}/icon.png", (64, 64));
+        GlobalVariables.RenderManager.VSync = Constants.Vsync;
         
-        Console.WriteLine(GlobalValues.AssetDirectory);
+        Console.WriteLine(GlobalVariables.AssetDirectory);
         
         if (args.Length == 1)
         {
@@ -49,17 +50,27 @@ public static class Program
         gameLogicThread.Start();
         
         // start the "join" the render thread
-        GlobalValues.RenderManager.Run();
+        GlobalVariables.RenderManager.Run();
+        
+        return 0;
     }
-
-    private static WindowIcon LoadIcon()
+    
+    /// <summary>
+    /// Loads an image, resizes it, and stores it in a <see cref="WindowIcon"/>.
+    /// </summary>
+    /// <param name="path">the path to the image to load</param>
+    /// <param name="size">the resolution to resize to</param>
+    /// <returns>The resized <see cref="WindowIcon"/></returns>
+    private static WindowIcon LoadIcon(string path, Vec2<int> size)
     {
-        var image = (Image<Rgba32>)SixLabors.ImageSharp.Image.Load($"{GlobalValues.AssetDirectory}/icon.png");
+        using var image = SixLabors.ImageSharp.Image.Load<Rgba32>(path);
+        
+        image.Mutate(x => x.Resize(size.X, size.Y, KnownResamplers.Lanczos3));
         
         var pixels = new byte[4 * image.Width * image.Height];
         image.CopyPixelDataTo(pixels);
         
-        return new WindowIcon(new Image(1024, 1024, pixels));
+        return new WindowIcon(new Image(size.X, size.Y, pixels));
     }
     
     /// <summary>

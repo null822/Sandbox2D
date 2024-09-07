@@ -58,6 +58,21 @@ public readonly struct Vec2<T>(T x, T y) : IEquatable<Vec2<T>> where T : INumber
         };
     }
     
+    /// <summary>
+    /// Negates the X component of this <see cref="Vec2{T}"/>.
+    /// </summary>
+    public Vec2<T> FlipX()
+    {
+        return new Vec2<T>(-X, Y);
+    }
+    /// <summary>
+    /// Negates the Y component of this <see cref="Vec2{T}"/>.
+    /// </summary>
+    public Vec2<T> FlipY()
+    {
+        return new Vec2<T>(X, -Y);
+    }
+    
     public static Vec2<T> operator +(Vec2<T> a, Vec2<T> b)
     {
         return new Vec2<T>(a.X + b.X, a.Y + b.Y);
@@ -163,7 +178,7 @@ public readonly struct Vec2<T>(T x, T y) : IEquatable<Vec2<T>> where T : INumber
     {
         return new Vec2<ushort>(Convert.ToUInt16(a.X), Convert.ToUInt16(a.Y));
     }
-    public static implicit operator Vec2<int>(Vec2<T> a)
+    public static explicit operator Vec2<int>(Vec2<T> a)
     {
         return new Vec2<int>(Convert.ToInt32(a.X), Convert.ToInt32(a.Y));
     }
@@ -179,11 +194,11 @@ public readonly struct Vec2<T>(T x, T y) : IEquatable<Vec2<T>> where T : INumber
     {
         return new Vec2<ulong>(Convert.ToUInt64(a.X), Convert.ToUInt64(a.Y));
     }
-    public static implicit operator Vec2<decimal>(Vec2<T> a)
+    public static explicit operator Vec2<decimal>(Vec2<T> a)
     {
         return new Vec2<decimal>(Convert.ToDecimal(a.X), Convert.ToDecimal(a.Y));
     }
-    public static implicit operator Vec2<float>(Vec2<T> a)
+    public static explicit operator Vec2<float>(Vec2<T> a)
     {
         return new Vec2<float>(Convert.ToSingle(a.X), Convert.ToSingle(a.Y));
     }

@@ -3,14 +3,21 @@ using System.Runtime.InteropServices;
 using Math2D;
 using Math2D.Quadtree;
 using OpenTK.Graphics.OpenGL4;
-using Sandbox2D.Graphics.Registry;
+using Sandbox2D.Registry;
 using Sandbox2D.World;
 using Vector2 = OpenTK.Mathematics.Vector2;
 
 namespace Sandbox2D.Graphics.Renderables;
 
-public class QuadtreeRenderable : Renderable
+public class QuadtreeRenderable : IRenderable
 {
+    public Shader Shader { get; }
+    public BufferUsageHint Hint { get; init; }
+    
+    public int VertexArrayObject { get; init; } = GL.GenVertexArray();
+    public int VertexBufferObject { get; init; } = GL.GenBuffer();
+    public int ElementBufferObject { get; init; } = GL.GenBuffer();
+
     private Vector2 _translation = Vector2.Zero;
     private float _scale = 1;
     
@@ -55,8 +62,11 @@ public class QuadtreeRenderable : Renderable
     /// </summary>
     private static readonly int TileDataSize = Marshal.SizeOf<TileData>();
     
-    public QuadtreeRenderable(Shader shader, int quadtreeMaxHeight, BufferUsageHint hint = BufferUsageHint.StaticDraw) : base(shader, hint)
+    public QuadtreeRenderable(Shader shader, int quadtreeMaxHeight, BufferUsageHint hint = BufferUsageHint.StaticDraw)
     {
+        Shader = shader;
+        Hint = hint;
+        
         if (quadtreeMaxHeight > 16) throw new Exception($"Invalid Max Height for Quadtree. Was: {quadtreeMaxHeight}, Range: 2-16.");
         _maxHeight = quadtreeMaxHeight;
         
@@ -93,11 +103,9 @@ public class QuadtreeRenderable : Renderable
         // initialize the buffers
         ResizeBuffers(8, 8);
     }
-    
-    public override void Render()
+
+    public void Render()
     {
-        base.Render();
-        
         // bind vao / ssbos
         GL.BindVertexArray(VertexArrayObject);
         GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, _treeBuffer);
@@ -112,7 +120,7 @@ public class QuadtreeRenderable : Renderable
         // set the uniforms
         Shader.SetFloat("Scale", _scale);
         Shader.SetVector2("Translation", _translation);
-        Shader.SetVector2("ScreenSize", GlobalValues.RenderManager.ClientSize);
+        Shader.SetVector2("ScreenSize", GlobalVariables.RenderManager.ClientSize);
         Shader.SetInt("MaxHeight", _maxHeight);
         
         // render the geometry
@@ -121,10 +129,8 @@ public class QuadtreeRenderable : Renderable
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0);
     }
     
-    public sealed override void UpdateVao()
+    public void UpdateVao()
     {
-        base.UpdateVao();
-        
         // bind VAO
         GL.BindVertexArray(VertexArrayObject);
         
@@ -167,14 +173,14 @@ public class QuadtreeRenderable : Renderable
             
             GL.BufferSubData(
                 BufferTarget.ShaderStorageBuffer,
-                (int)element.Index * sizeof(QuadtreeNode),
+                (IntPtr)element.Index * sizeof(QuadtreeNode),
                 1 * sizeof(QuadtreeNode),
                 [element.Value]);
         }
         // upload the render root
         GL.BufferSubData(
             BufferTarget.ShaderStorageBuffer,
-            0 * sizeof(QuadtreeNode),
+            (IntPtr)0 * sizeof(QuadtreeNode),
             1 * sizeof(QuadtreeNode),
             [renderRoot]);
         
@@ -193,7 +199,7 @@ public class QuadtreeRenderable : Renderable
                 
                 GL.BufferSubData(
                     BufferTarget.ShaderStorageBuffer,
-                    (int)element.Index * element.Value.SerializeLength,
+                    (IntPtr)element.Index * element.Value.SerializeLength,
                     1 * element.Value.SerializeLength,
                     [element.Value.GpuSerialize()]);
             }
@@ -202,8 +208,6 @@ public class QuadtreeRenderable : Renderable
         }
         
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0);
-        
-        ShouldRender = true;
     }
     
     public void SetTransform(Vec2<float> translation, float scale)
@@ -212,10 +216,8 @@ public class QuadtreeRenderable : Renderable
         _scale = scale;
     }
     
-    public override void ResetGeometry()
+    public void ResetGeometry()
     {
-        base.ResetGeometry();
-        
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _treeBuffer);
         GL.BufferData(BufferTarget.ShaderStorageBuffer, 0, Array.Empty<QuadtreeNode>(), Hint);
         _treeBufferLength = 0;
@@ -274,9 +276,8 @@ public class QuadtreeRenderable : Renderable
         return (newBuffer, newLength);
     }
     
-    public override void Dispose()
+    public void Dispose()
     {
-        base.Dispose();
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0);
         GL.DeleteBuffer(_treeBuffer);
         GL.DeleteBuffer(_dataBuffer);

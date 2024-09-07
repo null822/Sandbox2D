@@ -1,0 +1,6 @@
+﻿<body>
+    <test onClick="run" id="test1" text="Hello, world!"/>
+    
+</body>
+
+

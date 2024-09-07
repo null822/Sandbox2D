@@ -1,5 +1,7 @@
-﻿using System.Runtime.InteropServices;
+﻿using System;
+using System.Runtime.InteropServices;
 using Math2D;
+using Sandbox2D.Registry;
 
 namespace Sandbox2D.World;
 
@@ -19,16 +21,29 @@ public readonly struct TileData
     /// <summary>
     /// The data of this tile. 48 bits total.
     /// </summary>
-    public ulong Data => _data & 0x0000ffffffffffff;
+    public ulong Data => _data & 0x0000FFFFFFFFFFFF;
+
+    public TileData(Span<byte> bytes)
+    {
+        _data = BitUtil.GetULong(bytes);
+    }
     
     public TileData(ushort id)
+    {
+        _data = (ulong)id << 48;
+    }
+    public TileData(TileType id)
     {
         _data = (ulong)id << 48;
     }
     
     public TileData(ushort id, ulong data)
     {
-        _data = ((ulong)id << 48) | data;
+        _data = ((ulong)id << 48) | (data & 0x0000FFFFFFFFFFFF);
+    }
+    public TileData(TileType id, ulong data)
+    {
+        _data = ((ulong)id << 48) | (data & 0x0000FFFFFFFFFFFF);
     }
     
     public TileData(ulong data)

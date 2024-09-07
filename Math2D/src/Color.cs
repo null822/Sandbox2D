@@ -31,11 +31,11 @@ public readonly struct Color
         B = (byte)(b * 255);
     }
     
-    public Color(uint d)
+    public Color(uint @decimal)
     {
-        R = (byte)((d >> 16) & 0xff);
-        G = (byte)((d >> 8) & 0xff);
-        B = (byte)((d >> 0) & 0xff);
+        R = (byte)((@decimal >> 16) & 0xff);
+        G = (byte)((@decimal >> 8) & 0xff);
+        B = (byte)((@decimal >> 0) & 0xff);
     }
     
     public override string ToString()

@@ -7,12 +7,16 @@ using Math2D.Quadtree;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
-using OpenTK.Windowing.GraphicsLibraryFramework;
-using Sandbox2D.Graphics.Registry;
 using Sandbox2D.Graphics.Renderables;
+using Sandbox2D.Registry;
+using Sandbox2D.UserInterface;
+using Sandbox2D.UserInterface.Elements;
+using Sandbox2D.UserInterface.Keybinds;
 using Sandbox2D.World;
+using Sandbox2D.World.Tiles;
 using static Sandbox2D.Util;
 using static Sandbox2D.Constants;
+using static Sandbox2D.UserInterface.Keybinds.KeybindKeyType;
 
 namespace Sandbox2D;
 
@@ -38,30 +42,60 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     private static Range2D _renderRange;
     
     // world editing
-    private static Tile _activeBrush = new(TileId.Air);
-    private static uint _brushId;
-    private static Range2D _brushRange;
-    private static Vec2<long> _leftMouseWorldCoords = new(0);
-    private static Vec2<float> _middleMouseScreenCoords = new(0);
-
+    private static Tile _activeBrush = new Air();
+    
     private static (WorldAction action, string arg)? _worldAction;
     private static readonly List<WorldModification> WorldModifications = [];
     
     private static float _mspt;
     
     // controls
-    private static decimal _scale = 30;
-    private static Vec2<decimal> _translation;
-    private static float _scrollPos = 32;
-    private static Vec2<decimal> _prevTranslation;
+    private readonly KeybindSieve _keybindManager = new();
+
+    /// <summary>
+    /// The current screen coordinates of the mouse
+    /// </summary>
+    private Vec2<float> _mouseScreenCoords;
+    /// <summary>
+    /// The current world coordinates of the mouse
+    /// </summary>
+    private Vec2<long> _mouseWorldCoords;
     
-    public static ref decimal Scale => ref _scale;
+    /// <summary>
+    /// The world coordinates of the mouse if they're captured by pressing <see cref="Key.LeftShift"/>, or null if they aren't
+    /// </summary>
+    private Vec2<long>? _capturedMouseWorldCoordsLShift;
+    /// <summary>
+    /// The world coordinates of the mouse if they're captured by pressing <see cref="Key.MiddleMouse"/>, or null if they aren't
+    /// </summary>
+    private Vec2<float>? _capturedMouseScreenCoordsMMouse;
+    
+    /// <summary>
+    /// The  translation if it's captured by pressing <see cref="Key.MiddleMouse"/>, or null if it isn't
+    /// </summary>
+    private static Vec2<decimal>? _capturedTranslationMMouse;
+
+    private static decimal _scaleMinimum;
+    private const decimal ScaleMaximum = 32m;
+
+    private static decimal _scale = 1;
+    private static Vec2<decimal> _translation;
+    private static float _scrollPos;
+    
+    public static decimal Scale
+    {
+        get => _scale;
+        private set
+        {
+            _scale = value;
+            _scrollPos = (float)-Math.Log((double)(_scale / 1024), 1.1);
+        }
+    }
     public static ref Vec2<decimal> Translation => ref _translation;
     
     /// <summary>
-    /// Renders everything.
+    /// Renders to the screen. Runs after <see cref="OnUpdateFrame"/> has completed.
     /// </summary>
-    /// <param name="args"></param>
     protected override void OnRenderFrame(FrameEventArgs args)
     {
         base.OnRenderFrame(args);
@@ -70,6 +104,8 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         var newGpuWorldHeight = Math.Min(GameManager.WorldHeight, 16);
         if (_gpuWorldHeight != newGpuWorldHeight)
         {
+            _scaleMinimum = 400m / BitUtil.Pow2(GameManager.WorldHeight);
+            
             _gpuWorldHeight = newGpuWorldHeight;
             _rQt.ResetGeometry();
             _rQt.SetMaxHeight(_gpuWorldHeight);
@@ -81,6 +117,14 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         // clear the color buffer
         GL.Clear(ClearBufferMask.ColorBufferBit);
+        
+        /* TODO: fix rare crash:
+            Unhandled exception. System.NullReferenceException: Object reference not set to an instance of an object.
+            at Sandbox2D.Graphics.Renderables.QuadtreeRenderable.SetGeometry(DynamicArray`1& tree, DynamicArray`1& data, Int64 treeLength, Int64 dataLength, Int64& treeIndex, Int64& dataIndex, QuadtreeNode renderRoot) in C:\Code\C#\Sandbox2D\Sandbox2D\src\Graphics\Renderables\QuadtreeRenderable.cs:line 200
+            at Sandbox2D.RenderManager.OnRenderFrame(FrameEventArgs args) in C:\Code\C#\Sandbox2D\Sandbox2D\src\RenderManager.cs:line 114
+            at OpenTK.Windowing.Desktop.GameWindow.Run()
+            at Sandbox2D.Program.Main(String[] args) in C:\Code\C#\Sandbox2D\Sandbox2D\src\Program.cs:line 53
+        */
         
         // update world geometry / transform
         if (GeometryLock.IsSet || GeometryLock.Wait(RenderLockTimeout))
@@ -105,10 +149,9 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
                 _unuploadedGeometry = false;
             }
             
-            
             // calculate the scale/translation to be uploaded to the GPU
-            var renderScale = (float)Scale;
             var renderTranslation = (Vec2<float>)(Translation - (Vec2<decimal>)_renderRange.Center);
+            var renderScale = (float)_scale;
             
             // update the world transform
             _rQt.SetTransform(renderTranslation, renderScale);
@@ -123,9 +166,9 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         
         // render the GUIs
-        //TODO: render the GUIs
-        // GuiManager.UpdateGuis(); (broken now)
-        // Renderables.Render(RenderableCategory.Gui);
+        Guis.RenderVisible();
+        
+        // TODO: make this neater
         
         var center = GameManager.ScreenSize / 2;
         
@@ -137,19 +180,49 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         _rFont.ResetGeometry();
         
         // Mouse Coordinate Display
-        var mouseScreenCoords = new Vec2<float>(MouseState.X, MouseState.Y);
-        _rFont.SetText(ScreenToWorldCoords(mouseScreenCoords).ToString(), -center + (0,30), 1f, false);
+        _rFont.SetText($"M:({_mouseWorldCoords.X:F0}, {_mouseWorldCoords.Y:F0}) T:({_translation.X:F4}, {_translation.Y:F4}) S:{_scale:F8}", -center + (0,30), 1f, false);
         
         _rFont.UpdateVao();
         _rFont.Render();
         _rFont.ResetGeometry();
         
-        // swap buffers
+        
+        // swap the frame buffers
         SwapBuffers();
     }
     
     /// <summary>
-    /// Controls if the game should be running, and updates the controls.
+    /// Handles all the controls. Runs before <see cref="OnRenderFrame"/>.
+    /// </summary>
+    private void UpdateControls()
+    {
+        _mouseScreenCoords = new Vec2<float>(MouseState.X, MouseState.Y);
+        _mouseWorldCoords = ScreenToWorldCoords(_mouseScreenCoords);
+        
+        _keybindManager.Call(MouseState, KeyboardState);
+        Guis.UpdateVisible();
+        
+        // zoom
+        if (MouseState.ScrollDelta.Y != 0)
+        {
+            _scrollPos += -MouseState.ScrollDelta.Y;
+            
+            var scale = (decimal)Math.Pow(1.1, -_scrollPos) * 1024;
+            
+            // s = 1024 * 1.1^-p
+            // s / 1024 = 1.1^-p
+            // log_1.1(s / 1024) = -p
+            // p = -log_1.1(s / 1024)
+            
+            if (scale < _scaleMinimum) _scrollPos --;
+            else if (scale > ScaleMaximum) _scrollPos ++;
+            else _scale = scale;
+            
+        }
+    }
+    
+    /// <summary>
+    /// Updates the controls and controls if the game should be running. Runs before <see cref="OnRenderFrame"/>.
     /// </summary>
     protected override void OnUpdateFrame(FrameEventArgs args)
     {
@@ -170,130 +243,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     }
     
     /// <summary>
-    /// Handles all the controls.
-    /// </summary>
-    private void UpdateControls()
-    {
-        //TODO: make this method less unreadable and unmaintainable
-        var mouseScreenCoords = new Vec2<float>(MouseState.X, MouseState.Y);
-        var mouseWorldCoords = ScreenToWorldCoords(mouseScreenCoords);
-        
-        // world actions
-        if (KeyboardState.IsKeyPressed(Keys.M))
-            _worldAction = (WorldAction.Map, "map.svg");
-        else if (KeyboardState.IsKeyPressed(Keys.S))
-            _worldAction = (WorldAction.Save, "save.qdt");
-        else if (KeyboardState.IsKeyPressed(Keys.L))
-            _worldAction = (WorldAction.Load, "save.qdt");
-        else if (KeyboardState.IsKeyPressed(Keys.C))
-            _worldAction = (WorldAction.Clear, "");
-        
-        var newScale = Scale;
-        var newTranslation = Translation;
-        
-        // if the scroll wheel has moved
-        if (MouseState.ScrollDelta.Y != 0)
-        {
-            // zoom
-            
-            var yDelta = -MouseState.ScrollDelta.Y;
-            _scrollPos += yDelta;
-            
-            var scale = (decimal)Math.Pow(1.1, -_scrollPos) * 1024;
-            
-            var min = 400m / ~(GameManager.WorldHeight == 64 ? 0 : ~0x0uL << GameManager.WorldHeight);
-            const decimal max = 32m;
-            
-            if (scale < min)
-            {
-                _scrollPos --;
-
-            } else if (scale > max)
-            {
-                _scrollPos ++;
-            }
-            else
-            {
-                newScale = scale;
-            }
-            
-        }
-        
-        // mouse and keyboard controls
-        
-        // update the brush range
-        _brushRange = new Range2D(
-            Math.Min(mouseWorldCoords.X, _leftMouseWorldCoords.X),
-            Math.Min(mouseWorldCoords.Y, _leftMouseWorldCoords.Y),
-            Math.Max(mouseWorldCoords.X, _leftMouseWorldCoords.X),
-            Math.Max(mouseWorldCoords.Y, _leftMouseWorldCoords.Y)
-        );
-        
-        // if we are not holding lmouse, set the _leftMouseWorldCoords to the mouse pos
-        if (!(MouseState.IsButtonDown(MouseButton.Left) && KeyboardState.IsKeyDown(Keys.LeftShift)))
-        {
-            _leftMouseWorldCoords = mouseWorldCoords;
-        }
-        
-        // if we released lmouse while holding lshift, place the _activeBrush in the _world in the _brushRange
-        if (MouseState.IsButtonReleased(MouseButton.Left) && KeyboardState.IsKeyDown(Keys.LeftShift))
-        {
-            WorldModifications.Add(new WorldModification(_brushRange, _activeBrush));
-        }
-        
-        // if we are currently holding lmouse and are not holding lshift, place the brush in the world
-        if (MouseState.IsButtonDown(MouseButton.Left) && !KeyboardState.IsKeyDown(Keys.LeftShift))
-        {
-            WorldModifications.Add(new WorldModification(_brushRange, _activeBrush));
-            
-            if (!KeyboardState.IsKeyDown(Keys.LeftShift))
-                _leftMouseWorldCoords = mouseWorldCoords;
-        }
-        
-        // if we pressed mmouse, set the _middleMouseScreenCoords to the mouse pos
-        if (MouseState.IsButtonPressed(MouseButton.Middle))
-        {
-            _middleMouseScreenCoords = mouseScreenCoords;
-            _prevTranslation = Translation;
-        }
-        
-        // if we are currently holding mmouse, set the translation of the world
-        if (MouseState.IsButtonDown(MouseButton.Middle))
-        {
-            var worldTranslationOffset = (Vec2<decimal>)(_middleMouseScreenCoords - mouseScreenCoords) / Scale;
-            
-            worldTranslationOffset = (worldTranslationOffset.X, -worldTranslationOffset.Y);
-            
-            var nextTranslation = _prevTranslation + worldTranslationOffset;
-
-            if (Translation != nextTranslation)
-            {
-                newTranslation = nextTranslation;
-            }
-        }
-
-        if (MouseState.IsButtonPressed(MouseButton.Right))
-        {
-            _brushId = (_brushId + 64) % (2 << 24);
-            
-            _activeBrush = new Tile(TileId.Paint, (uint)(Random.Next() & 0x00ffffff));
-            
-            Log($"Brush Changed to #{(_activeBrush.Data & 0x00ffffff):X6}");
-        }
-        
-        
-        if (KeyboardState.IsKeyPressed(Keys.LeftControl))
-        {
-            Log($"Mouse Position: {mouseWorldCoords}");
-        }
-
-        Scale = newScale;
-        Translation = newTranslation;
-    }
-    
-    
-    /// <summary>
-    /// Initializes everything on the render thread
+    /// Initializes the render thread.
     /// </summary>
     protected override void OnLoad()
     {
@@ -305,6 +255,9 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         base.OnLoad();
         
+        // create the keybinds
+        CreateKeybinds();
+        
         // set clear color
         GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         
@@ -314,21 +267,99 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         // create the textures
         Textures.Instantiate();
         
+        // create the shaders
         _rQt = new QuadtreeRenderable(Shaders.Qtr, Math.Min(GameManager.WorldHeight, 16), BufferUsageHint.StreamDraw);
         _rFont = new FontRenderable(Shaders.Font, BufferUsageHint.DynamicDraw);
         
         // create the GUIs. must be done after creating the renderables
-        // TODO: re-implement GUIs
+        CreateGuis();
+
+        Translation = (0, 0);
+        Scale = 1;
         
-        // set translations
-        _translation = -InitialScreenSize / 2;
-        _prevTranslation = _translation;
+        Console.WriteLine(_scrollPos);
         
         // start the game logic
         GameManager.SetRunning(true);
         
         
         Log("===============[ BEGIN PROGRAM  ]===============", "Load");
+    }
+    
+    private void CreateKeybinds()
+    {
+        _keybindManager.Add("mapWorld", () => _worldAction = (WorldAction.Map, "map.svg"), [(Key.M, RisingEdge)]);
+        _keybindManager.Add("saveWorld", () =>_worldAction = (WorldAction.Save, "save.qdt"), [(Key.S, RisingEdge)]);
+        _keybindManager.Add("loadWorld", () => _worldAction = (WorldAction.Load, "save.qdt"), [(Key.L, RisingEdge)]);
+        _keybindManager.Add("clearWorld", () => _worldAction = (WorldAction.Clear, ""), [(Key.C, RisingEdge)]);
+        _keybindManager.Add("logMousePos", () => Log(_mouseWorldCoords), [(Key.LeftControl, RisingEdge)]);
+        
+        _keybindManager.Add("shuffleBrush", () =>
+        {
+            _activeBrush = new Paint( new Color((uint)(Random.Next() & 0x00ffffff)));
+            Log($"Brush Changed to {_activeBrush}");
+        }, [
+            (Key.RightMouse, RisingEdge)
+        ]);
+        
+        _keybindManager.Add("captureShiftMousePos", () => _capturedMouseWorldCoordsLShift = _mouseWorldCoords, [
+            (Key.LeftShift, Enabled),
+            (Key.LeftMouse, RisingEdge)
+        ]);
+        _keybindManager.Add("uncaptureShiftMousePos", () => _capturedMouseWorldCoordsLShift = null, [
+            (Key.LeftShift, FallingEdge)
+        ]);
+        
+        _keybindManager.Add("captureMMouse", () =>
+        {
+            _capturedMouseScreenCoordsMMouse = _mouseScreenCoords;
+            _capturedTranslationMMouse = Translation;
+        }, [
+            (Key.MiddleMouse, RisingEdge)
+        ]);
+        _keybindManager.Add("uncaptureMMouse", () =>
+        {
+            _capturedMouseScreenCoordsMMouse = null;
+            _capturedTranslationMMouse = null;
+        }, [
+            (Key.MiddleMouse, FallingEdge)
+        ]);
+        
+        _keybindManager.Add("translateScreen", () =>
+        {
+            if (!_capturedMouseScreenCoordsMMouse.HasValue) return;
+            if (!_capturedTranslationMMouse.HasValue) return;
+            
+            var worldTranslationOffset =
+                ((Vec2<decimal>)(_capturedMouseScreenCoordsMMouse - _mouseScreenCoords) / _scale).FlipY();
+            
+            Translation = _capturedTranslationMMouse.Value + worldTranslationOffset;
+            
+        }, [(Key.MiddleMouse, Enabled)]);
+        
+        _keybindManager.Add("drawSingle", () => WorldModifications.Add(new WorldModification(new Range2D(_mouseWorldCoords), _activeBrush)), [
+            (Key.LeftMouse, Enabled),
+            (Key.LeftShift, Disabled)
+        ]);
+        
+        _keybindManager.Add("drawRect", () =>
+        {
+            if (!_capturedMouseWorldCoordsLShift.HasValue) return;
+            WorldModifications.Add(new WorldModification(new Range2D(_mouseWorldCoords, _capturedMouseWorldCoordsLShift.Value), _activeBrush));
+        }, [
+            (Key.LeftMouse, FallingEdge),
+            (Key.LeftShift, Enabled)
+        ]);
+    }
+    
+    private static void CreateGuis()
+    {
+        GuiElements.Register("test", attributes => new TestElement(attributes));
+        
+        GuiEvents.Register("run", () => Console.WriteLine("Hello from test event!"));
+        
+        Guis.Register("test", new Gui($"{GlobalVariables.AssetDirectory}/gui/test.xml"));
+        Guis.SetVisibility("test", false);
     }
     
     
@@ -357,10 +388,21 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         GL.Viewport(0, 0, e.Width, e.Height);
         
-        // update screenSize on the logic thread
-        GameManager.UpdateScreenSize(new Vec2<int>(e.Width, e.Height));
-    }
+        var newSize = new Vec2<float>(e.Width, e.Height);
+        if (GameManager.ScreenSize != (0, 0))
+        {
+            var scale2D = newSize / GameManager.ScreenSize;
+            var scale = (decimal)(scale2D.X + scale2D.Y) / 2m;
 
+            _scale *= scale;
+            Console.WriteLine(scale);
+            Console.WriteLine(_scale);
+        }
+
+        // update screenSize on the logic thread
+        GameManager.UpdateScreenSize(newSize);
+    }
+    
     /// <summary>
     /// Shuts down the game.
     /// </summary>
@@ -374,7 +416,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         base.OnClosing(e);
     }
     
-    // public setters/getters
+    #region Public setters / getters
     
     /// <summary>
     /// Resets the world modifications on the render thread. Run once after each logic tick.
@@ -466,6 +508,8 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         base.Dispose();
     }
+    
+    #endregion
 }
 
 public readonly struct WorldModification(Range2D range, Tile tile)

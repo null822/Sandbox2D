@@ -2,7 +2,7 @@
 
 namespace Sandbox2D;
 
-public static class GlobalValues
+public static class GlobalVariables
 {
     /// <summary>
     /// The class responsible for interfacing with OpenGL to render everything, handle controls and handle all other 
