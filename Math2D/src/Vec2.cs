@@ -73,6 +73,11 @@ public readonly struct Vec2<T>(T x, T y) : IEquatable<Vec2<T>> where T : INumber
         return new Vec2<T>(X, -Y);
     }
     
+    public T[] ToArray()
+    {
+        return [X, Y];
+    }
+    
     public static Vec2<T> operator +(Vec2<T> a, Vec2<T> b)
     {
         return new Vec2<T>(a.X + b.X, a.Y + b.Y);

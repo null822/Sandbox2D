@@ -30,7 +30,6 @@ vec2 VertexToScreenCoordinates(vec2 vertexCoords) {
 // converts screen corrdinates to world coordinates
 vec2 ScreenToWorldCoordinates(vec2 screenCoords) {
     
-    
     vec2 center = ScreenSize / 2.0;
     
     screenCoords -= center;

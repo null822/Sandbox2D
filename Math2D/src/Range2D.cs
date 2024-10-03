@@ -59,6 +59,11 @@ public readonly struct Range2D : IEquatable<Range2D>
     public UInt128 Area => (UInt128)Width * Height;
     
     /// <summary>
+    /// The dimensions (width, height) of this <see cref="Range2D"/>
+    /// </summary>
+    public Vec2<ulong> Dimensions => new Vec2<ulong>(Width, Height);
+    
+    /// <summary>
     /// The point that resides in the center of the range, returned as an integer.
     /// </summary>
     public Vec2<long> Center => (MinX / 2 + MaxX / 2, MinY / 2 + MaxY / 2);

@@ -11,7 +11,7 @@ namespace Sandbox2D.Graphics
         public readonly int Handle;
 
         private readonly Dictionary<string, int> _uniformLocations;
-
+        
         
         public Shader(string vertPath, string fragPath)
         {
@@ -22,8 +22,8 @@ namespace Sandbox2D.Graphics
             GL.ShaderSource(vertexShader, vertexSource);
             
             // compile the vertex shader
-            GL.CompileShader(vertexShader);
-
+            CompileShader(vertexShader);
+            
             // create fragment shader
             var fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
             
@@ -32,8 +32,8 @@ namespace Sandbox2D.Graphics
             GL.ShaderSource(fragmentShader, fragmentSource);
             
             // compile the fragment shader
-            GL.CompileShader(fragmentShader);
-
+            CompileShader(fragmentShader);
+            
             // create the shader program
             Handle = GL.CreateProgram();
 
@@ -68,6 +68,21 @@ namespace Sandbox2D.Graphics
             }
         }
         
+        private static void CompileShader(int shader)
+        {
+            // compile the shader
+            GL.CompileShader(shader);
+
+            // check for compilation errors
+            GL.GetShader(shader, ShaderParameter.CompileStatus, out var code);
+            if (code != (int)All.True)
+            {
+                // if there was an error, log it
+                var infoLog = GL.GetShaderInfoLog(shader);
+                throw new Exception($"Error occurred whilst compiling Shader({shader}): {infoLog}");
+            }
+        }
+        
         public void Use()
         {
             GL.UseProgram(Handle);
@@ -87,7 +102,6 @@ namespace Sandbox2D.Graphics
             
             Util.Error($"Uniform \'{name}\' is not present in the shader");
             return -1;
-            
         }
         
         /// <summary>
@@ -95,7 +109,7 @@ namespace Sandbox2D.Graphics
         /// </summary>
         /// <param name="name">the name of the uniform</param>
         /// <param name="data">the data to set</param>
-        public void SetUInt(string name, uint data)
+        public void Set(string name, uint data)
         {
             var location = GetUniformLocation(name);
             if (location == -1) return;
@@ -109,7 +123,7 @@ namespace Sandbox2D.Graphics
         /// </summary>
         /// <param name="name">the name of the uniform</param>
         /// <param name="data">the data to set</param>
-        public void SetInt(string name, int data)
+        public void Set(string name, int data)
         {
             var location = GetUniformLocation(name);
             if (location == -1) return;
@@ -123,7 +137,7 @@ namespace Sandbox2D.Graphics
         /// </summary>
         /// <param name="name">the name of the uniform</param>
         /// <param name="data">the data to set</param>
-        public void SetFloat(string name, float data)
+        public void Set(string name, float data)
         {
             var location = GetUniformLocation(name);
             if (location == -1) return;
@@ -140,7 +154,7 @@ namespace Sandbox2D.Graphics
         /// <remarks>
         /// The matrix is transposed before being sent to the shader.
         /// </remarks>
-        public void SetMatrix4(string name, Matrix4 data)
+        public void Set(string name, Matrix4 data)
         {
             var location = GetUniformLocation(name);
             if (location == -1) return;
@@ -148,13 +162,27 @@ namespace Sandbox2D.Graphics
             GL.UseProgram(Handle);
             GL.UniformMatrix4(location, true, ref data);
         }
+        
+        /// <summary>
+        /// Set a uniform Vector2 on this shader.
+        /// </summary>
+        /// <param name="name">the name of the uniform</param>
+        /// <param name="data">the data to set</param>
+        public void Set(string name, Vector2 data)
+        {
+            var location = GetUniformLocation(name);
+            if (location == -1) return;
+            
+            GL.UseProgram(Handle);
+            GL.Uniform2(location, data);
+        }
 
         /// <summary>
         /// Set a uniform Vector2 on this shader.
         /// </summary>
         /// <param name="name">the name of the uniform</param>
         /// <param name="data">the data to set</param>
-        public void SetVector2(string name, Vector2 data)
+        public void Set(string name, Vector2i data)
         {
             var location = GetUniformLocation(name);
             if (location == -1) return;
@@ -163,12 +191,13 @@ namespace Sandbox2D.Graphics
             GL.Uniform2(location, data);
         }
         
+        
         /// <summary>
         /// Set a uniform Vector3 on this shader.
         /// </summary>
         /// <param name="name">the name of the uniform</param>
         /// <param name="data">the data to set</param>
-        public void SetVector3(string name, Vector3 data)
+        public void Set(string name, Vector3 data)
         {
             var location = GetUniformLocation(name);
             if (location == -1) return;

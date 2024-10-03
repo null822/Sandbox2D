@@ -22,7 +22,7 @@ public class QuadtreeRenderable : IRenderable
     private float _scale = 1;
     
     private int _maxHeight;
-    private static Vector2 ScreenSize => Util.Vec2ToVector2(GameManager.ScreenSize);
+    private static Vector2 ScreenSize => GameManager.ScreenSize.ToVector2();
     
     private readonly Texture _dynTilemap;
     
@@ -81,22 +81,6 @@ public class QuadtreeRenderable : IRenderable
         GL.EnableVertexAttribArray(vertexLocation);
         GL.VertexAttribPointer(vertexLocation, 3, VertexAttribPointerType.Float, false, 3 * sizeof(int), 0);
         
-        Shader.Use();
-        
-        int loc;
-        // set up uniforms
-        loc = GL.GetUniformLocation(Shader.Handle, "Scale");
-        GL.Uniform1(loc, _scale);
-        
-        loc = GL.GetUniformLocation(Shader.Handle, "Translation");
-        GL.Uniform2(loc, _translation);
-        
-        loc = GL.GetUniformLocation(Shader.Handle, "ScreenSize");
-        GL.Uniform2(loc, ScreenSize);
-        
-        loc = GL.GetUniformLocation(Shader.Handle, "MaxHeight");
-        GL.Uniform1(loc, _maxHeight);
-        
         _dynTilemap = Textures.DynTilemap;
         _dynTilemap.Use(TextureUnit.Texture0);
         
@@ -118,10 +102,10 @@ public class QuadtreeRenderable : IRenderable
         Shader.Use();
         
         // set the uniforms
-        Shader.SetFloat("Scale", _scale);
-        Shader.SetVector2("Translation", _translation);
-        Shader.SetVector2("ScreenSize", GlobalVariables.RenderManager.ClientSize);
-        Shader.SetInt("MaxHeight", _maxHeight);
+        Shader.Set("Scale", _scale);
+        Shader.Set("Translation", _translation);
+        Shader.Set("ScreenSize", (Vector2)GlobalVariables.RenderManager.ClientSize);
+        Shader.Set("MaxHeight", _maxHeight);
         
         // render the geometry
         GL.DrawElements(PrimitiveType.Triangles, _indices.Length, DrawElementsType.UnsignedInt, 0);
@@ -212,7 +196,7 @@ public class QuadtreeRenderable : IRenderable
     
     public void SetTransform(Vec2<float> translation, float scale)
     {
-        _translation = Util.Vec2ToVector2(translation);
+        _translation = translation.ToVector2();
         _scale = scale;
     }
     

@@ -25,7 +25,8 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
 {
     // rendering
     private static QuadtreeRenderable _rQt;
-    private static FontRenderable _rFont;
+    private static TextRenderable _rText;
+    
     private static bool _unuploadedGeometry;
     private static int _gpuWorldHeight = GameManager.WorldHeight;
     
@@ -173,19 +174,9 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         var center = GameManager.ScreenSize / 2;
         
         // FPS display
-        _rFont.SetText($"{1 / args.Time:F1} FPS, {_mspt:F1} MSPT", -center + (0,10), 1f, false);
-        
-        _rFont.UpdateVao();
-        _rFont.Render();
-        _rFont.ResetGeometry();
-        
-        // Mouse Coordinate Display
-        _rFont.SetText($"M:({_mouseWorldCoords.X:F0}, {_mouseWorldCoords.Y:F0}) T:({_translation.X:F4}, {_translation.Y:F4}) S:{_scale:F8}", -center + (0,30), 1f, false);
-        
-        _rFont.UpdateVao();
-        _rFont.Render();
-        _rFont.ResetGeometry();
-        
+        _rText.SetText($"{1 / args.Time:F1} FPS, {_mspt:F1} MSPT\n" +
+                       $"M:({_mouseWorldCoords.X:F0}, {_mouseWorldCoords.Y:F0}) T:({_translation.X:F4}, {_translation.Y:F4}) S:{_scale:F8}", (4,4), 1f);
+        _rText.Render();
         
         // swap the frame buffers
         SwapBuffers();
@@ -261,23 +252,21 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         // set clear color
         GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         
-        // create all the shaders
+        // create the shaders
         Shaders.Instantiate();
         
         // create the textures
         Textures.Instantiate();
         
-        // create the shaders
+        // create the renderables
         _rQt = new QuadtreeRenderable(Shaders.Qtr, Math.Min(GameManager.WorldHeight, 16), BufferUsageHint.StreamDraw);
-        _rFont = new FontRenderable(Shaders.Font, BufferUsageHint.DynamicDraw);
-        
+        _rText = new TextRenderable(Shaders.Text, BufferUsageHint.DynamicDraw);
+        _rText.SetColor(Color.Gray);
         // create the GUIs. must be done after creating the renderables
         CreateGuis();
-
+        
         Translation = (0, 0);
         Scale = 1;
-        
-        Console.WriteLine(_scrollPos);
         
         // start the game logic
         GameManager.SetRunning(true);
@@ -393,10 +382,8 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         {
             var scale2D = newSize / GameManager.ScreenSize;
             var scale = (decimal)(scale2D.X + scale2D.Y) / 2m;
-
+            
             _scale *= scale;
-            Console.WriteLine(scale);
-            Console.WriteLine(_scale);
         }
 
         // update screenSize on the logic thread

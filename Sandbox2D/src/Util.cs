@@ -1,11 +1,8 @@
 ﻿#nullable enable
 using System;
 using System.Reflection;
-using System.Reflection.Emit;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using Math2D;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
@@ -253,14 +250,29 @@ public static class Util
         return signature.ToString();
     }
 
-    public static Vector2 Vec2ToVector2(Vec2<float> v)
+    public static Vector2 ToVector2(this Vec2<float> v)
     {
         return new Vector2(v.X, v.Y);
     }
     
-    public static Vec2<float> Vector2ToVec(Vector2 v)
+    public static Vec2<float> ToVec2(this Vector2 v)
     {
         return new Vec2<float>(v.Y, v.Y);
+    }
+    
+    public static Vector2i ToVector2i(this Vec2<int> v)
+    {
+        return new Vector2i(v.X, v.Y);
+    }
+    
+    public static Vec2<int> ToVec2(this Vector2i v)
+    {
+        return new Vec2<int>(v.Y, v.Y);
+    }
+    
+    public static Vector3 ToVector3(this Color color)
+    {
+        return new Vector3(color.R / 256f, color.G / 256f, color.B / 256f);
     }
 }
 
