@@ -4,11 +4,18 @@ namespace Math2D.Quadtree;
 
 
 /// <summary>
-/// Represents a single node within a <see cref="Quadtree{T}"/>, stored in <see cref="Quadtree{T}._tree"/>.
+/// Represents a single node within a <see cref="Quadtree{T}"/>, stored in <see cref="Quadtree{T}.Tree"/>.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 36)]
 public readonly struct QuadtreeNode
 {
+    /// <summary>
+    /// The maximum length of a single array of <see cref="QuadtreeNode"/>s, intended to prevent
+    /// <see cref="DynamicArray{T}"/>s of <see cref="QuadtreeNode"/>s from being allocated to the LOH
+    /// </summary>
+    public const int MaxChunkSize = 2048;
+    
+    
     /// <summary>
     /// The type of the node
     /// </summary>
@@ -126,6 +133,23 @@ public readonly struct QuadtreeNode
                 return $"[ERROR ] {(uint)Type:x16} {Ref0:x16} {Ref1:x16} {Ref2:x16} {Ref3:x16}]";
         }
     }
+    
+    /// <summary>
+    /// An exception that is thrown when a <see cref="QuadtreeNode"/>'s <see cref="QuadtreeNode.Type"/> is not as expected.
+    /// </summary>
+    public class InvalidNodeTypeException : Exception
+    {
+        public InvalidNodeTypeException(NodeType type, NodeType expectedType) :
+            base($"Invalid node type found. Found: {type} Expected: {expectedType}") {}
+    
+        public InvalidNodeTypeException(NodeType type) : base($"Node Type {type} is not valid") {}
+    
+        public InvalidNodeTypeException(NodeType type, NodeType expectedType, string location) :
+            base($"Invalid node type found. Found a {type} node, but expected a {expectedType} node in {location}") {}
+    
+        public InvalidNodeTypeException(NodeType type, string location) :
+            base($"Node Type {type} is not valid. Found in {location}") {}
+    }
 }
 
 /// <summary>
@@ -134,13 +158,13 @@ public readonly struct QuadtreeNode
 public enum NodeType : uint
 {
     /// <summary>
-    /// Represents a type of node that contains 4 child nodes (indexes within <see cref="Quadtree{T}._tree"/>), and no
-    /// values (indexes within <see cref="Quadtree{T}._data"/>).
+    /// Represents a type of node that contains 4 child nodes (indexes within <see cref="Quadtree{T}.Tree"/>), and no
+    /// values (indexes within <see cref="Quadtree{T}.Data"/>).
     /// </summary>
     Branch = 0,
     /// <summary>
-    /// Represents a type of node that contains no child nodes (elements within <see cref="Quadtree{T}._tree"/>), and one
-    /// value (an index within <see cref="Quadtree{T}._data"/>).
+    /// Represents a type of node that contains no child nodes (elements within <see cref="Quadtree{T}.Tree"/>), and one
+    /// value (an index within <see cref="Quadtree{T}.Data"/>).
     /// </summary>
     Leaf = 1
 }

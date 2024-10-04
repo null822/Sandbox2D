@@ -38,13 +38,13 @@ public class DynamicArray<T> : IDisposable
     /// Whether to store vacant spaces in this <see cref="DynamicArray{T}"/>. If set to false, <see cref="Remove"/>
     /// will throw <see cref="StoredVacanciesException"/>.
     /// </summary>
-    private readonly bool _storeOccupied;
+    public readonly bool StoreOccupied;
     
     /// <summary>
     /// Whether to store modifications to this <see cref="DynamicArray{T}"/>. If false, <see cref="GetModifications"/>
     /// will throw <see cref="StoredModificationsException"/>.
     /// </summary>
-    private readonly bool _storeModifications;
+    public readonly bool StoreModifications;
     
     /// <summary>
     /// The modifications that have been done to this array since <see cref="GetModifications"/> was last called.
@@ -79,8 +79,8 @@ public class DynamicArray<T> : IDisposable
     /// <see cref="Remove"/> will not work, and the <see cref="DynamicArray{T}"/> will be fully contiguous</param>
     public DynamicArray(int arrayLength = 2048, bool storeModifications = false, bool storeOccupied = true)
     {
-        _storeModifications = storeModifications;
-        _storeOccupied = storeOccupied;
+        StoreModifications = storeModifications;
+        StoreOccupied = storeOccupied;
         
         if (storeModifications) _modifications = new DynamicArray<ArrayModification<T>>(arrayLength, false, false);
         if (storeOccupied) _occupiedIndexes = new DynamicArray<ulong>((int)MathUtil.DivCeil(arrayLength, 64), false, false);
@@ -125,7 +125,7 @@ public class DynamicArray<T> : IDisposable
     private T Get(long i)
     {
         if (i < 0 || i >= Length) throw new InvalidIndexException(i, Length);
-        if (_storeOccupied && !IsOccupied(i)) throw new DeletedElementException(i);
+        if (StoreOccupied && !IsOccupied(i)) throw new DeletedElementException(i);
         
         
         var value = GetData(i);
@@ -155,9 +155,9 @@ public class DynamicArray<T> : IDisposable
         SetData(i, value);
         
         // ensure the element is no longer marked as vacant
-        if (_storeOccupied) SetOccupied(i, true);
+        if (StoreOccupied) SetOccupied(i, true);
         
-        if (_storeModifications)
+        if (StoreModifications)
             _modifications.Add(new ArrayModification<T>(i, value));
     }
     
@@ -172,7 +172,7 @@ public class DynamicArray<T> : IDisposable
         var i = GetNextIndex();
         SetData(i, value);
         
-        if (_storeModifications)
+        if (StoreModifications)
             _modifications.Add(new ArrayModification<T>(i, value));
         
         return i;
@@ -188,10 +188,10 @@ public class DynamicArray<T> : IDisposable
     /// Elements in the array are never shifted.</remarks>
     public void Remove(long i, bool shrink = true)
     {
-        if (!_storeOccupied) throw new StoredVacanciesException();
+        if (!StoreOccupied) throw new StoredVacanciesException();
         if (i < 0 || i >= Length) throw new InvalidIndexException(i, Length);
         
-        if (_storeOccupied) SetOccupied(i, false);
+        if (StoreOccupied) SetOccupied(i, false);
         
         // if the last element in the array was removed, shrink the array
         if (shrink && i == Length - 1) Shrink();
@@ -199,7 +199,7 @@ public class DynamicArray<T> : IDisposable
     
     
     /// <summary>
-    /// Swaps two elements and updates <see cref="_modifications"/> if <see cref="_storeModifications"/> is enabled.
+    /// Swaps two elements and updates <see cref="_modifications"/> if <see cref="StoreModifications"/> is enabled.
     /// </summary>
     /// <param name="a">the index of the first element to swap</param>
     /// <param name="b">the index of the second element to swap</param>
@@ -292,8 +292,8 @@ public class DynamicArray<T> : IDisposable
     public void Clear()
     {
         // remove vacancies and any modifications
-        if (_storeOccupied) _occupiedIndexes.Clear();
-        if (_storeModifications)
+        if (StoreOccupied) _occupiedIndexes.Clear();
+        if (StoreModifications)
         {
             _modifications.Clear();
             ModificationLength = 0; // update modification length
@@ -334,13 +334,14 @@ public class DynamicArray<T> : IDisposable
     
     /// <summary>
     /// Retrieves every modification that has been done to this <see cref="DynamicArray{T}"/> since the last time this
-    /// method was called.
+    /// method was called, and copies them into <paramref name="destination"/>.
     /// </summary>
+    /// <param name="destination">the buffer into which to copy the modifications</param>
     /// <remarks>See <see cref="ModificationLength"/></remarks>
     /// <exception cref="DynamicArray{T}.StoredModificationsException">thrown when modification storing is not enabled</exception>
     public void GetModifications(DynamicArray<ArrayModification<T>> destination)
     {
-        if (!_storeModifications)
+        if (!StoreModifications)
             throw new StoredModificationsException();
         
         _modifications.CopyTo(destination);
@@ -371,7 +372,7 @@ public class DynamicArray<T> : IDisposable
     {
         for (long i = 0; i < Length; i++)
         {
-            if (_storeOccupied && IsOccupied(i)) continue; // skip vacant spaces
+            if (StoreOccupied && IsOccupied(i)) continue; // skip vacant spaces
             if (match.Invoke(this[i])) return i;
         }
 
@@ -411,10 +412,10 @@ public class DynamicArray<T> : IDisposable
             _data.Add(_dataPool.Rent(_arrayLength));
         }
         
-        if (_storeModifications)
+        if (StoreModifications)
             ModificationLength = long.Max(ModificationLength, Length);
         
-        if (_storeOccupied)
+        if (StoreOccupied)
         {
             var origSize = _occupiedIndexes.Length;
             var newSize = MathUtil.DivCeil(length, 64);
@@ -435,7 +436,7 @@ public class DynamicArray<T> : IDisposable
     public void Shrink()
     {
         // if there are vacant spaces, check if we can shrink
-        if (_storeOccupied && _occupiedIndexes.Length > 0 && Length > 0)
+        if (StoreOccupied && _occupiedIndexes.Length > 0 && Length > 0)
         {
             // loop through all the chunks in _usedIndexes, starting at [0] (to fill vacant spaces at the start of the array first)
             var chunkIndex = _occupiedIndexes.Length - 1;
@@ -491,7 +492,7 @@ public class DynamicArray<T> : IDisposable
     private long GetNextIndex()
     {
         // try to find the first vacant space
-        if (_storeOccupied)
+        if (StoreOccupied)
         {
             // loop through all the chunks in _usedIndexes, starting at [0] (to fill vacant spaces at the start of the array first)
             var chunkIndex = 0;
@@ -517,11 +518,11 @@ public class DynamicArray<T> : IDisposable
         Length++;
         Grow();
         
-        if (_storeModifications)
+        if (StoreModifications)
             ModificationLength = long.Max(ModificationLength, Length);
         
         var index = Length - 1;
-        if (_storeOccupied) SetOccupied(index, true);
+        if (StoreOccupied) SetOccupied(index, true);
         return index;
     }
     
@@ -647,8 +648,8 @@ public class DynamicArray<T> : IDisposable
     
     public void Dispose()
     {
-        if (_storeOccupied) _occupiedIndexes.Clear();
-        if (_storeModifications) _modifications.Dispose();
+        if (StoreOccupied) _occupiedIndexes.Clear();
+        if (StoreModifications) _modifications.Dispose();
         foreach (var arr in _data)
         {
             _dataPool.Return(arr);
@@ -664,7 +665,7 @@ public class DynamicArray<T> : IDisposable
     #region Exceptions
     
     public class StoredModificationsException() :
-        Exception("Unable to retrieve modifications from QuadtreeList: Modification Storing is disabled");
+        Exception("Unable to retrieve modifications from DynamicArray: Modification Storing is disabled");
     
     public class StoredVacanciesException() :
         Exception("Unable to remove element: Vacancies are not stored");

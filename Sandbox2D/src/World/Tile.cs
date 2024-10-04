@@ -12,12 +12,12 @@ public abstract class Tile : IQuadtreeElement<Tile>,
     IFeatureElementColor,
     IFeatureCellularAutomata
 {
-    
     /// <summary>
     /// The data of this tile
     /// </summary>
     protected readonly TileData TileData;
     
+    public static int MaxChunkSize => 10_000; /* 80kb per chunk */
     public int SerializeLength => 8;
     
     protected Tile(TileData data)

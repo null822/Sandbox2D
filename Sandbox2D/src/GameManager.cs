@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using Math2D;
 using Math2D.Quadtree;
+using Math2D.Quadtree.Features;
 using Sandbox2D.Registry;
 using Sandbox2D.World;
 using Sandbox2D.World.Tiles;
@@ -12,9 +13,7 @@ using static Sandbox2D.Util;
 
 namespace Sandbox2D;
 
-//TODO: put project in its own directory (not solution dir)
-
-// TODO: resizing causes unexpected translation
+// TODO: Cellular Automata
 
 public static class GameManager
 {
@@ -142,7 +141,7 @@ public static class GameManager
         Tiles.Register((int)TileType.Paint, bytes => new Paint(bytes));
         
         // create world
-        _world = new Quadtree<Tile>(WorldHeight, new Air());
+        _world = new Quadtree<Tile>(WorldHeight, new Air(), true);
         WorldHeight = _world.MaxHeight;
         
         Log("Created World", "Load/Logic");
@@ -155,7 +154,7 @@ public static class GameManager
             case WorldAction.Save: 
             {
                 var save = File.Create(action.arg);
-                _world.Serialize(save);
+                new SerializableQuadtree<Tile>(_world).Serialize(save);
                 save.Close();
                 save.Dispose();
                 
@@ -166,7 +165,7 @@ public static class GameManager
             { 
                 var save = File.Open(action.arg, FileMode.Open);
                 _world.Dispose();
-                _world = Quadtree<Tile>.Deserialize<Tile>(save);
+                _world = SerializableQuadtree<Tile>.Deserialize<Tile>(save, true).Base;
                 WorldHeight = _world.MaxHeight;
                 save.Close();
                 save.Dispose();
@@ -183,7 +182,7 @@ public static class GameManager
             }
             case WorldAction.Map:
             {
-                var svgMap = _world.GetSvgMap(
+                var svgMap = new MappableQuadtree<Tile>(_world).GetSvgMap(
                     (decimal)QuadTreeSvgSize / ~(WorldHeight == 64 ? 0 : ~0x0uL << WorldHeight));
                 
                 var map = File.CreateText(action.arg);

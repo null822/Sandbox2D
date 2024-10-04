@@ -11,7 +11,7 @@ public class Paint : Tile
     
     public override Color GetColor()
     {
-        return Color.Gray;
+        return new Color((uint)(TileData.Data & 0xFFFFFF));
     }
     
     public override string ToString()

@@ -20,6 +20,8 @@ using static Sandbox2D.UserInterface.Keybinds.KeybindKeyType;
 
 namespace Sandbox2D;
 
+// TODO: GUIs
+
 public class RenderManager(int width, int height, string title) : GameWindow(GameWindowSettings.Default,
     new NativeWindowSettings { ClientSize = (width, height), Title = title, Flags = ContextFlags.Debug})
 {
@@ -168,10 +170,6 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         // render the GUIs
         Guis.RenderVisible();
-        
-        // TODO: make this neater
-        
-        var center = GameManager.ScreenSize / 2;
         
         // FPS display
         _rText.SetText($"{1 / args.Time:F1} FPS, {_mspt:F1} MSPT\n" +
