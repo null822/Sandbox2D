@@ -1,6 +1,6 @@
 ﻿<body>
-    <test onClick="run" id="test1" text="Hello, world!"/>
-    
+    <test geometry="" id="test1" onClick="run">
+        <text text="Hello, world!" color="#FF0000"/>
+        hi there
+    </test>
 </body>
-
-

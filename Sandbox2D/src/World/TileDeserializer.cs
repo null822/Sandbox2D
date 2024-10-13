@@ -1,18 +1,20 @@
 ﻿using System;
 using System.Collections.Generic;
 using Math2D;
-using Sandbox2D.World;
 
-namespace Sandbox2D.Registry;
+namespace Sandbox2D.World;
 
 /// <summary>
 /// A delegate that returns a <see cref="Tile"/>, provided a set of bytes.
 /// </summary>
 public delegate Tile TileConstructor(Span<byte> bytes);
 
-public static class Tiles
+/// <summary>
+/// Deserializes a set of bytes into a <see cref="Tile"/>.
+/// </summary>
+public static class TileDeserializer
 {
-    private static readonly Dictionary<int, TileConstructor> Values = new();
+    private static readonly Dictionary<int, TileConstructor> Tiles = new();
     
     /// <summary>
     /// Registers a new <see cref="Tile"/>.
@@ -21,19 +23,21 @@ public static class Tiles
     /// <param name="constructor">a <see cref="TileConstructor"/>, used to construct the <see cref="Tile"/>.</param>
     public static void Register(int tileId, TileConstructor constructor)
     {
-        Values.Add(tileId, constructor);
+        Tiles.Add(tileId, constructor);
     }
     
     /// <summary>
-    /// Creates (by running its <see cref="TileConstructor"/>) and returns a new <see cref="Tile"/>.
+    /// Creates a new <see cref="Tile"/> (by running its corresponding <see cref="TileConstructor"/>).
     /// </summary>
     /// <param name="bytes">the data of the <see cref="Tile"/></param>
-    /// <exception cref="MissingTileException">thrown when the <paramref name="bytes"/> do not reference a registered tile.</exception>
+    /// <exception cref="MissingTileException">
+    /// thrown when the <paramref name="bytes"/> do not reference a registered <see cref="TileConstructor"/>.
+    /// </exception>
     public static Tile Create(Span<byte> bytes)
     {
         var tileId = BitUtil.GetUshort(bytes[..2]);
         
-        if (Values.TryGetValue(tileId, out var constructor))
+        if (Tiles.TryGetValue(tileId, out var constructor))
         {
             return constructor.Invoke(bytes);
         }
@@ -44,12 +48,3 @@ public static class Tiles
 
 public class MissingTileException(int tileId)
     : Exception($"Tile of ID {tileId} was not found");
-
-
-public enum TileType : ushort
-{
-    Air = 0,
-    Dirt = 1,
-    Stone = 2,
-    Paint = 3,
-}

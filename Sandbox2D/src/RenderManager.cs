@@ -8,7 +8,6 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using Sandbox2D.Graphics.Renderables;
-using Sandbox2D.Registry;
 using Sandbox2D.UserInterface;
 using Sandbox2D.UserInterface.Elements;
 using Sandbox2D.UserInterface.Keybinds;
@@ -20,7 +19,8 @@ using static Sandbox2D.UserInterface.Keybinds.KeybindKeyType;
 
 namespace Sandbox2D;
 
-// TODO: GUIs
+// TODO: implement GUIs
+// TODO: migrate to OpenTK 5
 
 public class RenderManager(int width, int height, string title) : GameWindow(GameWindowSettings.Default,
     new NativeWindowSettings { ClientSize = (width, height), Title = title, Flags = ContextFlags.Debug})
@@ -28,6 +28,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     // rendering
     private static QuadtreeRenderable _rQt;
     private static TextRenderable _rText;
+    private static TextRenderable _testText;
     
     private static bool _unuploadedGeometry;
     private static int _gpuWorldHeight = GameManager.WorldHeight;
@@ -169,7 +170,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         
         // render the GUIs
-        Guis.RenderVisible();
+        Registry.Gui.RenderVisible();
         
         // FPS display
         _rText.SetText($"{1 / args.Time:F1} FPS, {_mspt:F1} MSPT\n" +
@@ -189,7 +190,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         _mouseWorldCoords = ScreenToWorldCoords(_mouseScreenCoords);
         
         _keybindManager.Call(MouseState, KeyboardState);
-        Guis.UpdateVisible();
+        Registry.Gui.UpdateVisible();
         
         // zoom
         if (MouseState.ScrollDelta.Y != 0)
@@ -245,23 +246,13 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         base.OnLoad();
         
         // create the keybinds
-        CreateKeybinds();
+        RegisterKeybinds();
         
         // set clear color
         GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         
-        // create the shaders
-        Shaders.Instantiate();
-        
-        // create the textures
-        Textures.Instantiate();
-        
-        // create the renderables
-        _rQt = new QuadtreeRenderable(Shaders.Qtr, Math.Min(GameManager.WorldHeight, 16), BufferUsageHint.StreamDraw);
-        _rText = new TextRenderable(Shaders.Text, BufferUsageHint.DynamicDraw);
-        _rText.SetColor(Color.Gray);
-        // create the GUIs. must be done after creating the renderables
-        CreateGuis();
+        // register everything
+        RegisterGraphics();
         
         Translation = (0, 0);
         Scale = 1;
@@ -273,7 +264,38 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         Log("===============[ BEGIN PROGRAM  ]===============", "Load");
     }
     
-    private void CreateKeybinds()
+    private static void RegisterGraphics()
+    {
+        // auto-create the shaders and textures
+        Registry.Shader.RegisterAll($"{GlobalVariables.AssetDirectory}/shaders/");
+        Registry.Texture.RegisterAll($"{GlobalVariables.AssetDirectory}/textures/");
+        
+        // create the shader programs
+        Registry.ShaderProgram.Register("quadtree", ["quadtree_vert", "quadtree_frag"]);
+        Registry.ShaderProgram.Register("text", ["gui/font/text_vert", "gui/font/text_frag"]);
+        // debug programs
+        Registry.ShaderProgram.Register("noise", ["noise_vert", "noise_frag"]);
+        Registry.ShaderProgram.Register("vertex_debug", ["vertex_debug_vert", "vertex_debug_frag"]);
+        Registry.ShaderProgram.Register("texture_debug", ["texture_vert", "texture_frag"]);
+        
+        // create the renderables
+        _rQt = new QuadtreeRenderable(Registry.ShaderProgram.Create("quadtree"), Math.Min(GameManager.WorldHeight, 16), BufferUsageHint.StreamDraw);
+        _rText = new TextRenderable(Registry.ShaderProgram.Create("text"), BufferUsageHint.DynamicDraw);
+        _rText.SetColor(Color.Gray);
+        _testText = new TextRenderable(Registry.ShaderProgram.Create("text"), BufferUsageHint.DynamicDraw);
+        _testText.SetColor(Color.Green);
+        
+        // create the GUI elements
+        Registry.GuiElement.Register("test", TestElement.Constructor);
+        // create the GUI events
+        Registry.GuiEvent.Register("run", () => Console.WriteLine("Hello from test event!"));
+        // create the GUIs
+        Registry.Gui.RegisterAll($"{GlobalVariables.AssetDirectory}/gui/");
+        // Registry.Gui.Register("test", new Gui($"{GlobalVariables.AssetDirectory}/gui/test.xml"));
+        Registry.Gui.SetVisibility("test", false);
+    }
+    
+    private void RegisterKeybinds()
     {
         _keybindManager.Add("mapWorld", () => _worldAction = (WorldAction.Map, "map.svg"), [(Key.M, RisingEdge)]);
         _keybindManager.Add("saveWorld", () =>_worldAction = (WorldAction.Save, "save.qdt"), [(Key.S, RisingEdge)]);
@@ -338,17 +360,6 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
             (Key.LeftShift, Enabled)
         ]);
     }
-    
-    private static void CreateGuis()
-    {
-        GuiElements.Register("test", attributes => new TestElement(attributes));
-        
-        GuiEvents.Register("run", () => Console.WriteLine("Hello from test event!"));
-        
-        Guis.Register("test", new Gui($"{GlobalVariables.AssetDirectory}/gui/test.xml"));
-        Guis.SetVisibility("test", false);
-    }
-    
     
     /// <summary>
     /// Returns true if the game should be running (game logic, rendering, etc.)

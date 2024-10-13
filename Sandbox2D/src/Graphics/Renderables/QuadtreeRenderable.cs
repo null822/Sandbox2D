@@ -3,7 +3,6 @@ using System.Runtime.InteropServices;
 using Math2D;
 using Math2D.Quadtree;
 using OpenTK.Graphics.OpenGL4;
-using Sandbox2D.Registry;
 using Sandbox2D.World;
 using Vector2 = OpenTK.Mathematics.Vector2;
 
@@ -11,7 +10,7 @@ namespace Sandbox2D.Graphics.Renderables;
 
 public class QuadtreeRenderable : IRenderable
 {
-    public Shader Shader { get; }
+    public ShaderProgram Shader { get; }
     public BufferUsageHint Hint { get; init; }
     
     public int VertexArrayObject { get; init; } = GL.GenVertexArray();
@@ -23,8 +22,6 @@ public class QuadtreeRenderable : IRenderable
     
     private int _maxHeight;
     private static Vector2 ScreenSize => GameManager.ScreenSize.ToVector2();
-    
-    private readonly Texture _dynTilemap;
     
     private int _treeBufferLength;
     private int _dataBufferLength;
@@ -62,7 +59,7 @@ public class QuadtreeRenderable : IRenderable
     /// </summary>
     private static readonly int TileDataSize = Marshal.SizeOf<TileData>();
     
-    public QuadtreeRenderable(Shader shader, int quadtreeMaxHeight, BufferUsageHint hint = BufferUsageHint.StaticDraw)
+    public QuadtreeRenderable(ShaderProgram shader, int quadtreeMaxHeight, BufferUsageHint hint = BufferUsageHint.StaticDraw)
     {
         Shader = shader;
         Hint = hint;
@@ -76,13 +73,10 @@ public class QuadtreeRenderable : IRenderable
         // update the vao (creates it, in this case)
         UpdateVao();
         
-        // set up vertex coords
+        // set up vertex coordinates
         var vertexLocation = Shader.GetAttribLocation("aPosition");
         GL.EnableVertexAttribArray(vertexLocation);
         GL.VertexAttribPointer(vertexLocation, 3, VertexAttribPointerType.Float, false, 3 * sizeof(int), 0);
-        
-        _dynTilemap = Textures.DynTilemap;
-        _dynTilemap.Use(TextureUnit.Texture0);
         
         // initialize the buffers
         ResizeBuffers(8, 8);
@@ -94,9 +88,6 @@ public class QuadtreeRenderable : IRenderable
         GL.BindVertexArray(VertexArrayObject);
         GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, _treeBuffer);
         GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 1, _dataBuffer);
-        
-        // apply textures
-        _dynTilemap.Use(TextureUnit.Texture0);
         
         // use the shader
         Shader.Use();
@@ -146,7 +137,7 @@ public class QuadtreeRenderable : IRenderable
         // resize buffers if needed
         ResizeBuffers(treeLength, dataLength);
         
-        GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _treeBuffer);
+        GL.BindBuffer(BufferTarget.CopyWriteBuffer, _treeBuffer);
         var tMax = Math.Min(tree.Length, treeIndex + Constants.GpuUploadBatchSize);
         for (var i = treeIndex; i < tMax; i++)
         {
@@ -156,23 +147,23 @@ public class QuadtreeRenderable : IRenderable
             if (element.Index >= treeLength) continue;
             
             GL.BufferSubData(
-                BufferTarget.ShaderStorageBuffer,
-                (IntPtr)element.Index * sizeof(QuadtreeNode),
-                1 * sizeof(QuadtreeNode),
+                BufferTarget.CopyWriteBuffer,
+                checked((IntPtr)(element.Index * sizeof(QuadtreeNode))),
+                sizeof(QuadtreeNode),
                 [element.Value]);
         }
         // upload the render root
         GL.BufferSubData(
-            BufferTarget.ShaderStorageBuffer,
-            (IntPtr)0 * sizeof(QuadtreeNode),
-            1 * sizeof(QuadtreeNode),
+            BufferTarget.CopyWriteBuffer,
+            IntPtr.Zero,
+            sizeof(QuadtreeNode),
             [renderRoot]);
         
         treeIndex = tMax;
         
         if (data.Length != 0)
         {
-            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _dataBuffer);
+            GL.BindBuffer(BufferTarget.CopyWriteBuffer, _dataBuffer);
             var dMax = Math.Min(data.Length, dataIndex + Constants.GpuUploadBatchSize);
             for (var i = dataIndex; i < dMax; i++)
             {
@@ -182,16 +173,16 @@ public class QuadtreeRenderable : IRenderable
                 if (element.Index >= dataLength) continue;
                 
                 GL.BufferSubData(
-                    BufferTarget.ShaderStorageBuffer,
-                    (IntPtr)element.Index * element.Value.SerializeLength,
-                    1 * element.Value.SerializeLength,
+                    BufferTarget.CopyWriteBuffer,
+                    checked((IntPtr)(element.Index * element.Value.SerializeLength)),
+                    element.Value.SerializeLength,
                     [element.Value.GpuSerialize()]);
             }
             dataIndex = dMax;
             
         }
         
-        GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0);
+        GL.BindBuffer(BufferTarget.CopyWriteBuffer, 0);
     }
     
     public void SetTransform(Vec2<float> translation, float scale)
@@ -248,14 +239,15 @@ public class QuadtreeRenderable : IRenderable
         GL.BindBuffer(BufferTarget.CopyWriteBuffer, newBuffer);
         GL.BufferData(BufferTarget.CopyWriteBuffer, newLength * typeSize, Array.Empty<T>(), Hint);
         
+        // TODO: potential performance issue when copying from gpu to cpu memory and back
         // copy all the data from `CopyReadBuffer` to `CopyWriteBuffer`
         var copySize = Math.Min(currentLength, newLength) * typeSize;
         GL.CopyBufferSubData(BufferTarget.CopyReadBuffer, BufferTarget.CopyWriteBuffer, IntPtr.Zero, IntPtr.Zero, copySize);
         
-        // unbind buffer / delete old buffer
-        GL.DeleteBuffer(buffer);
+        // unbind buffers / delete old buffer
         GL.BindBuffer(BufferTarget.CopyReadBuffer, 0);
         GL.BindBuffer(BufferTarget.CopyWriteBuffer, 0);
+        GL.DeleteBuffer(buffer);
         
         return (newBuffer, newLength);
     }

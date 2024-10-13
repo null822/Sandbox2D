@@ -2,7 +2,6 @@
 using Math2D;
 using Math2D.Quadtree;
 using Math2D.Quadtree.FeatureNodeTypes;
-using Sandbox2D.Registry;
 
 namespace Sandbox2D.World;
 
@@ -37,7 +36,7 @@ public abstract class Tile : IQuadtreeElement<Tile>,
     
     public static Tile Deserialize(Span<byte> bytes)
     {
-        return Registry.Tiles.Create(bytes);
+        return TileDeserializer.Create(bytes);
     }
     
     public TileData GpuSerialize()

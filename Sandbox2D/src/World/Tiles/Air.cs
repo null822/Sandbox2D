@@ -1,13 +1,14 @@
 ﻿using System;
 using Math2D;
-using Sandbox2D.Registry;
 
 namespace Sandbox2D.World.Tiles;
 
 public class Air : Tile
 {
-    public Air() : base(new TileData(TileType.Air)) {}
+    public Air() : base(new TileData(Id)) {}
     public Air(Span<byte> bytes) : base(bytes) { }
+
+    public const ushort Id = 0;
     
     public override Color GetColor()
     {

@@ -1,13 +1,14 @@
 ﻿using System;
 using Math2D;
-using Sandbox2D.Registry;
 
 namespace Sandbox2D.World.Tiles;
 
 public class Dirt : Tile
 {
-    public Dirt() : base(new TileData(TileType.Dirt)) {}
+    public Dirt() : base(new TileData(Id)) {}
     public Dirt(Span<byte> bytes) : base(bytes) { }
+    
+    public const ushort Id = 1;
     
     public override Color GetColor()
     {

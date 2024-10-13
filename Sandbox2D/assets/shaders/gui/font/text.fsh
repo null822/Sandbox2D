@@ -4,7 +4,6 @@ in vec2 glyphCoord;
 out vec4 outputColor;
 
 uniform ivec2 glyphAtlasSize;
-uniform ivec2 glyphSize;
 uniform vec3 color;
 
 uniform sampler2D texture0;
@@ -21,30 +20,26 @@ layout(std430, binding = 1) buffer lineBuffer
 
 void main()
 {
-    uvec2 strCoord = uvec2(uint(glyphCoord.x), uint(glyphCoord.y));
-
-    uint lineIndex = lineIndexes[strCoord.y];
-    uint nextLineIndex = lineIndexes[strCoord.y + 1];
-    if (lineIndex + strCoord.x >= nextLineIndex) {
+    uvec2 glyphIndex = uvec2(uint(glyphCoord.x), uint(glyphCoord.y));
+    
+    uint lineIndex = lineIndexes[glyphIndex.y];
+    uint nextLineIndex = lineIndexes[glyphIndex.y + 1];
+    if (lineIndex + glyphIndex.x >= nextLineIndex) {
         outputColor = vec4(0, 0, 0, 0);
         return;
     }
-    uint glyphIndex = string[lineIndex + strCoord.x];
+    uint charIndex = string[lineIndex + glyphIndex.x];
     
-    vec2 glyphTexCoord = vec2(glyphIndex % glyphAtlasSize.x, glyphIndex / glyphAtlasSize.x) / glyphAtlasSize;
-    vec2 pixelTexCoord = vec2(glyphCoord.x - strCoord.x, glyphCoord.y - strCoord.y) / glyphAtlasSize;
+    vec2 glyphTexIndex = vec2(charIndex % glyphAtlasSize.x, charIndex / glyphAtlasSize.x) / glyphAtlasSize;
+    vec2 subGlyphTexCoord = vec2(glyphCoord.x - glyphIndex.x, glyphCoord.y - glyphIndex.y + 8) / glyphAtlasSize;
     
-    glyphTexCoord = vec2(glyphTexCoord.x, 1-glyphTexCoord.y);
-    pixelTexCoord = vec2(pixelTexCoord.x, 1-pixelTexCoord.y);
+    glyphTexIndex = vec2(glyphTexIndex.x, 1-glyphTexIndex.y);
+    subGlyphTexCoord = vec2(subGlyphTexCoord.x, 1-subGlyphTexCoord.y);
     
-    vec2 glyph = glyphTexCoord + pixelTexCoord;
+    vec2 glyphTexCoord = glyphTexIndex + subGlyphTexCoord;
+    glyphTexCoord = vec2(glyphTexCoord.x, glyphTexCoord.y);
     
-    vec4 glyphSample = texture(texture0, glyph);
-
-    if (glyphSample.a == 0) {
-        outputColor = vec4(0, 0, 0, 0);
-    } else {
-        outputColor = vec4(color, 1);
-    }
+    vec4 glyphSample = texture(texture0, glyphTexCoord);
     
+    outputColor = glyphSample * vec4(color, 1);
 }

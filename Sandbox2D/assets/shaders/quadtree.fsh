@@ -5,8 +5,6 @@ out vec4 outputColor;
 
 uniform int MaxHeight; // the amount of height levels in the quadtree to be rendered
 
-//uniform sampler2D texture0;
-
 struct QuadtreeNode
 {
     uint Type;

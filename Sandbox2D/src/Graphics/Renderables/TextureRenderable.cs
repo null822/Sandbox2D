@@ -5,22 +5,24 @@ using OpenTK.Graphics.OpenGL4;
 
 namespace Sandbox2D.Graphics.Renderables;
 
-public class BaseRenderable : IRenderable
+public class TextureRenderable : IRenderable
 {
-    public Shader Shader { get; }
+    public ShaderProgram Shader { get; }
     public BufferUsageHint Hint { get; init; }
     
     public int VertexArrayObject { get; init; } = GL.GenVertexArray();
     public int VertexBufferObject { get; init; } = GL.GenBuffer();
     public int ElementBufferObject { get; init; } = GL.GenBuffer();
+
+    private Texture _texture;
     
     // geometry arrays
     private readonly List<float> _vertices = 
     [
-         0.5f,  0.5f, 0.0f, // top right
-         0.5f, -0.5f, 0.0f, // bottom right
-        -0.5f, -0.5f, 0.0f, // bottom left
-        -0.5f,  0.5f, 0.0f  // top left
+         0.5f,  0.5f, 0.0f,  1.2f,  1.2f, // top right
+         0.5f, -0.5f, 0.0f,  1.2f, -0.2f, // bottom right
+        -0.5f, -0.5f, 0.0f, -0.2f, -0.2f, // bottom left
+        -0.5f,  0.5f, 0.0f, -0.2f,  1.2f  // top left
     ];
     private readonly List<uint> _indices = 
     [
@@ -28,9 +30,10 @@ public class BaseRenderable : IRenderable
         1, 2, 3    // second triangle
     ];
     
-    public BaseRenderable(Shader shader, BufferUsageHint hint = BufferUsageHint.StaticDraw)
+    public TextureRenderable(ShaderProgram shader, Texture texture, BufferUsageHint hint = BufferUsageHint.StaticDraw)
     {
         Shader = shader;
+        _texture = texture;
         Hint = hint;
         
         // update the vao (creates it, in this case)
@@ -39,12 +42,17 @@ public class BaseRenderable : IRenderable
         // set up vertex coords
         var vertexLocation = Shader.GetAttribLocation("aPosition");
         GL.EnableVertexAttribArray(vertexLocation);
-        GL.VertexAttribPointer(vertexLocation, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
+        GL.VertexAttribPointer(vertexLocation, 3, VertexAttribPointerType.Float, false, 5 * sizeof(float), 0);
+        
+        var texCoordLocation = Shader.GetAttribLocation("aTexCoord");
+        GL.EnableVertexAttribArray(texCoordLocation);
+        GL.VertexAttribPointer(texCoordLocation, 2, VertexAttribPointerType.Float, false, 5 * sizeof(float), 3 * sizeof(float));
     }
-
+    
     public void Render()
     {
         GL.BindVertexArray(VertexArrayObject);
+        _texture.Use(TextureUnit.Texture0);
         Shader.Use();
         GL.DrawElements(PrimitiveType.Triangles, _indices.Count, DrawElementsType.UnsignedInt, 0);
     }

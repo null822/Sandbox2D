@@ -3,8 +3,6 @@ using System.Threading;
 using Math2D;
 using Math2D.Quadtree;
 using OpenTK.Windowing.Common.Input;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using Image = OpenTK.Windowing.Common.Input.Image;

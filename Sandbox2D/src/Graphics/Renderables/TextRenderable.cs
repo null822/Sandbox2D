@@ -4,13 +4,12 @@ using System.Text;
 using Math2D;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
-using Sandbox2D.Registry;
 
 namespace Sandbox2D.Graphics.Renderables;
 
 public class TextRenderable : IRenderable
 {
-    public Shader Shader { get; }
+    public ShaderProgram Shader { get; }
     public BufferUsageHint Hint { get; init; }
     
     public int VertexArrayObject { get; init; } = GL.GenVertexArray();
@@ -41,7 +40,7 @@ public class TextRenderable : IRenderable
         1, 2, 3    // second triangle
     ];
     
-    public TextRenderable(Shader shader, BufferUsageHint hint = BufferUsageHint.StaticDraw)
+    public TextRenderable(ShaderProgram shader, BufferUsageHint hint = BufferUsageHint.StaticDraw)
     {
         Shader = shader;
         Hint = hint;
@@ -69,9 +68,8 @@ public class TextRenderable : IRenderable
         GL.VertexAttribPointer(texCoordLocation, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 2 * sizeof(float));
         
         Shader.Set("glyphAtlasSize", GlyphAtlasSize.ToVector2i());
-        Shader.Set("glyphSize", GlyphSize.ToVector2i());
         
-        _glyphTexture = Textures.Glyph;
+        _glyphTexture = Registry.Texture.Get("font");
         // _glyphTexture.Use(TextureUnit.Texture0);
     }
     

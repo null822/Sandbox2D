@@ -8,7 +8,7 @@ public interface IRenderable
     /// <summary>
     /// The shader to run on the GPU
     /// </summary>
-    protected Shader Shader { get; }
+    protected ShaderProgram Shader { get; }
     
     // rendering arrays/buffers
     protected int VertexArrayObject { get; init; }

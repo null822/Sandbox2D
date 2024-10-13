@@ -1,4 +1,6 @@
-﻿namespace Math2D;
+﻿using System.Globalization;
+
+namespace Math2D;
 
 public readonly struct Color
 {
@@ -36,6 +38,16 @@ public readonly struct Color
         R = (byte)((@decimal >> 16) & 0xff);
         G = (byte)((@decimal >> 8) & 0xff);
         B = (byte)((@decimal >> 0) & 0xff);
+    }
+    
+    public Color(string hex)
+    {
+        if (hex[0] != '#') throw new ArgumentException("Hex value was not valid (missing '#' prefix)");
+        if (hex.Length != 7) throw new ArgumentException("Hex value was not valid");
+        
+        R = byte.Parse(hex[1..3], NumberStyles.HexNumber);
+        G = byte.Parse(hex[3..5], NumberStyles.HexNumber);
+        B = byte.Parse(hex[5..7], NumberStyles.HexNumber);
     }
     
     public override string ToString()

@@ -1,13 +1,14 @@
 ﻿using System;
 using Math2D;
-using Sandbox2D.Registry;
 
 namespace Sandbox2D.World.Tiles;
 
 public class Paint : Tile
 {
-    public Paint(Color color) : base(new TileData(TileType.Paint, color.Decimal)) {}
+    public Paint(Color color) : base(new TileData(Id, color.Decimal)) {}
     public Paint(Span<byte> bytes) : base(bytes) { }
+    
+    public const ushort Id = 3;
     
     public override Color GetColor()
     {
