@@ -28,12 +28,11 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     // rendering
     private static readonly HashSet<string> SupportedExtensions = [];
     
-    public static bool Using64BitQt { get; private set; } = false;
+    public static bool Using64BitQt { get; private set; }
     public static int MaxGpuQtHeight => Using64BitQt ? 64 : 32;
     
     private static QuadtreeRenderable _rQt;
     private static TextRenderable _rText;
-    private static TextRenderable _testText;
     
     private static bool _unuploadedGeometry;
     private static int _gpuWorldHeight = GameManager.WorldHeight;
@@ -297,8 +296,6 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         _rQt = new QuadtreeRenderable(Registry.ShaderProgram.Create("quadtree"), Math.Min(GameManager.WorldHeight, MaxGpuQtHeight), BufferUsageHint.StreamDraw);
         _rText = new TextRenderable(Registry.ShaderProgram.Create("text"), BufferUsageHint.DynamicDraw);
         _rText.SetColor(Color.Gray);
-        _testText = new TextRenderable(Registry.ShaderProgram.Create("text"), BufferUsageHint.DynamicDraw);
-        _testText.SetColor(Color.Green);
         
         // create the GUI elements
         Registry.GuiElement.Register("test", TestElement.Constructor);

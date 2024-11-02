@@ -1,6 +1,9 @@
 ﻿using System.IO;
 using OpenTK.Graphics.OpenGL4;
-using StbImageSharp;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Processing.Processors.Transforms;
 using PixelFormat = OpenTK.Graphics.OpenGL4.PixelFormat;
 
 namespace Sandbox2D.Graphics;
@@ -17,7 +20,7 @@ public class Texture
     public Texture(string path, TextureOptions? options = null)
     {
         var imageStream = File.OpenRead(path);
-        Handle = CreateTexture(imageStream, options ?? new TextureOptions());
+        Handle = CreateTexture(imageStream, options);
         imageStream.Dispose();
     }
     
@@ -28,10 +31,10 @@ public class Texture
     /// <param name="options">[optional] the options for the new texture</param>
     public Texture(Stream imageStream, TextureOptions? options = null)
     {
-        Handle = CreateTexture(imageStream, options ?? new TextureOptions());
+        Handle = CreateTexture(imageStream, options);
     }
     
-    private static int CreateTexture(Stream imageStream, TextureOptions options)
+    private static int CreateTexture(Stream imageStream, TextureOptions? options)
     {
         // generate the texture
         var handle = GL.GenTexture();
@@ -40,11 +43,11 @@ public class Texture
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.BindTexture(TextureTarget.Texture2D, handle);
         
-        // flip the image vertically on load
-        StbImage.stbi_set_flip_vertically_on_load(1);
-        
         // load the image        
-        var image = ImageResult.FromStream(imageStream, ColorComponents.RedGreenBlueAlpha);
+        var image = Image.Load<Rgba32>(imageStream);
+        image.Mutate(new FlipProcessor(FlipMode.Vertical)); // flip the image vertically
+        var pixelData = new byte[image.Width * image.Height * 4];
+        image.CopyPixelDataTo(pixelData);
         
         // create the texture
         GL.TexImage2D(TextureTarget.Texture2D,
@@ -54,9 +57,9 @@ public class Texture
             0,
             PixelFormat.Rgba,
             PixelType.UnsignedByte,
-            image.Data);
+            pixelData);
         
-        options.Apply(handle);
+        (options ?? new TextureOptions()).Apply(handle);
         
         // generate mipmaps
         GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
