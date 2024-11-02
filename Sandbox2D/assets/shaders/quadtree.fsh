@@ -179,10 +179,6 @@ VEC64 ScreenToWorldCoords(vec2 screenCoords)
 void main()
 {
     VEC64 worldCoords = ScreenToWorldCoords(ScreenCoords);
-    
-//    outputColor = vec4((worldCoords.x / float(MAX64) + 1) / 2, (worldCoords.y / float(MAX64) + 1) / 2, 0, 1);
-//    return;
-    
     INT32 nodeRef = GetNode(worldCoords);
     
     // error display

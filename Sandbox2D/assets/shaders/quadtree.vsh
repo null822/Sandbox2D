@@ -92,8 +92,8 @@ void main(void)
 {
     const INT64 minDistanceWorld = INT64(-1) << (MaxHeight - 1);
     const INT64 maxDistanceWorld = -(minDistanceWorld + 1);
-    const vec2 maxPos = ScreenToVertexCoords(WorldToScreenCoords(VEC64(maxDistanceWorld), 1));
-    const vec2 minPos = ScreenToVertexCoords(WorldToScreenCoords(VEC64(minDistanceWorld), 0));
+    const vec2 maxPos = ScreenToVertexCoords(WorldToScreenCoords(VEC64(maxDistanceWorld), INT64(1)));
+    const vec2 minPos = ScreenToVertexCoords(WorldToScreenCoords(VEC64(minDistanceWorld), INT64(0)));
     
     #define CLAMP true
     
