@@ -1,4 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+using Math2D;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 
@@ -35,6 +38,13 @@ public class ShaderProgram
             
             _uniformLocations.Add(name, location);
         }
+        
+        // throw any linker errors
+        GL.GetProgram(Handle, GetProgramParameterName.LinkStatus, out var code);
+        if (code != (int)All.True)
+        {
+            Util.Fatal(new ShaderProgramLinkException(Handle, GL.GetProgramInfoLog(Handle)));
+        }
     }
     
     private static int[] GetHandles(Shader[] shaders)
@@ -52,12 +62,12 @@ public class ShaderProgram
     {
         GL.UseProgram(Handle);
     }
-
+    
     public int GetAttribLocation(string attribName)
     {
         return GL.GetAttribLocation(Handle, attribName);
     }
-
+    
     private int GetUniformLocation(string name)
     {
         if (_uniformLocations.TryGetValue(name, out var location))
@@ -69,105 +79,166 @@ public class ShaderProgram
         _uniformLocations.Add(name, -1);
         return -1;
     }
-        
-    /// <summary>
-    /// Set a uniform float on this shader.
-    /// </summary>
-    /// <param name="name">the name of the uniform</param>
-    /// <param name="data">the data to set</param>
-    public void Set(string name, uint data)
-    {
-        var location = GetUniformLocation(name);
-        if (location == -1) return;
-            
-        GL.UseProgram(Handle);
-        GL.Uniform1(location, data);
-    }
-        
-    /// <summary>
-    /// Set a uniform int on this shader.
-    /// </summary>
-    /// <param name="name">the name of the uniform</param>
-    /// <param name="data">the data to set</param>
-    public void Set(string name, int data)
-    {
-        var location = GetUniformLocation(name);
-        if (location == -1) return;
-            
-        GL.UseProgram(Handle);
-        GL.Uniform1(location, data);
-    }
 
-    /// <summary>
-    /// Set a uniform float on this shader.
-    /// </summary>
-    /// <param name="name">the name of the uniform</param>
-    /// <param name="data">the data to set</param>
-    public void Set(string name, float data)
+    #region Uniform Setters
+    
+    public void Set(string uniform, int data)
     {
-        var location = GetUniformLocation(name);
+        var location = GetUniformLocation(uniform);
         if (location == -1) return;
-            
-        GL.UseProgram(Handle);
+        
         GL.Uniform1(location, data);
     }
-
-    /// <summary>
-    /// Set a uniform Matrix4 on this shader
-    /// </summary>
-    /// <param name="name">the name of the uniform</param>
-    /// <param name="data">the data to set</param>
-    /// <remarks>
-    /// The matrix is transposed before being sent to the shader.
-    /// </remarks>
-    public void Set(string name, Matrix4 data)
+    
+    public void Set(string uniform, uint data)
     {
-        var location = GetUniformLocation(name);
+        var location = GetUniformLocation(uniform);
         if (location == -1) return;
-            
-        GL.UseProgram(Handle);
-        GL.UniformMatrix4(location, true, ref data);
-    }
         
-    /// <summary>
-    /// Set a uniform Vector2 on this shader.
-    /// </summary>
-    /// <param name="name">the name of the uniform</param>
-    /// <param name="data">the data to set</param>
-    public void Set(string name, Vector2 data)
+        GL.Uniform1(location, data);
+    }
+    
+    public void Set(string uniform, float data)
     {
-        var location = GetUniformLocation(name);
+        var location = GetUniformLocation(uniform);
         if (location == -1) return;
-            
-        GL.UseProgram(Handle);
+        
+        GL.Uniform1(location, data);
+    }
+    
+    public void Set(string uniform, double data)
+    {
+        var location = GetUniformLocation(uniform);
+        if (location == -1) return;
+        
+        GL.Uniform1(location, data);
+    }
+    
+    public void Set(string uniform, Vec2<int> data)
+    {
+        var location = GetUniformLocation(uniform);
+        if (location == -1) return;
+        
+        GL.Uniform2(location, data.X, data.Y);
+    }
+    
+    public void Set(string uniform, Vec2<uint> data)
+    {
+        var location = GetUniformLocation(uniform);
+        if (location == -1) return;
+        
+        GL.Uniform2(location, data.X, data.Y);
+    }
+    
+    public void Set(string uniform, Vec2<float> data)
+    {
+        var location = GetUniformLocation(uniform);
+        if (location == -1) return;
+        
+        GL.Uniform2(location, data.X, data.Y);
+    }
+    
+    public void Set(string uniform, Vec2<double> data)
+    {
+        var location = GetUniformLocation(uniform);
+        if (location == -1) return;
+        
+        GL.Uniform2(location, data.X, data.Y);
+    }
+    
+    public void Set(string uniform, Vec2<long> data)
+    {
+        var location = GetUniformLocation(uniform);
+        if (location == -1) return;
+        
+        GL.Arb.Uniform2(location, data.X, data.Y);
+    }
+    
+    public void Set(string uniform, Vec2<ulong> data)
+    {
+        var location = GetUniformLocation(uniform);
+        if (location == -1) return;
+        
+        GL.Arb.Uniform2(location, data.X, data.Y);
+    }
+    
+    #region OpenTK Types
+    
+    public void Set(string uniform, Vector2 data)
+    {
+        var location = GetUniformLocation(uniform);
+        if (location == -1) return;
+        
         GL.Uniform2(location, data);
     }
-
-    /// <summary>
-    /// Set a uniform Vector2 on this shader.
-    /// </summary>
-    /// <param name="name">the name of the uniform</param>
-    /// <param name="data">the data to set</param>
-    public void Set(string name, Vector2i data)
+    public void Set(string uniform, Vector2i data)
     {
-        var location = GetUniformLocation(name);
+        var location = GetUniformLocation(uniform);
         if (location == -1) return;
-            
-        GL.UseProgram(Handle);
+        
         GL.Uniform2(location, data);
     }
     
-    /// <summary>
-    /// Set a uniform Vector3 on this shader.
-    /// </summary>
-    /// <param name="name">the name of the uniform</param>
-    /// <param name="data">the data to set</param>
-    public void Set(string name, Vector3 data)
+    public void Set(string uniform, Vector3 data)
     {
-        var location = GetUniformLocation(name);
+        var location = GetUniformLocation(uniform);
         if (location == -1) return;
         
-        GL.UseProgram(Handle);
         GL.Uniform3(location, data);
+    }
+    public void Set(string uniform, Vector3i data)
+    {
+        var location = GetUniformLocation(uniform);
+        if (location == -1) return;
+        
+        GL.Uniform3(location, data);
+    }
+    
+    public void Set(string uniform, Vector4 data)
+    {
+        var location = GetUniformLocation(uniform);
+        if (location == -1) return;
+        
+        GL.Uniform4(location, data);
+    }
+    public void Set(string uniform, Vector4i data)
+    {
+        var location = GetUniformLocation(uniform);
+        if (location == -1) return;
+        
+        GL.Uniform4(location, data);
+    }
+    
+    
+    public void Set(string uniform, Matrix4 data, bool transpose)
+    {
+        var location = GetUniformLocation(uniform);
+        if (location == -1) return;
+        
+        GL.UniformMatrix4(location, transpose, ref data);
+    }
+    
+    #endregion
+    
+    #endregion
+
+}
+
+public class ShaderProgramLinkException(int handle, string infoLog)
+    : Exception("Error occurred whilst linking Shader Program")
+{
+    public override string ToString()
+    {
+        var errorStr = new StringBuilder();
+        foreach (var error in infoLog.Split("\n"))
+        {
+            errorStr.Append($"   {error}\n");
+        }
+        if (errorStr.Length == 0) errorStr.Append('\n');
+        
+        return $"{nameof(ShaderCompileException)}: Error occurred whilst linking Shader Program {{handle={handle}}}:\n" +
+               $"{errorStr}" +
+               $"Linked: \n" +
+               $"{StackTrace}";
     }
 }

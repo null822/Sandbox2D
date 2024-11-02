@@ -42,11 +42,15 @@ public static class Constants
     public const int RenderLockTimeout = 100;
     
     /// <summary>
-    /// The timeout, in milliseconds, for how long to wait for a lock for transferring data from the logic thread to
-    /// the render thread
+    /// The maximum amount of elements (per array) in the tree and data arrays to upload to the GPU in one frame
     /// </summary>
     public const int GpuUploadBatchSize = 2048;
-
+    
+    /// <summary>
+    /// Represents the accuracy of drawing when zoomed out to scales below 1. Higher number means less accurate, but
+    /// faster drawing
+    /// </summary>
+    public const long DrawAccuracy = 4;
     
     /// <summary>
     /// The width/height of the SVG of an exported <see cref="Quadtree{T}"/> (see <see cref="Quadtree{T}.GetSvgMap"/>).
@@ -57,6 +61,4 @@ public static class Constants
     /// The default size of the game window
     /// </summary>
     public static readonly Vec2<int> InitialScreenSize = new(800, 600);
-
-    public const int QuadtreeArrayLength = 2048;
 }

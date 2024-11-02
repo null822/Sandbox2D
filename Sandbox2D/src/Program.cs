@@ -21,36 +21,49 @@ public static class Program
     /// </code></param>
     private static int Main(string[] args)
     {
-        Console.Clear();
+        var fCol = Console.ForegroundColor;
+        var bCol = Console.BackgroundColor;
         
-        GlobalVariables.RenderManager.Icon = LoadIcon($"{GlobalVariables.AssetDirectory}/icon.png", (64, 64));
-        GlobalVariables.RenderManager.VSync = Constants.Vsync;
-        
-        Console.WriteLine(GlobalVariables.AssetDirectory);
-        
-        if (args.Length == 1)
+        try
         {
-            RenderManager.SetWorldAction(WorldAction.Load, args[0]);
+            Console.Clear();
+            
+            GlobalVariables.RenderManager.Icon = LoadIcon($"{GlobalVariables.AssetDirectory}/icon.png", (64, 64));
+            GlobalVariables.RenderManager.VSync = Constants.Vsync;
+            
+            if (args.Length == 1)
+            {
+                RenderManager.SetWorldAction(WorldAction.Load, args[0]);
+            }
+
+            // run the system checks
+            Log("===============[ SYSTEM CHECKS  ]===============", "Load");
+            SystemChecks();
+
+            Log("===============[    STARTUP     ]===============", "Load");
+
+            // start the logic thread
+            var gameLogicThread = new Thread(GameManager.Run)
+            {
+                Name = "Logic Thread",
+                IsBackground = true
+            };
+            gameLogicThread.Start();
+
+            // start the "join" the render thread
+            GlobalVariables.RenderManager.Run();
+
+            return 0;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            
+            Console.ForegroundColor = fCol;
+            Console.BackgroundColor = bCol;
         }
         
-        // run the system checks
-        Log("===============[ SYSTEM CHECKS  ]===============", "Load");
-        SystemChecks();
-        
-        Log("===============[    STARTUP     ]===============", "Load");
-        
-        // start the logic thread
-        var gameLogicThread = new Thread(GameManager.Run)
-        {
-            Name = "Logic Thread",
-            IsBackground = true
-        };
-        gameLogicThread.Start();
-        
-        // start the "join" the render thread
-        GlobalVariables.RenderManager.Run();
-        
-        return 0;
+        return -1;
     }
     
     /// <summary>

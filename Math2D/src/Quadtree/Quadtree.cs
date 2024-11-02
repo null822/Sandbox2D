@@ -70,8 +70,8 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         
         // assign maxHeight and dimensions
         MaxHeight = maxHeight;
-        var halfSize = -1L << (MaxHeight - 1);
-        Dimensions = NodeRangeFromPos(new Vec2<long>(halfSize), MaxHeight);
+        var bl = -1L << (MaxHeight - 1);
+        Dimensions = NodeRangeFromPos(new Vec2<long>(bl), MaxHeight);
         
         // create tree and data arrays
         Tree = new DynamicArray<QuadtreeNode>(QuadtreeNode.MaxChunkSize, storeModifications);
@@ -670,7 +670,6 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         
         if (maxHeight > MaxHeight)
             throw new InvalidHeightException(maxHeight, MaxHeight);
-
         
         // calculate minimum height needed if none is set
         if (maxHeight == -1)
@@ -697,7 +696,7 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             long.Clamp(center.Y, -centerMax, centerMax));
         
         // create the range
-        var subsetRange = new Range2D(center, 0x1uL << maxHeight);
+        var subsetRange = new Range2D(center, ~(~0x0uL << maxHeight));
         
         QuadtreeNode subsetRoot;
         

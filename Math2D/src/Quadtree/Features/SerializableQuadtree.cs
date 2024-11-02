@@ -20,7 +20,8 @@ public class SerializableQuadtree<T> : QuadtreeFeature<T> where T : IQuadtreeEle
         _data = Data;
     }
     
-    private const int HeaderSize = 18;
+    private const uint FormatVersion = 1;
+    private const int HeaderSize = 26;
     
     /// <summary>
     /// Serializes this <see cref="Quadtree{T}"/> into a <see cref="Stream"/>, using the format described in
@@ -36,8 +37,9 @@ public class SerializableQuadtree<T> : QuadtreeFeature<T> where T : IQuadtreeEle
         var dataRefSize = MinByteCount((ulong)_data.Length); // size of a reference into the data section, in bytes
         
         // create the header (excluding data pointer)
+        header.Write(GetBytes(FormatVersion)); // format version
+        header.Write(GetBytes(~0uL)); // features // TODO: store some data
         header.Write([(byte)MaxHeight]); // maxHeight
-        header.Write(GetBytes(~0u)); // features // TODO: replace with other information about T (in format)
         header.Write([(byte)dataRefSize]); // data ref size
         header.Write(GetBytes(_data[0].SerializeLength)); // size of T
         // serialize the quadtree
@@ -180,16 +182,12 @@ public class SerializableQuadtree<T> : QuadtreeFeature<T> where T : IQuadtreeEle
         stream.ReadExactly(header);
         
         // read the header
-        var maxHeight = header[0]; // maxHeight
-        var features = GetUint(header[1..5]); // enabled features // TODO: feature field replacement
-        var dataRefSize = (int)header[5]; // data ref size
-        var tSize = GetInt(header[6..10]); // size of T
-        var dataStart = GetLong(header[10..18]); // start of data section
-        
-        // TODO: feature field replacement
-        // compare the features in the stream to the ones specified in T2
-        // if (!disableFeatureCheck && enabledFeatures != features)
-            // throw new Exception("Mismatching feature set when deserializing Quadtree");
+        var version = GetUint(header[0..4]); // format version // TODO: check the version
+        var metadata = GetUint(header[4..12]); // metadata // TODO: use this data
+        var maxHeight = header[12]; // maxHeight
+        var dataRefSize = (int)header[13]; // data ref size
+        var tSize = GetInt(header[14..18]); // size of T
+        var dataStart = GetLong(header[18..26]); // start of data section
         
         // construct the quadtree
         var qt = new SerializableQuadtree<T2>(new Quadtree<T2>(

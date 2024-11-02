@@ -58,6 +58,8 @@ public class TextRenderable : IRenderable
         // update the vao (creates it, in this case)
         UpdateVao();
         
+        Shader.Use();
+        
         // set up coords
         var vertexLocation = Shader.GetAttribLocation("aPosition");
         GL.EnableVertexAttribArray(vertexLocation);

@@ -8,7 +8,6 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using Sandbox2D.Graphics.Renderables;
-using Sandbox2D.UserInterface;
 using Sandbox2D.UserInterface.Elements;
 using Sandbox2D.UserInterface.Keybinds;
 using Sandbox2D.World;
@@ -20,12 +19,18 @@ using static Sandbox2D.UserInterface.Keybinds.KeybindKeyType;
 namespace Sandbox2D;
 
 // TODO: implement GUIs
-// TODO: migrate to OpenTK 5
+// TODO: migrate to OpenTK 5 once its out
 
 public class RenderManager(int width, int height, string title) : GameWindow(GameWindowSettings.Default,
     new NativeWindowSettings { ClientSize = (width, height), Title = title, Flags = ContextFlags.Debug})
 {
+    
     // rendering
+    private static readonly HashSet<string> SupportedExtensions = [];
+    
+    public static bool Using64BitQt { get; private set; } = false;
+    public static int MaxGpuQtHeight => Using64BitQt ? 64 : 32;
+    
     private static QuadtreeRenderable _rQt;
     private static TextRenderable _rText;
     private static TextRenderable _testText;
@@ -33,7 +38,6 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     private static bool _unuploadedGeometry;
     private static int _gpuWorldHeight = GameManager.WorldHeight;
     
-    private static readonly Random Random = new();
     // world geometry
     public static readonly ManualResetEventSlim GeometryLock = new (true);
     private static long _treeIndex;
@@ -50,6 +54,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     
     private static (WorldAction action, string arg)? _worldAction;
     private static readonly List<WorldModification> WorldModifications = [];
+    private static readonly Random Random = new();
     
     private static float _mspt;
     
@@ -81,11 +86,14 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
 
     private static decimal _scaleMinimum;
     private const decimal ScaleMaximum = 32m;
-
+    
     private static decimal _scale = 1;
     private static Vec2<decimal> _translation;
     private static float _scrollPos;
     
+    /// <summary>
+    /// The scale of the world. World coordinates are multiplied by this value to get screen coordinates
+    /// </summary>
     public static decimal Scale
     {
         get => _scale;
@@ -96,6 +104,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         }
     }
     public static ref Vec2<decimal> Translation => ref _translation;
+    public static Vec2<int> ScreenSize => GlobalVariables.RenderManager.ClientSize.ToVec2();
     
     /// <summary>
     /// Renders to the screen. Runs after <see cref="OnUpdateFrame"/> has completed.
@@ -105,10 +114,10 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         base.OnRenderFrame(args);
         
         // re-create the quadtree renderable if the world height changed
-        var newGpuWorldHeight = Math.Min(GameManager.WorldHeight, 16);
+        var newGpuWorldHeight = Math.Min(GameManager.WorldHeight, MaxGpuQtHeight);
         if (_gpuWorldHeight != newGpuWorldHeight)
         {
-            _scaleMinimum = 400m / BitUtil.Pow2(GameManager.WorldHeight);
+            _scaleMinimum = (decimal)Math.Min(ScreenSize.X, ScreenSize.Y) / BitUtil.Pow2(GameManager.WorldHeight) * 0.8m;
             
             _gpuWorldHeight = newGpuWorldHeight;
             _rQt.ResetGeometry();
@@ -153,12 +162,11 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
                 _unuploadedGeometry = false;
             }
             
-            // calculate the scale/translation to be uploaded to the GPU
-            var renderTranslation = (Vec2<float>)(Translation - (Vec2<decimal>)_renderRange.Center);
-            var renderScale = (float)_scale;
+            // calculate the translation to be uploaded to the GPU
+            var renderTranslation = Translation + (Vec2<decimal>)_renderRange.Center;
             
             // update the world transform
-            _rQt.SetTransform(renderTranslation, renderScale);
+            _rQt.SetTransform(renderTranslation, (double)_scale);
             
             GeometryLock.Set();
         }
@@ -174,7 +182,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         // FPS display
         _rText.SetText($"{1 / args.Time:F1} FPS, {_mspt:F1} MSPT\n" +
-                       $"M:({_mouseWorldCoords.X:F0}, {_mouseWorldCoords.Y:F0}) T:({_translation.X:F4}, {_translation.Y:F4}) S:{_scale:F8}", (4,4), 1f);
+                       $"M:({_mouseWorldCoords.X:F0}, {_mouseWorldCoords.Y:F0}) T:({_translation.X:F4}, {_translation.Y:F4}) S:{_scale:F16}", (4,4), 1f);
         _rText.Render();
         
         // swap the frame buffers
@@ -200,8 +208,6 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
             var scale = (decimal)Math.Pow(1.1, -_scrollPos) * 1024;
             
             // s = 1024 * 1.1^-p
-            // s / 1024 = 1.1^-p
-            // log_1.1(s / 1024) = -p
             // p = -log_1.1(s / 1024)
             
             if (scale < _scaleMinimum) _scrollPos --;
@@ -245,11 +251,20 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         base.OnLoad();
         
+        // load supported extensions
+        GL.GetInteger(GetPName.NumExtensions, out var extensionCount);
+        for (var i = 0; i < extensionCount; i++) {
+            var ext = GL.GetString(StringNameIndexed.Extensions, i);
+            SupportedExtensions.Add(ext);
+        }
+
+        if (IsExtensionSupported("GL_ARB_gpu_shader_int64")) Using64BitQt = true;
+        
         // create the keybinds
         RegisterKeybinds();
         
         // set clear color
-        GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        GL.ClearColor(System.Drawing.Color.Magenta);
         
         // register everything
         RegisterGraphics();
@@ -279,7 +294,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         Registry.ShaderProgram.Register("texture_debug", ["texture_vert", "texture_frag"]);
         
         // create the renderables
-        _rQt = new QuadtreeRenderable(Registry.ShaderProgram.Create("quadtree"), Math.Min(GameManager.WorldHeight, 16), BufferUsageHint.StreamDraw);
+        _rQt = new QuadtreeRenderable(Registry.ShaderProgram.Create("quadtree"), Math.Min(GameManager.WorldHeight, MaxGpuQtHeight), BufferUsageHint.StreamDraw);
         _rText = new TextRenderable(Registry.ShaderProgram.Create("text"), BufferUsageHint.DynamicDraw);
         _rText.SetColor(Color.Gray);
         _testText = new TextRenderable(Registry.ShaderProgram.Create("text"), BufferUsageHint.DynamicDraw);
@@ -340,25 +355,72 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
             if (!_capturedTranslationMMouse.HasValue) return;
             
             var worldTranslationOffset =
-                ((Vec2<decimal>)(_capturedMouseScreenCoordsMMouse - _mouseScreenCoords) / _scale).FlipY();
+                ((Vec2<decimal>)(_mouseScreenCoords - _capturedMouseScreenCoordsMMouse) / _scale).FlipY();
             
             Translation = _capturedTranslationMMouse.Value + worldTranslationOffset;
             
         }, [(Key.MiddleMouse, Enabled)]);
         
-        _keybindManager.Add("drawSingle", () => WorldModifications.Add(new WorldModification(new Range2D(_mouseWorldCoords), _activeBrush)), [
+        _keybindManager.Add("drawSingle",
+            () => WorldModifications.Add(
+                new WorldModification(
+                    new Range2D(RoundMouseWorldCoords(_mouseWorldCoords)),
+                    _activeBrush
+                )),
+            [
             (Key.LeftMouse, Enabled),
             (Key.LeftShift, Disabled)
-        ]);
+            ]
+        );
         
         _keybindManager.Add("drawRect", () =>
         {
             if (!_capturedMouseWorldCoordsLShift.HasValue) return;
-            WorldModifications.Add(new WorldModification(new Range2D(_mouseWorldCoords, _capturedMouseWorldCoordsLShift.Value), _activeBrush));
+            WorldModifications.Add(
+                new WorldModification(
+                    RoundMouseWorldRange(new Range2D(_mouseWorldCoords, _capturedMouseWorldCoordsLShift.Value)),
+                    _activeBrush
+                ));
         }, [
             (Key.LeftMouse, FallingEdge),
             (Key.LeftShift, Enabled)
         ]);
+    }
+    
+    private static Range2D RoundMouseWorldRange(Range2D mouseWorldRange)
+    {
+        var roundDist = (long)(1 / Scale);
+        if (roundDist is 0 or 1) return mouseWorldRange;
+        roundDist *= DrawAccuracy;
+        roundDist = (long)BitUtil.PrevPowerOf2((ulong)roundDist);
+        
+        var bl = RoundMouseWorldCoords(mouseWorldRange.Bl, roundDist);
+        var tr = RoundMouseWorldCoords(mouseWorldRange.Tr, roundDist) - (1, 1);
+
+        return new Range2D(bl, tr);
+    }
+    
+    private static Vec2<long> RoundMouseWorldCoords(Vec2<long> mouseWorldCoords)
+    {
+        var roundDist = (long)(1 / Scale);
+        if (roundDist is 0 or 1) return mouseWorldCoords;
+        roundDist *= DrawAccuracy;
+        roundDist = (long)BitUtil.PrevPowerOf2((ulong)roundDist);
+        
+        return RoundMouseWorldCoords(mouseWorldCoords, roundDist);
+    }
+    
+    private static Vec2<long> RoundMouseWorldCoords(Vec2<long> mouseWorldCoords, long roundDist)
+    {
+        var roundX = mouseWorldCoords.X / roundDist * roundDist;
+        var roundY = mouseWorldCoords.Y / roundDist * roundDist;
+        
+        if (mouseWorldCoords.X - roundX >= roundDist / 2)
+            roundX += roundDist;
+        if (mouseWorldCoords.Y - roundY >= roundDist / 2)
+            roundY += roundDist;
+        
+        return (roundX, roundY);
     }
     
     /// <summary>
@@ -394,7 +456,9 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
             
             _scale *= scale;
         }
-
+        
+        _scaleMinimum = (decimal)Math.Min(ScreenSize.X, ScreenSize.Y) / BitUtil.Pow2(GameManager.WorldHeight) * 0.8m;
+        
         // update screenSize on the logic thread
         GameManager.UpdateScreenSize(newSize);
     }
@@ -406,9 +470,9 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     {
         // close the GameManager thread
         GameManager.Close();
-
+        
         WorldModifications.Clear();
-
+        
         base.OnClosing(e);
     }
     
@@ -474,6 +538,11 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         if (canUpdate == false) GeometryLock.Set();
         
         return canUpdate;
+    }
+
+    public static bool IsExtensionSupported(string extension)
+    {
+        return SupportedExtensions.Contains(extension);
     }
     
     /// <summary>

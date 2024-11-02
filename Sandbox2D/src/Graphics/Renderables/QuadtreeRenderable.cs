@@ -16,12 +16,12 @@ public class QuadtreeRenderable : IRenderable
     public int VertexArrayObject { get; init; } = GL.GenVertexArray();
     public int VertexBufferObject { get; init; } = GL.GenBuffer();
     public int ElementBufferObject { get; init; } = GL.GenBuffer();
-
-    private Vector2 _translation = Vector2.Zero;
-    private float _scale = 1;
+    
+    private Vec2<long> _translation = (0, 0);
+    private Vector2 _subTranslation = Vector2.Zero;
+    private double _scale = 1;
     
     private int _maxHeight;
-    private static Vector2 ScreenSize => GameManager.ScreenSize.ToVector2();
     
     private int _treeBufferLength;
     private int _dataBufferLength;
@@ -64,7 +64,7 @@ public class QuadtreeRenderable : IRenderable
         Shader = shader;
         Hint = hint;
         
-        if (quadtreeMaxHeight > 16) throw new Exception($"Invalid Max Height for Quadtree. Was: {quadtreeMaxHeight}, Range: 2-16.");
+        if (quadtreeMaxHeight > RenderManager.MaxGpuQtHeight) throw new Exception($"Invalid Max Height for Quadtree. Was: {quadtreeMaxHeight}, Range: 2-{RenderManager.MaxGpuQtHeight}.");
         _maxHeight = quadtreeMaxHeight;
         
         _treeBuffer = GL.GenBuffer();
@@ -72,6 +72,8 @@ public class QuadtreeRenderable : IRenderable
         
         // update the vao (creates it, in this case)
         UpdateVao();
+        
+        Shader.Use();
         
         // set up vertex coordinates
         var vertexLocation = Shader.GetAttribLocation("aPosition");
@@ -93,9 +95,11 @@ public class QuadtreeRenderable : IRenderable
         Shader.Use();
         
         // set the uniforms
+        if (RenderManager.Using64BitQt) Shader.Set("Translation", _translation);
+        else Shader.Set("Translation", (Vec2<int>)_translation);
+        Shader.Set("SubTranslation", _subTranslation);
         Shader.Set("Scale", _scale);
-        Shader.Set("Translation", _translation);
-        Shader.Set("ScreenSize", (Vector2)GlobalVariables.RenderManager.ClientSize);
+        Shader.Set("ScreenSize", (Vec2<float>)RenderManager.ScreenSize);
         Shader.Set("MaxHeight", _maxHeight);
         
         // render the geometry
@@ -185,9 +189,27 @@ public class QuadtreeRenderable : IRenderable
         GL.BindBuffer(BufferTarget.CopyWriteBuffer, 0);
     }
     
-    public void SetTransform(Vec2<float> translation, float scale)
+    public void SetTransform(Vec2<decimal> translation, double scale)
     {
-        _translation = translation.ToVector2();
+        long min;
+        long max;
+        
+        if (RenderManager.Using64BitQt)
+        {
+            min = long.MinValue;
+            max = long.MaxValue;
+        }
+        else
+        {
+            min = int.MinValue;
+            max = int.MaxValue;
+        }
+        
+        _translation = new Vec2<long>(
+            (long)Math.Clamp(translation.X, min, max),
+            (long)Math.Clamp(translation.Y, min, max));
+        
+        _subTranslation = ((Vec2<float>)(translation - (Vec2<decimal>)_translation)).ToVector2();
         _scale = scale;
     }
     

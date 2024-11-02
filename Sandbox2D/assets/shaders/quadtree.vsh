@@ -1,48 +1,105 @@
 ﻿#version 430 core
 
+#ifdef GL_ARB_gpu_shader_int64
+
+#extension GL_ARB_gpu_shader_int64: enable
+
+#define BIT_DEPTH 64
+#define INT64 int64_t
+#define UINT64 uint64_t
+#define VEC64 i64vec2
+#define UVEC64 u64vec2
+
+#else
+
+#define BIT_DEPTH 32
+#define INT64 int
+#define UINT64 uint
+#define VEC64 ivec2
+#define UVEC64 uvec2
+
+#endif
+
+#define MIN64 INT64(INT64(-1) << (BIT_DEPTH - 1))
+#define MAX64 INT64(-(MIN64 + 1))
+
 in vec3 aPosition;
 
-uniform float Scale; // current zoom (size multiplier)
-uniform vec2 Translation; // current translation from the center of `RenderRoot`
 uniform vec2 ScreenSize; // the size of the screen, in pixels
+uniform double Scale; // current zoom (size multiplier)
+uniform VEC64 Translation; // current translation from the center of `RenderRoot`, rounded to the nearest integer
+uniform vec2 SubTranslation; // decimal part of the current translation from the center of `RenderRoot`
+uniform int MaxHeight; // the amount of height levels in the quadtree to be rendered
 
-out vec2 WorldPos;
+out smooth vec2 ScreenCoords;
 
 // converts vertex coordinates to screen cordinates
-vec2 VertexToScreenCoordinates(vec2 vertexCoords) {
-    
-    // flip Y axis
+vec2 VertexToScreenCoords(vec2 vertexCoords)
+{
     vertexCoords = vec2(vertexCoords.x, -vertexCoords.y);
-    
-    // add 1 to vertexCoords, to get it to a 0-2 range
     vertexCoords += 1.0;
-    
-    // divide vertexCoords by 2, to get it to a 0-1 range
     vertexCoords /= 2.0;
     
-    // multiply screenCoords by screenSize
     vertexCoords *= ScreenSize;
-    
-    // return
     return vertexCoords;
 }
 
-// converts screen corrdinates to world coordinates
-vec2 ScreenToWorldCoordinates(vec2 screenCoords) {
-    
-    vec2 center = ScreenSize / 2.0;
-    
-    screenCoords -= center;
-    
+// converts screen coordinates to vertex cordinates
+vec2 ScreenToVertexCoords(vec2 screenCoords)
+{
+    screenCoords /= ScreenSize;
+    screenCoords *= 2.0;
+    screenCoords -= 1.0;
     screenCoords = vec2(screenCoords.x, -screenCoords.y);
     
-    return screenCoords / Scale + Translation;
+    return screenCoords;
+}
+
+vec2 WorldToScreenCoords(VEC64 worldCoords, INT64 add)
+{
+    dvec2 untranslated;
+    
+    if ((worldCoords.x >= 0 && MAX64 - worldCoords.x < Translation.x) || (worldCoords.x < 0 && worldCoords.x - MIN64 > Translation.x))
+    {
+        untranslated.x = (worldCoords.x * Scale) + (Translation.x * Scale);
+    }
+    else
+    {
+        untranslated.x = ((worldCoords.x + Translation.x) * Scale);
+    }
+    
+    if ((worldCoords.y >= 0 && MAX64 - worldCoords.y < Translation.y) || (worldCoords.y < 0 && worldCoords.y - MIN64 > Translation.y))
+    {
+        untranslated.y = (worldCoords.y * Scale) + (Translation.y * Scale);
+    }
+    else
+    {
+        untranslated.y = ((worldCoords.y + Translation.y) * Scale);
+    }
+    
+    double sAdd = add * Scale;
+    untranslated.x += sAdd;
+    untranslated.y += sAdd;
+    
+    vec2 screenCoords = vec2(untranslated + SubTranslation * Scale);
+    screenCoords = vec2(screenCoords.x, -screenCoords.y);
+    screenCoords += ScreenSize / 2.0;
+    
+    return screenCoords;
 }
 
 void main(void)
 {
-    // calculate the world pos
-    WorldPos = ScreenToWorldCoordinates(VertexToScreenCoordinates(aPosition.xy));
+    const INT64 minDistanceWorld = INT64(-1) << (MaxHeight - 1);
+    const INT64 maxDistanceWorld = -(minDistanceWorld + 1);
+    const vec2 maxPos = ScreenToVertexCoords(WorldToScreenCoords(VEC64(maxDistanceWorld), 1));
+    const vec2 minPos = ScreenToVertexCoords(WorldToScreenCoords(VEC64(minDistanceWorld), 0));
     
-    gl_Position = vec4(aPosition, 1.0);
+    #define CLAMP true
+    
+    vec2 vertexPosition = CLAMP ? clamp(aPosition.xy, minPos, maxPos) : aPosition.xy;
+    
+    ScreenCoords = VertexToScreenCoords(vertexPosition);
+    
+    gl_Position = vec4(vertexPosition, 0.0, 1.0);
 }

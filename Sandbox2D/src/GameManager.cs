@@ -121,7 +121,7 @@ public static class GameManager
         _world.GetModifications(modificationArrays.Tree, modificationArrays.Data);
         
         // update the geometry parameters
-        var renderDepth = Math.Min(WorldHeight, 16);
+        var renderDepth = Math.Min(WorldHeight, RenderManager.MaxGpuQtHeight);
         var (treeLength, dataLength) = _world.GetLength();
         var (renderRoot, renderRange) = _world.GetSubset(CalculateScreenRange().Overlap(_world.Dimensions), renderDepth);
         RenderManager.UpdateGeometryParameters(treeLength, dataLength, renderRoot, renderRange);
@@ -181,8 +181,7 @@ public static class GameManager
             }
             case WorldAction.Map:
             {
-                var svgMap = new MappableQuadtree<Tile>(_world).GetSvgMap(
-                    (decimal)QuadTreeSvgSize / ~(WorldHeight == 64 ? 0 : ~0x0uL << WorldHeight));
+                var svgMap = new MappableQuadtree<Tile>(_world).GetSvgMap(DerivedConstants.QuadTreeSvgScale);
                 
                 var map = File.CreateText(action.arg);
                 map.Write(svgMap);

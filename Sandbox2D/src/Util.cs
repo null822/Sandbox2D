@@ -23,7 +23,8 @@ public static class Util
     private const bool GlEnableDebug = true;
     private const bool GlEnableWarn = true;
     private const bool GlEnableError = true;
-
+    
+    private const ConsoleColor FatalColor = ConsoleColor.Red;
     private const ConsoleColor ErrorColor = ConsoleColor.Red;
     private const ConsoleColor WarnColor = ConsoleColor.Yellow;
     private const ConsoleColor DebugColor = ConsoleColor.Green;
@@ -33,9 +34,9 @@ public static class Util
     
     
     /// <summary>
-    /// Converts coords from the screen (like mouse pos) into game coords (like positions of the world).
+    /// Converts screen coords (like mouse pos) into world coords (like positions of objects).
     /// </summary>
-    /// <param name="screenCoords">The coords from the screen to convert</param>
+    /// <param name="screenCoords">The screen coords to convert</param>
     public static Vec2<long> ScreenToWorldCoords(Vec2<float> screenCoords)
     {
         var center = GameManager.ScreenSize / 2;
@@ -44,7 +45,7 @@ public static class Util
         
         screenCoords = screenCoords.FlipY();
         
-        var value = (Vec2<decimal>)screenCoords / GameManager.Scale + GameManager.Translation;
+        var value = (Vec2<decimal>)screenCoords / GameManager.Scale - GameManager.Translation;
         
         return new Vec2<long>(
             (long)Math.Clamp(Math.Floor(value.X), long.MinValue, long.MaxValue),
@@ -52,21 +53,25 @@ public static class Util
     }
     
     /// <summary>
-    /// Converts coords from the game (like positions of objects) into screen coords (like mouse pos)
+    /// Converts world coords (like positions of objects) into screen coords (like mouse pos).
     /// </summary>
-    /// <param name="worldCoords">The coords from the game to convert</param>
+    /// <param name="worldCoords">The world coords to convert</param>
     public static Vec2<int> WorldToScreenCoords(Vec2<long> worldCoords)
     {
         var screenSize = GameManager.ScreenSize;
 
         var center = screenSize / 2f;
-        var value = ((Vec2<decimal>)worldCoords + GameManager.Translation - (Vec2<decimal>)center) * GameManager.Scale + (Vec2<decimal>)center;
+        var value = (((Vec2<decimal>)worldCoords + GameManager.Translation) * GameManager.Scale).FlipY() + (Vec2<decimal>)center;
         
         return new Vec2<int>(
-                           (int)Math.Clamp(Math.Floor(value.X), int.MinValue, int.MaxValue), 
-            (int)screenSize.Y - (int)Math.Clamp(Math.Floor(value.Y), int.MinValue, int.MaxValue));
+            (int)Math.Clamp(Math.Floor(value.X), int.MinValue, int.MaxValue), 
+            (int)Math.Clamp(Math.Floor(value.Y), int.MinValue, int.MaxValue));
     }
-
+    
+    /// <summary>
+    /// Converts screen coords (like mouse pos) into vertex coords (used by OpenGL)
+    /// </summary>
+    /// <param name="screenCoords">the screen coords to convert</param>
     public static Vec2<float> ScreenToVertexCoords(Vec2<float> screenCoords)
     {
         // get the screen size
@@ -134,6 +139,18 @@ public static class Util
         Error( $"         {value} != {expected}");
         return false;
     }
+
+    public static void Fatal(object text)
+    {
+        Fatal(new Exception($"{text}"));
+    }
+    
+    public static void Fatal(Exception exception)
+    {
+        Console.ForegroundColor = FatalColor;
+        Console.BackgroundColor = ConsoleColor.Black;
+        throw exception;
+    }
     
     public static void Error(object text, string source = "")
     {
@@ -185,8 +202,6 @@ public static class Util
     private static void OnDebugMessage(DebugSource source, DebugType type, int id, DebugSeverity severity, int length,
         IntPtr pMessage, IntPtr pUserParam)
     {
-        // The rest of the function is up to you to implement, however a debug output
-        // is always useful.
         var logLevel = severity switch
         {
             DebugSeverity.DontCare => LogLevel.Print,
@@ -194,7 +209,7 @@ public static class Util
             DebugSeverity.DebugSeverityLow => LogLevel.Debug,
             DebugSeverity.DebugSeverityMedium => LogLevel.Warn,
             DebugSeverity.DebugSeverityHigh => LogLevel.Error,
-            _ => (LogLevel)5
+            _ => LogLevel.Unknown
         };
         
         switch (logLevel)
@@ -209,7 +224,6 @@ public static class Util
         
         var message = Marshal.PtrToStringUTF8(pMessage, length);
         
-
         var outString = new StringBuilder($"[{id}: {type}] {message}");
         
         if (Constants.SynchronousGlDebug)
@@ -249,7 +263,7 @@ public static class Util
         
         return signature.ToString();
     }
-
+    
     public static Vector2 ToVector2(this Vec2<float> v)
     {
         return new Vector2(v.X, v.Y);
@@ -257,9 +271,10 @@ public static class Util
     
     public static Vec2<float> ToVec2(this Vector2 v)
     {
-        return new Vec2<float>(v.Y, v.Y);
+        return new Vec2<float>(v.X, v.Y);
     }
     
+    // ReSharper disable once InconsistentNaming
     public static Vector2i ToVector2i(this Vec2<int> v)
     {
         return new Vector2i(v.X, v.Y);
@@ -267,7 +282,7 @@ public static class Util
     
     public static Vec2<int> ToVec2(this Vector2i v)
     {
-        return new Vec2<int>(v.Y, v.Y);
+        return new Vec2<int>(v.X, v.Y);
     }
     
     public static Vector3 ToVector3(this Color color)
@@ -278,9 +293,12 @@ public static class Util
 
 public enum LogLevel
 {
+    Fatal,
     Error,
     Warn,
     Debug,
     Log,
     Print,
+    
+    Unknown
 }
