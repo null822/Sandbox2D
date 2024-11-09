@@ -1,4 +1,6 @@
-﻿namespace Math2D.Quadtree;
+﻿using Math2D.Binary;
+
+namespace Math2D.Quadtree;
 
 public static class QuadtreeUtil
 {

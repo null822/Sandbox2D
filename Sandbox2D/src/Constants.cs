@@ -12,7 +12,7 @@ public static class Constants
     /// <summary>
     /// The TPS (Ticks Per Second) the game logic will attempt to run at.
     /// </summary>
-    public const int Tps = 20;
+    public const double Tps = 20;
     
     /// <summary>
     /// The VSync mode to use.
@@ -42,9 +42,9 @@ public static class Constants
     public const int RenderLockTimeout = 100;
     
     /// <summary>
-    /// The maximum amount of elements (per array) in the tree and data arrays to upload to the GPU in one frame
+    /// The maximum amount of bytes (per buffer) upload to the GPU in one frame
     /// </summary>
-    public const int GpuUploadBatchSize = 2048;
+    public const int GpuUploadBatchSize = 65536;
     
     /// <summary>
     /// Represents the accuracy of drawing when zoomed out to scales below 1. Higher number means less accurate, but

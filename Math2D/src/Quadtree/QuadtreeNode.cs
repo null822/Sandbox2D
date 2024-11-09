@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using Math2D.Binary;
 
 namespace Math2D.Quadtree;
 
@@ -7,14 +8,13 @@ namespace Math2D.Quadtree;
 /// Represents a single node within a <see cref="Quadtree{T}"/>, stored in <see cref="Quadtree{T}.Tree"/>.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 36)]
-public readonly struct QuadtreeNode
+public readonly struct QuadtreeNode : IByteSerializable, IByteDeserializable<QuadtreeNode>
 {
     /// <summary>
     /// The maximum length of a single array of <see cref="QuadtreeNode"/>s, intended to prevent
     /// <see cref="DynamicArray{T}"/>s of <see cref="QuadtreeNode"/>s from being allocated to the LOH
     /// </summary>
     public const int MaxChunkSize = 2048;
-    
     
     /// <summary>
     /// The type of the node
@@ -30,23 +30,23 @@ public readonly struct QuadtreeNode
     public readonly long LeafRef;
     
     /// <summary>
-    /// The reference to the (-X +Y), or Top Left, node.
+    /// The reference to the (-X -Y), or Bottom Left, node.
     /// </summary>
     /// <remarks>Also used to store the reference for a leaf node.</remarks>
     [FieldOffset(4)]
     public readonly long Ref0;
     /// <summary>
-    /// The reference to the (+X +Y), or Top Right, node.
+    /// The reference to the (+X -Y), or Bottom Right, node.
     /// </summary>
     [FieldOffset(12)]
     public readonly long Ref1;
     /// <summary>
-    /// The reference to the (-X -Y), or Bottom Left, node.
+    /// The reference to the (-X +Y), or Top Left, node.
     /// </summary>
     [FieldOffset(20)]
     public readonly long Ref2;
     /// <summary>
-    /// The reference to the (+X -Y), or Bottom Right, node.
+    /// The reference to the (+X +Y), or Top Right, node.
     /// </summary>
     [FieldOffset(28)]
     public readonly long Ref3;
@@ -72,6 +72,16 @@ public readonly struct QuadtreeNode
     public QuadtreeNode(long ref0, long ref1, long ref2, long ref3)
     {
         Type = NodeType.Branch;
+        
+        Ref0 = ref0;
+        Ref1 = ref1;
+        Ref2 = ref2;
+        Ref3 = ref3;
+    }
+
+    private QuadtreeNode(uint type, long ref0, long ref1, long ref2, long ref3)
+    {
+        Type = (NodeType)type;
         
         Ref0 = ref0;
         Ref1 = ref1;
@@ -115,6 +125,53 @@ public readonly struct QuadtreeNode
         return LeafRef;
     }
     
+    
+    public static int SerializeLength => 36;
+    
+    public byte[] Serialize(bool bigEndian = false)
+    {
+        if (bigEndian)
+        {
+            return [
+                ..BitUtil.GetBytesBe((uint)Type),
+                ..BitUtil.GetBytesBe(Ref0),
+                ..BitUtil.GetBytesBe(Ref1),
+                ..BitUtil.GetBytesBe(Ref2),
+                ..BitUtil.GetBytesBe(Ref3)
+            ];
+        }
+        
+        return [
+            ..BitUtil.GetBytes((uint)Type),
+            ..BitUtil.GetBytes(Ref0),
+            ..BitUtil.GetBytes(Ref1),
+            ..BitUtil.GetBytes(Ref2),
+            ..BitUtil.GetBytes(Ref3)
+        ];
+    }
+    
+    public static QuadtreeNode Deserialize(byte[] data, bool bigEndian = false)
+    {
+        var dataSpan = data.AsSpan();
+
+        if (bigEndian)
+        {
+            return new QuadtreeNode(
+                BitUtil.GetUIntBe(dataSpan[  .. 4]),
+                BitUtil.GetLongBe(dataSpan[ 4..12]),
+                BitUtil.GetLongBe(dataSpan[12..20]),
+                BitUtil.GetLongBe(dataSpan[20..28]),
+                BitUtil.GetLongBe(dataSpan[28..36]));
+        }
+        
+        return new QuadtreeNode(
+            BitUtil.GetUInt(dataSpan[  .. 4]),
+            BitUtil.GetLong(dataSpan[ 4..12]),
+            BitUtil.GetLong(dataSpan[12..20]),
+            BitUtil.GetLong(dataSpan[20..28]),
+            BitUtil.GetLong(dataSpan[28..36]));
+    }
+    
     /// <summary>
     /// Converts this <see cref="QuadtreeNode"/> into a readable string containing all the data held within this struct.
     /// </summary>
@@ -130,7 +187,7 @@ public readonly struct QuadtreeNode
             case NodeType.Leaf:
                 return $"[ Leaf ] {LeafRef}";
             default:
-                return $"[ERROR ] {(uint)Type:x16} {Ref0:x16} {Ref1:x16} {Ref2:x16} {Ref3:x16}]";
+                return $"[ERROR ] {(uint)Type:x8} {Ref0:x16} {Ref1:x16} {Ref2:x16} {Ref3:x16}]";
         }
     }
     

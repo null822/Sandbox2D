@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using Math2D;
+using Math2D.Binary;
 
 namespace Sandbox2D.World;
 
 [StructLayout(LayoutKind.Explicit, Size = 8)]
-public readonly struct TileData
+public readonly struct TileData : IByteSerializable, IByteDeserializable<TileData>
 {
     /// <summary>
     /// The data of this tile. Consists of 16 bytes of <see cref="Id"/> and 48 bytes of <see cref="Data"/>.
@@ -41,14 +42,26 @@ public readonly struct TileData
     {
         _data = data;
     }
-    
-    public byte[] Serialize()
+
+    public static int SerializeLength => 8;
+
+    public byte[] Serialize(bool bigEndian = false)
     {
-        return BitUtil.GetBytes(_data);
+        return bigEndian ? BitUtil.GetBytesBe(_data) : BitUtil.GetBytes(_data);
+    }
+    
+    public static Tile Deserialize(byte[] bytes, bool bigEndian = false)
+    {
+        return TileDeserializer.Create(bytes, bigEndian);
     }
     
     public bool Equals(TileData t)
     {
         return _data == t._data;
+    }
+
+    static TileData IByteDeserializable<TileData>.Deserialize(byte[] data, bool bigEndian)
+    {
+        throw new NotImplementedException();
     }
 }

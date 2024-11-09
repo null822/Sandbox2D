@@ -3,46 +3,62 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading;
 using Math2D;
+using Math2D.Binary;
 using Math2D.Quadtree;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
-using Sandbox2D.Graphics.Renderables;
+using Sandbox2D.Graphics.ShaderControllers;
+using Sandbox2D.Graphics.ShaderControllers.Quadtree;
 using Sandbox2D.UserInterface.Elements;
 using Sandbox2D.UserInterface.Keybinds;
 using Sandbox2D.World;
 using Sandbox2D.World.Tiles;
 using static Sandbox2D.Util;
 using static Sandbox2D.Constants;
+using static Sandbox2D.DerivedConstants;
 using static Sandbox2D.UserInterface.Keybinds.KeybindKeyType;
 
 namespace Sandbox2D;
 
+// TODO: move most of this stuff out to a static RenderManager and leave this as a WindowManager
 // TODO: implement GUIs
 // TODO: migrate to OpenTK 5 once its out
 
-public class RenderManager(int width, int height, string title) : GameWindow(GameWindowSettings.Default,
-    new NativeWindowSettings { ClientSize = (width, height), Title = title, Flags = ContextFlags.Debug})
+public class RenderManager(GameWindowSettings gameSettings, NativeWindowSettings nativeSettings) :
+    GameWindow(gameSettings, nativeSettings)
 {
-    
     // rendering
     private static readonly HashSet<string> SupportedExtensions = [];
     
     public static bool Using64BitQt { get; private set; }
     public static int MaxGpuQtHeight => Using64BitQt ? 64 : 32;
     
-    private static QuadtreeRenderable _rQt;
-    private static TextRenderable _rText;
+    private static QuadtreeRenderer _rQt;
+    private static TextRenderer _rText;
     
     private static bool _unuploadedGeometry;
     private static int _gpuWorldHeight = GameManager.WorldHeight;
     
     // world geometry
+    /// <summary>
+    /// Stores modifications to the <see cref="Quadtree{T}.Tree"/> array that are to be applied to the
+    /// <see cref="QuadtreeRenderer"/>
+    /// </summary>
+    /// <remarks>See <see cref="GeometryLock"/></remarks>
+    public static readonly DynamicArray<ArrayModification<QuadtreeNode>> TreeModifications = new(storeOccupied: false);
+    /// <summary>
+    /// Stores modifications to the <see cref="Quadtree{T}.Data"/> array that are to be applied to the
+    /// <see cref="QuadtreeRenderer"/>
+    /// </summary>
+    /// <remarks>See <see cref="GeometryLock"/></remarks>
+    public static readonly DynamicArray<ArrayModification<Tile>> DataModifications = new(storeOccupied: false);
+    /// <summary>
+    /// A lock to manage multithreaded access to <see cref="TreeModifications"/> and <see cref="DataModifications"/>
+    /// </summary>
     public static readonly ManualResetEventSlim GeometryLock = new (true);
-    private static long _treeIndex;
-    private static long _dataIndex;
-    private static DynamicArray<ArrayModification<QuadtreeNode>> _treeModifications = new(storeOccupied: false);
-    private static DynamicArray<ArrayModification<Tile>> _dataModifications = new(storeOccupied: false);
+    private static int _treeIndex;
+    private static int _dataIndex;
     private static long _treeLength;
     private static long _dataLength;
     private static QuadtreeNode _renderRoot;
@@ -54,8 +70,6 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     private static (WorldAction action, string arg)? _worldAction;
     private static readonly List<WorldModification> WorldModifications = [];
     private static readonly Random Random = new();
-    
-    private static float _mspt;
     
     // controls
     private readonly KeybindSieve _keybindManager = new();
@@ -84,7 +98,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     private static Vec2<decimal>? _capturedTranslationMMouse;
 
     private static decimal _scaleMinimum;
-    private const decimal ScaleMaximum = 32m;
+    private static decimal _scaleMaximum;
     
     private static decimal _scale = 1;
     private static Vec2<decimal> _translation;
@@ -116,7 +130,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         var newGpuWorldHeight = Math.Min(GameManager.WorldHeight, MaxGpuQtHeight);
         if (_gpuWorldHeight != newGpuWorldHeight)
         {
-            _scaleMinimum = (decimal)Math.Min(ScreenSize.X, ScreenSize.Y) / BitUtil.Pow2(GameManager.WorldHeight) * 0.8m;
+            CalculateScaleBounds();
             
             _gpuWorldHeight = newGpuWorldHeight;
             _rQt.ResetGeometry();
@@ -130,48 +144,44 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         // clear the color buffer
         GL.Clear(ClearBufferMask.ColorBufferBit);
         
-        /* TODO: fix rare crash:
-            Unhandled exception. System.NullReferenceException: Object reference not set to an instance of an object.
-            at Sandbox2D.Graphics.Renderables.QuadtreeRenderable.SetGeometry(DynamicArray`1& tree, DynamicArray`1& data, Int64 treeLength, Int64 dataLength, Int64& treeIndex, Int64& dataIndex, QuadtreeNode renderRoot) in C:\Code\C#\Sandbox2D\Sandbox2D\src\Graphics\Renderables\QuadtreeRenderable.cs:line 200
-            at Sandbox2D.RenderManager.OnRenderFrame(FrameEventArgs args) in C:\Code\C#\Sandbox2D\Sandbox2D\src\RenderManager.cs:line 114
-            at OpenTK.Windowing.Desktop.GameWindow.Run()
-            at Sandbox2D.Program.Main(String[] args) in C:\Code\C#\Sandbox2D\Sandbox2D\src\Program.cs:line 53
-        */
-        
         // update world geometry / transform
-        if (GeometryLock.IsSet || GeometryLock.Wait(RenderLockTimeout))
+        if (_unuploadedGeometry && (GeometryLock.IsSet || GeometryLock.Wait(RenderLockTimeout)))
         {
             GeometryLock.Reset();
             
             // update geometry
-            _rQt.SetGeometry(ref _treeModifications, ref _dataModifications, _treeLength, _dataLength, ref _treeIndex, ref _dataIndex, _renderRoot);
+            (_treeIndex, _dataIndex) = _rQt.SetGeometry(TreeModifications, DataModifications,
+                _treeLength, _dataLength,
+                _treeIndex, _dataIndex,
+                _renderRoot);
             
             // if we have uploaded all modifications to the gpu
-            if (_treeIndex >= _treeModifications.Length && _dataIndex >= _dataModifications.Length)
+            if (_treeIndex >= TreeModifications.Length && _dataIndex >= DataModifications.Length)
             {
-                if (_treeModifications.Length != 0 && _dataModifications.Length != 0)
+                if (TreeModifications.Length != 0)
                 {
                     _treeIndex = 0;
+                    TreeModifications.Clear();
+                }
+                
+                if (DataModifications.Length != 0)
+                {
                     _dataIndex = 0;
-                    _treeModifications.Clear();
-                    _dataModifications.Clear();
+                    DataModifications.Clear();
                 }
                 
                 // reset geometry flag
                 _unuploadedGeometry = false;
             }
             
-            // calculate the translation to be uploaded to the GPU
-            var renderTranslation = Translation + (Vec2<decimal>)_renderRange.Center;
-            
-            // update the world transform
-            _rQt.SetTransform(renderTranslation, (double)_scale);
-            
             GeometryLock.Set();
         }
         
+        // update the world transform
+        _rQt.SetTransform(Translation + (Vec2<decimal>)_renderRange.Center, (double)_scale);
+        
         // render the world
-        _rQt.Render();
+        _rQt.Invoke();
         
         // TODO: render brush outline
         
@@ -180,9 +190,12 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         Registry.Gui.RenderVisible();
         
         // FPS display
-        _rText.SetText($"{1 / args.Time:F1} FPS, {_mspt:F1} MSPT\n" +
-                       $"M:({_mouseWorldCoords.X:F0}, {_mouseWorldCoords.Y:F0}) T:({_translation.X:F4}, {_translation.Y:F4}) S:{_scale:F16}", (4,4), 1f);
-        _rText.Render();
+        var mspt = Math.Max(
+            GameManager.GetCurrentTickTime().TotalMilliseconds,
+            GameManager.GetPreviousTickTime().TotalMilliseconds);
+        _rText.SetText($"{1 / args.Time:F4} FPS, {mspt:F4} MSPT, Load: {mspt / TargetMspt:P4}\n" +
+                       $"Mouse: ({_mouseWorldCoords.X:F0}, {_mouseWorldCoords.Y:F0}) Translation: ({_translation.X:F4}, {_translation.Y:F4}) Scale: x{_scale:F16}", (4,4), 1f);
+        _rText.Invoke();
         
         // swap the frame buffers
         SwapBuffers();
@@ -210,7 +223,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
             // p = -log_1.1(s / 1024)
             
             if (scale < _scaleMinimum) _scrollPos --;
-            else if (scale > ScaleMaximum) _scrollPos ++;
+            else if (scale > _scaleMaximum) _scrollPos ++;
             else _scale = scale;
             
         }
@@ -263,7 +276,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         RegisterKeybinds();
         
         // set clear color
-        GL.ClearColor(System.Drawing.Color.Magenta);
+        GL.ClearColor(System.Drawing.Color.FromArgb(255, 12, 12, 12));
         
         // register everything
         RegisterGraphics();
@@ -285,16 +298,17 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         Registry.Texture.RegisterAll($"{GlobalVariables.AssetDirectory}/textures/");
         
         // create the shader programs
-        Registry.ShaderProgram.Register("quadtree", ["quadtree_vert", "quadtree_frag"]);
-        Registry.ShaderProgram.Register("text", ["gui/font/text_vert", "gui/font/text_frag"]);
+        Registry.ShaderProgram.Register("quadtree", "quadtree_vert", "quadtree_frag");
+        Registry.ShaderProgram.Register("data_patch", "data_patch_comp");
+        Registry.ShaderProgram.Register("text", "gui/font/text_vert", "gui/font/text_frag");
         // debug programs
-        Registry.ShaderProgram.Register("noise", ["noise_vert", "noise_frag"]);
-        Registry.ShaderProgram.Register("vertex_debug", ["vertex_debug_vert", "vertex_debug_frag"]);
-        Registry.ShaderProgram.Register("texture_debug", ["texture_vert", "texture_frag"]);
+        Registry.ShaderProgram.Register("debug/noise", "debug/noise_vert", "debug/noise_frag");
+        Registry.ShaderProgram.Register("debug/texture", "debug/texture_vert", "debug/texture_frag");
+        Registry.ShaderProgram.Register("debug/vertex", "debug/vertex_vert", "debug/vertex_frag");
         
         // create the renderables
-        _rQt = new QuadtreeRenderable(Registry.ShaderProgram.Create("quadtree"), Math.Min(GameManager.WorldHeight, MaxGpuQtHeight), BufferUsageHint.StreamDraw);
-        _rText = new TextRenderable(Registry.ShaderProgram.Create("text"), BufferUsageHint.DynamicDraw);
+        _rQt = new QuadtreeRenderer(Registry.ShaderProgram.Create("quadtree"), Math.Min(GameManager.WorldHeight, MaxGpuQtHeight), BufferUsageHint.StreamDraw);
+        _rText = new TextRenderer(Registry.ShaderProgram.Create("text"), BufferUsageHint.DynamicDraw);
         _rText.SetColor(Color.Gray);
         
         // create the GUI elements
@@ -309,44 +323,35 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     
     private void RegisterKeybinds()
     {
-        _keybindManager.Add("mapWorld", () => _worldAction = (WorldAction.Map, "map.svg"), [(Key.M, RisingEdge)]);
-        _keybindManager.Add("saveWorld", () =>_worldAction = (WorldAction.Save, "save.qdt"), [(Key.S, RisingEdge)]);
-        _keybindManager.Add("loadWorld", () => _worldAction = (WorldAction.Load, "save.qdt"), [(Key.L, RisingEdge)]);
-        _keybindManager.Add("clearWorld", () => _worldAction = (WorldAction.Clear, ""), [(Key.C, RisingEdge)]);
-        _keybindManager.Add("logMousePos", () => Log(_mouseWorldCoords), [(Key.LeftControl, RisingEdge)]);
+        _keybindManager.Add("mapWorld", Key.M, RisingEdge, () => _worldAction = (WorldAction.Map, "map.svg"));
+        _keybindManager.Add("saveWorld", Key.S, RisingEdge, () =>_worldAction = (WorldAction.Save, "save.qdt"));
+        _keybindManager.Add("loadWorld", Key.L, RisingEdge, () => _worldAction = (WorldAction.Load, "save.qdt"));
+        _keybindManager.Add("clearWorld", Key.C, RisingEdge, () => _worldAction = (WorldAction.Clear, ""));
+        _keybindManager.Add("logMousePos", Key.LeftControl, RisingEdge, () => Log(_mouseWorldCoords));
         
-        _keybindManager.Add("shuffleBrush", () =>
+        _keybindManager.Add("shuffleBrush", Key.RightMouse, RisingEdge, () =>
         {
-            _activeBrush = new Paint( new Color((uint)(Random.Next() & 0x00ffffff)));
+            _activeBrush = new Paint(new Color((uint)(Random.Next() & 0x00ffffff)));
             Log($"Brush Changed to {_activeBrush}");
-        }, [
-            (Key.RightMouse, RisingEdge)
-        ]);
+        });
         
-        _keybindManager.Add("captureShiftMousePos", () => _capturedMouseWorldCoordsLShift = _mouseWorldCoords, [
-            (Key.LeftShift, Enabled),
-            (Key.LeftMouse, RisingEdge)
-        ]);
-        _keybindManager.Add("uncaptureShiftMousePos", () => _capturedMouseWorldCoordsLShift = null, [
-            (Key.LeftShift, FallingEdge)
-        ]);
+        _keybindManager.Add("captureShiftMousePos", [(Key.LeftShift, Enabled), (Key.LeftMouse, RisingEdge)],
+            () => _capturedMouseWorldCoordsLShift = _mouseWorldCoords);
+        _keybindManager.Add("uncaptureShiftMousePos", [(Key.LeftShift, FallingEdge)],
+            () => _capturedMouseWorldCoordsLShift = null);
         
-        _keybindManager.Add("captureMMouse", () =>
+        _keybindManager.Add("captureMMouse", [(Key.MiddleMouse, RisingEdge)], () =>
         {
             _capturedMouseScreenCoordsMMouse = _mouseScreenCoords;
             _capturedTranslationMMouse = Translation;
-        }, [
-            (Key.MiddleMouse, RisingEdge)
-        ]);
-        _keybindManager.Add("uncaptureMMouse", () =>
+        });
+        _keybindManager.Add("uncaptureMMouse", [(Key.MiddleMouse, FallingEdge)], () =>
         {
             _capturedMouseScreenCoordsMMouse = null;
             _capturedTranslationMMouse = null;
-        }, [
-            (Key.MiddleMouse, FallingEdge)
-        ]);
+        });
         
-        _keybindManager.Add("translateScreen", () =>
+        _keybindManager.Add("translateScreen", [(Key.MiddleMouse, Enabled)], () =>
         {
             if (!_capturedMouseScreenCoordsMMouse.HasValue) return;
             if (!_capturedTranslationMMouse.HasValue) return;
@@ -356,21 +361,17 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
             
             Translation = _capturedTranslationMMouse.Value + worldTranslationOffset;
             
-        }, [(Key.MiddleMouse, Enabled)]);
+        });
         
-        _keybindManager.Add("drawSingle",
-            () => WorldModifications.Add(
+        _keybindManager.Add("drawSingle", [(Key.LeftMouse, Enabled), (Key.LeftShift, Disabled)], () =>
+            WorldModifications.Add(
                 new WorldModification(
                     new Range2D(RoundMouseWorldCoords(_mouseWorldCoords)),
                     _activeBrush
-                )),
-            [
-            (Key.LeftMouse, Enabled),
-            (Key.LeftShift, Disabled)
-            ]
+                ))
         );
         
-        _keybindManager.Add("drawRect", () =>
+        _keybindManager.Add("drawRect", [(Key.LeftMouse, FallingEdge), (Key.LeftShift, Enabled)], () => 
         {
             if (!_capturedMouseWorldCoordsLShift.HasValue) return;
             WorldModifications.Add(
@@ -378,10 +379,27 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
                     RoundMouseWorldRange(new Range2D(_mouseWorldCoords, _capturedMouseWorldCoordsLShift.Value)),
                     _activeBrush
                 ));
-        }, [
-            (Key.LeftMouse, FallingEdge),
-            (Key.LeftShift, Enabled)
-        ]);
+        });
+        
+        _keybindManager.Add("moveBlCorner", Key.KeyPad1, RisingEdge,
+            () => _translation = -(Vec2<decimal>)GameManager.WorldDimensions.Bl);
+        _keybindManager.Add("moveBottomSide", Key.KeyPad2, RisingEdge,
+            () => _translation = -(Vec2<decimal>)GameManager.WorldDimensions.BottomVec);
+        _keybindManager.Add("moveBrCorner", Key.KeyPad3, RisingEdge,
+            () => _translation = -(Vec2<decimal>)GameManager.WorldDimensions.Br - (1, 0));
+        _keybindManager.Add("moveLeftSide", Key.KeyPad4, RisingEdge,
+            () => _translation = -(Vec2<decimal>)GameManager.WorldDimensions.LeftVec);
+        _keybindManager.Add("moveCenter", Key.KeyPad5, RisingEdge,
+            () => _translation = -(Vec2<decimal>)GameManager.WorldDimensions.Center);
+        _keybindManager.Add("moveRightSide", Key.KeyPad6, RisingEdge,
+            () => _translation = -(Vec2<decimal>)GameManager.WorldDimensions.RightVec - (1, 0));
+        _keybindManager.Add("moveTlCorner", Key.KeyPad7, RisingEdge,
+            () => _translation = -(Vec2<decimal>)GameManager.WorldDimensions.Tl - (0, 1));
+        _keybindManager.Add("moveTopSide", Key.KeyPad8, RisingEdge,
+            () => _translation = -(Vec2<decimal>)GameManager.WorldDimensions.TopVec - (0, 1));
+        _keybindManager.Add("moveTrCorner", Key.KeyPad9, RisingEdge,
+            () => _translation = -(Vec2<decimal>)GameManager.WorldDimensions.Tr - (1, 1));
+        
     }
     
     private static Range2D RoundMouseWorldRange(Range2D mouseWorldRange)
@@ -436,6 +454,19 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         return true;
     }
     
+    private static void CalculateScaleBounds()
+    {
+        var minScreen = (decimal)Math.Min(ScreenSize.X, ScreenSize.Y);
+        
+        const decimal worldFill = 0.5m;
+        const decimal pixelFill = 0.5m;
+        
+        _scaleMinimum = minScreen / BitUtil.Pow2(GameManager.WorldHeight) * worldFill;
+        _scaleMaximum = minScreen * pixelFill;
+        
+        Scale = Math.Clamp(Scale, _scaleMinimum, _scaleMaximum);
+    }
+    
     /// <summary>
     /// Updates the viewport when the window is resized.
     /// </summary>
@@ -454,7 +485,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
             _scale *= scale;
         }
         
-        _scaleMinimum = (decimal)Math.Min(ScreenSize.X, ScreenSize.Y) / BitUtil.Pow2(GameManager.WorldHeight) * 0.8m;
+        CalculateScaleBounds();
         
         // update screenSize on the logic thread
         GameManager.UpdateScreenSize(newSize);
@@ -491,16 +522,7 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     }
     
     /// <summary>
-    /// Returns refs to the tree and data modification arrays, allowing new modification to be uploaded to the gpu.
-    /// </summary>
-    /// <remarks>Does not wait for <see cref="GeometryLock"/>.</remarks>
-    public static QuadtreeModifications GetModificationArrays()
-    {
-        return new QuadtreeModifications(_treeModifications, _dataModifications);
-    }
-    
-    /// <summary>
-    /// Updates the additional geometry information on the render thread. See <see cref="GetModificationArrays"/>.
+    /// Updates the additional geometry information on the render thread. See <see cref="TreeModifications"/> and <see cref="DataModifications"/>.
     /// </summary>
     /// <param name="treeLength">the length of the "tree" section</param>
     /// <param name="dataLength">the length of the "data" section</param>
@@ -516,7 +538,10 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
         
         _renderRoot = renderRoot;
         _renderRange = renderRange;
-        
+    }
+    
+    public static void SetGeometryUploaded()
+    {
         _unuploadedGeometry = true;
     }
     
@@ -540,15 +565,6 @@ public class RenderManager(int width, int height, string title) : GameWindow(Gam
     public static bool IsExtensionSupported(string extension)
     {
         return SupportedExtensions.Contains(extension);
-    }
-    
-    /// <summary>
-    /// Updates the MSPT metric.
-    /// </summary>
-    /// <param name="mspt">the new mpst</param>
-    public static void UpdateMspt(float mspt)
-    {
-        _mspt = mspt;
     }
     
     /// <summary>
@@ -578,16 +594,4 @@ public readonly struct WorldModification(Range2D range, Tile tile)
 {
     public readonly Range2D Range = range;
     public readonly Tile Tile = tile;
-}
-
-public readonly struct QuadtreeModifications
-{
-    public readonly DynamicArray<ArrayModification<QuadtreeNode>> Tree;
-    public readonly DynamicArray<ArrayModification<Tile>> Data;
-    
-    public QuadtreeModifications(DynamicArray<ArrayModification<QuadtreeNode>> tree, DynamicArray<ArrayModification<Tile>> data)
-    {
-        Tree = tree;
-        Data = data;
-    }
 }

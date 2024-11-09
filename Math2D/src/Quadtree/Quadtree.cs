@@ -1,8 +1,9 @@
 ﻿using System.Numerics;
+using Math2D.Binary;
 using Math2D.Quadtree.Features;
 using static Math2D.Quadtree.QuadtreeUtil;
 using static Math2D.Quadtree.NodeType;
-using static Math2D.BitUtil;
+using static Math2D.Binary.BitUtil;
 
 namespace Math2D.Quadtree;
 
@@ -695,9 +696,8 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             long.Clamp(center.X, -centerMax, centerMax),
             long.Clamp(center.Y, -centerMax, centerMax));
         
-        // create the range
-        var subsetRange = new Range2D(center, ~(~0x0uL << maxHeight));
         
+        // create the subset root
         QuadtreeNode subsetRoot;
         
         // get the child nodes of the subset root
@@ -711,6 +711,10 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             subsetRoot = new QuadtreeNode(Tree[ref0].GetValueRef());
         else
             subsetRoot = new QuadtreeNode(ref0, ref1, ref2, ref3);
+        
+        // create the subset range
+        var distanceRange = Pow2MinMax(MaxHeight);
+        var subsetRange = new Range2D(distanceRange.Min, distanceRange.Min, distanceRange.Max, distanceRange.Max);
         
         return (subsetRoot, subsetRange);
     }
@@ -767,13 +771,17 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     /// </summary>
     /// <param name="tree">the buffer into which to copy the tree modifications</param>
     /// <param name="data">the buffer into which to copy the data modifications</param>
-    public void GetModifications(DynamicArray<ArrayModification<QuadtreeNode>> tree, DynamicArray<ArrayModification<T>> data)
+    /// <returns>The amount of modifications that were copied into <paramref name="tree"/> and <paramref name="data"/></returns>
+    public (long Tree, long Data) GetModifications(
+        DynamicArray<ArrayModification<QuadtreeNode>> tree, DynamicArray<ArrayModification<T>> data)
     {
         if (!StoreModifications)
             throw new StoredModificationsException();
-        
-        Tree.GetModifications(tree);
-        Data.GetModifications(data);
+
+        var treeCount = Tree.GetModifications(tree);
+        var dataCount = Data.GetModifications(data);
+
+        return (treeCount, dataCount);
     }
     
     /// <summary>

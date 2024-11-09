@@ -1,5 +1,7 @@
 ﻿using System.Buffers;
+using System.Runtime.InteropServices;
 using System.Text;
+using Math2D.Binary;
 
 namespace Math2D;
 
@@ -332,22 +334,46 @@ public class DynamicArray<T> : IDisposable
         }
     }
     
+    
+    /// <summary>
+    /// Copies elements from this <see cref="DynamicArray{T}"/> into an array.
+    /// </summary>
+    /// <param name="dest">the array to copy elements to</param>
+    /// <param name="start">the index of the first element to copy, in this <see cref="DynamicArray{T}"/></param>
+    /// <param name="destStart">the index of where, in <paramref name="dest"/>, to put the first element that is copied</param>
+    /// <param name="length">the amount of elements to copy</param>
+    public void CopyTo(T[] dest, long start = 0, long destStart = 0, long length = -1)
+    {
+        if (length == -1) length = Length - start;
+        
+        for (long i = 0; i < length; i++)
+        {
+            dest[i + destStart] = this[i + start];
+        }
+    }
+    
     /// <summary>
     /// Retrieves every modification that has been done to this <see cref="DynamicArray{T}"/> since the last time this
     /// method was called, and copies them into <paramref name="destination"/>.
     /// </summary>
     /// <param name="destination">the buffer into which to copy the modifications</param>
+    /// <returns>The amount of modifications that were copied into <paramref name="destination"/></returns>
     /// <remarks>See <see cref="ModificationLength"/></remarks>
     /// <exception cref="DynamicArray{T}.StoredModificationsException">thrown when modification storing is not enabled</exception>
-    public void GetModifications(DynamicArray<ArrayModification<T>> destination)
+    public long GetModifications(DynamicArray<ArrayModification<T>> destination)
     {
         if (!StoreModifications)
             throw new StoredModificationsException();
+
+        var count = _modifications.Length;
+        if (count == 0) return 0;
         
         _modifications.CopyTo(destination);
         
         _modifications.Clear();
         ModificationLength = Length;
+
+        return count;
     }
     
     #endregion
@@ -685,6 +711,7 @@ public class DynamicArray<T> : IDisposable
 /// <param name="index">the index</param>
 /// <param name="value">the new value</param>
 /// <typeparam name="T">the type of the new value</typeparam>
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
 public readonly struct ArrayModification<T>(long index, T? value)
 {
     public readonly long Index = index;

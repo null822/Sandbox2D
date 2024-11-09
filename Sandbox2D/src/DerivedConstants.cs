@@ -4,4 +4,6 @@ namespace Sandbox2D;
 public static class DerivedConstants
 {
     public static decimal QuadTreeSvgScale => (decimal)QuadTreeSvgSize / ~(GameManager.WorldHeight == 64 ? 0 : ~0x0uL << GameManager.WorldHeight);
+
+    public const double TargetMspt = 1000.0 / Tps;
 }

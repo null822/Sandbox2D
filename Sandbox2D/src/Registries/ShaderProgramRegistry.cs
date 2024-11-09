@@ -9,7 +9,7 @@ public class ShaderProgramRegistry : IRegistryFactory<ShaderProgram, string[]>
 {
     private readonly Dictionary<string, int[]> _shaders = new();
     
-    public void Register(string id, string[] shaderIds)
+    public void Register(string id, params string[] shaderIds)
     {
         var handles = new int[shaderIds.Length];
         for (var i = 0; i < shaderIds.Length; i++)

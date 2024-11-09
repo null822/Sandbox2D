@@ -17,7 +17,6 @@ public abstract class Tile : IQuadtreeElement<Tile>,
     protected readonly TileData TileData;
     
     public static int MaxChunkSize => 10_000; /* 80kb per chunk */
-    public int SerializeLength => 8;
     
     protected Tile(TileData data)
     {
@@ -29,25 +28,22 @@ public abstract class Tile : IQuadtreeElement<Tile>,
         TileData = new TileData(bytes);
     }
     
-    public byte[] Serialize()
-    {
-        return TileData.Serialize();
-    }
-    
-    public static Tile Deserialize(Span<byte> bytes)
-    {
-        return TileDeserializer.Create(bytes);
-    }
-    
-    public TileData GpuSerialize()
-    {
-        return TileData;
-    }
+    public abstract Color GetColor();
     
     public bool CanCombine(Tile other)
     {
         return TileData.Equals(other.TileData);
     }
     
-    public abstract Color GetColor();
+    public static int SerializeLength => 8;
+    
+    public byte[] Serialize(bool bigEndian = false)
+    {
+        return TileData.Serialize(bigEndian);
+    }
+    
+    public static Tile Deserialize(byte[] bytes, bool bigEndian = false)
+    {
+        return TileDeserializer.Create(bytes, bigEndian);
+    }
 }

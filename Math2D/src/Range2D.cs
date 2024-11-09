@@ -9,43 +9,89 @@ namespace Math2D;
 public readonly struct Range2D : IEquatable<Range2D>
 {
     /// <summary>
-    /// Left coordinate.
+    /// The left coordinate
     /// </summary>
     public readonly long MinX;
     /// <summary>
-    /// Bottom coordinate.
+    /// The bottom coordinate
     /// </summary>
     public readonly long MinY;
     /// <summary>
-    /// Right coordinate.
+    /// The right coordinate
     /// </summary>
     public readonly long MaxX;
     /// <summary>
-    /// Top coordinate.
+    /// The top coordinate
     /// </summary>
     public readonly long MaxY;
     
     /// <summary>
-    /// The bottom left corner.
+    /// The bottom left corner
     /// </summary>
     public Vec2<long> Bl => MinXMinY;
     /// <summary>
-    /// The top left corner.
+    /// The top left corner
     /// </summary>
     public Vec2<long> Tl => MinXMaxY;
     /// <summary>
-    /// The bottom right corner.
+    /// The bottom right corner
     /// </summary>
     public Vec2<long> Br => MaxXMinY;
     /// <summary>
-    /// The top right corner.
+    /// The top right corner
     /// </summary>
     public Vec2<long> Tr => MaxXMaxY;
     
+    /// <summary>
+    /// The bottom left coordinate
+    /// </summary>
     public Vec2<long> MinXMinY => new(MinX, MinY);
+    /// <summary>
+    /// The top left coordinate
+    /// </summary>
     public Vec2<long> MinXMaxY => new(MinX, MaxY);
+    /// <summary>
+    /// The bottom right coordinate
+    /// </summary>
     public Vec2<long> MaxXMinY => new(MaxX, MinY);
+    /// <summary>
+    /// The top right coordinate
+    /// </summary>
     public Vec2<long> MaxXMaxY => new(MaxX, MaxY);
+    
+    /// <summary>
+    /// The left side
+    /// </summary>
+    public long Left => MinX;
+    /// <summary>
+    /// The bottom side
+    /// </summary>
+    public long Bottom => MinY;
+    /// <summary>
+    /// The right side
+    /// </summary>
+    public long Right => MaxX;
+    /// <summary>
+    /// The top side
+    /// </summary>
+    public long Top => MaxY;
+    
+    /// <summary>
+    /// The left side
+    /// </summary>
+    public Vec2<long> LeftVec => (MinX, 0);
+    /// <summary>
+    /// The bottom side
+    /// </summary>
+    public Vec2<long> BottomVec => (0, MinY);
+    /// <summary>
+    /// The right side
+    /// </summary>
+    public Vec2<long> RightVec => (MaxX, 0);
+    /// <summary>
+    /// The top side
+    /// </summary>
+    public Vec2<long> TopVec => (0, MaxY);
     
     public ulong HalfWidth  => (ulong)(MaxX/2 - MinX/2) + 1;
     public ulong HalfHeight => (ulong)(MaxY/2 - MinY/2) + 1;
@@ -66,7 +112,8 @@ public readonly struct Range2D : IEquatable<Range2D>
     /// <summary>
     /// The point that resides in the center of the range, returned as an integer.
     /// </summary>
-    public Vec2<long> Center => (MinX / 2 + MaxX / 2, MinY / 2 + MaxY / 2);
+    public Vec2<long> Center => (MinX / 2 + MathUtil.DivCeil(MaxX, 2),
+                                   MinY / 2 + MathUtil.DivCeil(MaxY, 2));
     
     /// <summary>
     /// The point that resides in the center of the range, returned as a floating-point integer.

@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using Math2D;
 using OpenTK.Graphics.OpenGL4;
 
-namespace Sandbox2D.Graphics.Renderables;
+namespace Sandbox2D.Graphics.ShaderControllers;
 
-public class TextureRenderable : IRenderable
+public class TextureRenderer : IShaderController
 {
     public ShaderProgram Shader { get; }
     public BufferUsageHint Hint { get; init; }
@@ -30,7 +30,7 @@ public class TextureRenderable : IRenderable
         1, 2, 3    // second triangle
     ];
     
-    public TextureRenderable(ShaderProgram shader, Texture texture, BufferUsageHint hint = BufferUsageHint.StaticDraw)
+    public TextureRenderer(ShaderProgram shader, Texture texture, BufferUsageHint hint = BufferUsageHint.StaticDraw)
     {
         Shader = shader;
         _texture = texture;
@@ -49,7 +49,7 @@ public class TextureRenderable : IRenderable
         GL.VertexAttribPointer(texCoordLocation, 2, VertexAttribPointerType.Float, false, 5 * sizeof(float), 3 * sizeof(float));
     }
     
-    public void Render()
+    public void Invoke()
     {
         GL.BindVertexArray(VertexArrayObject);
         _texture.Use(TextureUnit.Texture0);

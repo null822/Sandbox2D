@@ -7,7 +7,7 @@ using Sandbox2D.Registries;
 
 namespace Sandbox2D.UserInterface.Elements;
 
-public class TestElement : IGuiElement, IRenderable
+public class TestElement : IGuiElement, IShaderController
 {
     public Dictionary<string, string> Attributes { get; } = new();
     
@@ -61,6 +61,8 @@ public class TestElement : IGuiElement, IRenderable
         Shader.Use();
         GL.DrawElements(PrimitiveType.Triangles, _indices.Length, DrawElementsType.UnsignedInt, 0);
     }
+    
+    public void Invoke() => Render();
     
     public void Update()
     {

@@ -1,7 +1,7 @@
 ﻿using Math2D.Quadtree.FeatureNodeTypes;
 using static Math2D.Quadtree.NodeType;
 using static Math2D.Quadtree.QuadtreeUtil;
-using static Math2D.BitUtil;
+using static Math2D.Binary.BitUtil;
 
 namespace Math2D.Quadtree.Features;
 
@@ -41,7 +41,7 @@ public class SerializableQuadtree<T> : QuadtreeFeature<T> where T : IQuadtreeEle
         header.Write(GetBytes(~0uL)); // features // TODO: store some data
         header.Write([(byte)MaxHeight]); // maxHeight
         header.Write([(byte)dataRefSize]); // data ref size
-        header.Write(GetBytes(_data[0].SerializeLength)); // size of T
+        header.Write(GetBytes(T.SerializeLength)); // size of T
         // serialize the quadtree
         SerializeBody(tree, data, (int)dataRefSize);
         
@@ -80,7 +80,7 @@ public class SerializableQuadtree<T> : QuadtreeFeature<T> where T : IQuadtreeEle
         
         var data = new DynamicArray<byte[]>(65_536 /* each chunk will consume 85kib */, false, false);
         
-        var serializeLength = _data[0].SerializeLength;
+        var serializeLength = T.SerializeLength;
         while (true)
         {
             var node = _tree[nodeRef];
@@ -182,8 +182,8 @@ public class SerializableQuadtree<T> : QuadtreeFeature<T> where T : IQuadtreeEle
         stream.ReadExactly(header);
         
         // read the header
-        var version = GetUint(header[0..4]); // format version // TODO: check the version
-        var metadata = GetUint(header[4..12]); // metadata // TODO: use this data
+        var version = GetUInt(header[0..4]); // format version // TODO: check the version
+        var metadata = GetUInt(header[4..12]); // metadata // TODO: use this data
         var maxHeight = header[12]; // maxHeight
         var dataRefSize = (int)header[13]; // data ref size
         var tSize = GetInt(header[14..18]); // size of T

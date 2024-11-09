@@ -5,9 +5,9 @@ using Math2D;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 
-namespace Sandbox2D.Graphics.Renderables;
+namespace Sandbox2D.Graphics.ShaderControllers;
 
-public class TextRenderable : IRenderable
+public class TextRenderer : IShaderController
 {
     public ShaderProgram Shader { get; }
     public BufferUsageHint Hint { get; init; }
@@ -40,7 +40,7 @@ public class TextRenderable : IRenderable
         1, 2, 3    // second triangle
     ];
     
-    public TextRenderable(ShaderProgram shader, BufferUsageHint hint = BufferUsageHint.StaticDraw)
+    public TextRenderer(ShaderProgram shader, BufferUsageHint hint = BufferUsageHint.StaticDraw)
     {
         Shader = shader;
         Hint = hint;
@@ -75,7 +75,7 @@ public class TextRenderable : IRenderable
         // _glyphTexture.Use(TextureUnit.Texture0);
     }
     
-    public void Render()
+    public void Invoke()
     {
         // bind vao/buffers
         GL.BindVertexArray(VertexArrayObject);

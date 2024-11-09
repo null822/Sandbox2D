@@ -55,7 +55,7 @@ vec2 ScreenToVertexCoords(vec2 screenCoords)
     return screenCoords;
 }
 
-vec2 WorldToScreenCoords(VEC64 worldCoords, INT64 add)
+vec2 WorldToScreenCoords(VEC64 worldCoords)
 {
     dvec2 untranslated;
     
@@ -77,11 +77,7 @@ vec2 WorldToScreenCoords(VEC64 worldCoords, INT64 add)
         untranslated.y = ((worldCoords.y + Translation.y) * Scale);
     }
     
-    double sAdd = add * Scale;
-    untranslated.x += sAdd;
-    untranslated.y += sAdd;
-    
-    vec2 screenCoords = vec2(untranslated + SubTranslation * Scale);
+    vec2 screenCoords = vec2(untranslated + (SubTranslation * Scale));
     screenCoords = vec2(screenCoords.x, -screenCoords.y);
     screenCoords += ScreenSize / 2.0;
     
@@ -92,8 +88,8 @@ void main(void)
 {
     const INT64 minDistanceWorld = INT64(-1) << (MaxHeight - 1);
     const INT64 maxDistanceWorld = -(minDistanceWorld + 1);
-    const vec2 maxPos = ScreenToVertexCoords(WorldToScreenCoords(VEC64(maxDistanceWorld), INT64(1)));
-    const vec2 minPos = ScreenToVertexCoords(WorldToScreenCoords(VEC64(minDistanceWorld), INT64(0)));
+    const vec2 minPos = ScreenToVertexCoords(WorldToScreenCoords(VEC64(minDistanceWorld)));
+    const vec2 maxPos = ScreenToVertexCoords(WorldToScreenCoords(VEC64(maxDistanceWorld)) + vec2(vec2(1, -1) * Scale)); // add 1 to world coords to make both min and max inclusive (for clamping)
     
     #define CLAMP true
     

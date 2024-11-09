@@ -40,16 +40,6 @@ struct QuadtreeNode
 {
     uint Type;
     
-//    #ifdef GL_ARB_gpu_shader_int64
-//    uint Ref0u;
-//    uint Ref0;
-//    uint Ref1u;
-//    uint Ref1;
-//    uint Ref2u;
-//    uint Ref2;
-//    uint Ref3u;
-//    uint Ref3;
-//    #else
     uint Ref0L;
     uint Ref0U;
     uint Ref1L;
@@ -58,9 +48,7 @@ struct QuadtreeNode
     uint Ref2U;
     uint Ref3L;
     uint Ref3U;
-//    #endif
 };
-
 
 struct Tile
 {
@@ -81,14 +69,16 @@ layout(std430, binding = 1) buffer DataBuffer
 const int Branch = 0;
 const int Leaf = 1;
 
-UINT64 Unsign(INT64 i)
+UINT64 Unsign(INT64 i, int b)
 {
-    return UINT64(i) ^ (UINT64(0x1u) << 63);
+    UINT64 mask = b == 64 ? ~UINT64(0) : ~(~UINT64(0) << b);
+    
+    return (UINT64(i) & mask) ^ (UINT64(0x1u) << (b-1));
 }
 
-UVEC64 Unsign(VEC64 coords)
+UVEC64 Unsign(VEC64 coords, int b)
 {
-    return UVEC64(Unsign(coords.x), Unsign(coords.y));
+    return UVEC64(Unsign(coords.x, b), Unsign(coords.y, b));
 }
 
 INT32 GetNodeRef(QuadtreeNode node, uint index)
@@ -97,21 +87,12 @@ INT32 GetNodeRef(QuadtreeNode node, uint index)
         return -16;
     }
     
-//    #ifdef GL_ARB_gpu_shader_int64
-//    switch (index) {
-//        case 0: return INT32(node.Ref0);
-//        case 1: return INT32(node.Ref1);
-//        case 2: return INT32(node.Ref2);
-//        case 3: return INT32(node.Ref3);
-//    }
-//    #else
     switch (index) {
-        case 0: return INT32(node.Ref0L);
-        case 1: return INT32(node.Ref1L);
-        case 2: return INT32(node.Ref2L);
-        case 3: return INT32(node.Ref3L);
+        case 0: return INT32(node.Ref0L); // -X -Y | BL | 2 | 3
+        case 1: return INT32(node.Ref1L); // +X -Y | BR | --+--
+        case 2: return INT32(node.Ref2L); // -X +Y | TL | 0 | 1
+        case 3: return INT32(node.Ref3L); // +X +Y | TR |
     }
-//    #endif
     
     return -17;
 }
@@ -124,7 +105,7 @@ uint GetTileId(Tile tile)
 INT32 GetNode(VEC64 coords)
 {
     // map the coords to unsigned integers
-    UVEC64 uCoords = Unsign(coords);
+    UVEC64 uCoords = Unsign(coords, MaxHeight);
     
     // start at the render root, not the acutal root
     INT32 nodeRef = 0;
@@ -173,7 +154,7 @@ VEC64 ScreenToWorldCoords(vec2 screenCoords)
     {
         return VEC64(untranslated - vec2(Translation));
     }
-    return VEC64(floor(untranslated)) - Translation;
+    return VEC64(untranslated) - Translation;
 }
 
 void main()
@@ -183,16 +164,12 @@ void main()
     
     // error display
     if (nodeRef < 0) {
-        uint error = -int(nodeRef);
-        outputColor = vec4(1, ((error / 16) % 16) / 16.0, (error % 16) / 16.0, 1);
+        int error = -int(nodeRef);
+        outputColor = vec4(1, ((error / 256) % 256) / 256.0, (error % 256) / 256.0, 1);
         return;
     }
     
-    #ifdef GL_ARB_gpu_shader_int64
-    Tile tile = Data[int(Tree[int(nodeRef)].Ref0L)];
-    #else
     Tile tile = Data[Tree[nodeRef].Ref0L];
-    #endif
     uint id = GetTileId(tile);
     
     uint outVal = 0;

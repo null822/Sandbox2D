@@ -7,7 +7,6 @@ using Math2D.Quadtree;
 using Math2D.Quadtree.Features;
 using Sandbox2D.World;
 using Sandbox2D.World.Tiles;
-using static Sandbox2D.Constants;
 using static Sandbox2D.Util;
 
 namespace Sandbox2D;
@@ -18,6 +17,7 @@ public static class GameManager
 {
     private static Quadtree<Tile> _world;
     public static int WorldHeight { get; private set; } = 64;
+    public static Range2D WorldDimensions => _world.Dimensions;
     
     // camera
     public static Vec2<decimal> Translation { private set; get; }
@@ -27,6 +27,19 @@ public static class GameManager
     // game state
     public static bool IsRunning { private set; get; }
     private static bool _isActive = true;
+
+    /// <summary>
+    /// A <see cref="Stopwatch"/> to keep track of how long the current tick has taken
+    /// </summary>
+    private static readonly Stopwatch TickTimer = new();
+    /// <summary>
+    /// The time that the previous tick took to complete
+    /// </summary>
+    private static TimeSpan _prevTickTime;
+    /// <summary>
+    /// The maximum time that each tick should take to complete
+    /// </summary>
+    private static readonly TimeSpan TargetTickTime = TimeSpan.FromMilliseconds(DerivedConstants.TargetMspt);
     
     /// <summary>
     /// Main logic loop.
@@ -37,32 +50,26 @@ public static class GameManager
         // initialize the logic
         Initialize();
         
-        // create a stopwatch to keep track of how long a tick has taken
-        var stopwatch = Stopwatch.StartNew();
-        
         // while the game is running
         while (_isActive)
         {
             // restart the stopwatch
-            stopwatch.Restart();
+            TickTimer.Restart();
             
             if (IsRunning)
             {
                 UpdateLogic();
                 UpdateRender();
             }
+            _prevTickTime = TickTimer.Elapsed;
+            // var sleepTime = (int)Math.Max(mspt - _prevTickTime.TotalMilliseconds, 0);
             
-            const int mspt = 1000 / Tps;
-            
-            var elapsed = (int)stopwatch.Elapsed.TotalMilliseconds;
-            var sleepTime = Math.Max(mspt - elapsed, 0);
-            
-            // update tps metric on the render thread
-            RenderManager.UpdateMspt(elapsed);
+            var sleepTime = TargetTickTime.Subtract(_prevTickTime);
             
             // sleep for the remaining time in the tick
-            if (sleepTime > 0)
+            if (sleepTime.Ticks > 0)
             {
+                TickTimer.Stop();
                 Thread.Sleep(sleepTime);
             }
         }
@@ -117,14 +124,19 @@ public static class GameManager
         if (!RenderManager.CanUpdateGeometry()) return;
         
         // update the modifications
-        var modificationArrays = RenderManager.GetModificationArrays();
-        _world.GetModifications(modificationArrays.Tree, modificationArrays.Data);
+        var modificationCount = _world.GetModifications(
+            RenderManager.TreeModifications,
+            RenderManager.DataModifications);
+        if (modificationCount.Tree != 0 || modificationCount.Data != 0)
+            RenderManager.SetGeometryUploaded();
         
         // update the geometry parameters
         var renderDepth = Math.Min(WorldHeight, RenderManager.MaxGpuQtHeight);
         var (treeLength, dataLength) = _world.GetLength();
         var (renderRoot, renderRange) = _world.GetSubset(CalculateScreenRange().Overlap(_world.Dimensions), renderDepth);
         RenderManager.UpdateGeometryParameters(treeLength, dataLength, renderRoot, renderRange);
+
+        
         
         RenderManager.GeometryLock.Set();
     }
@@ -134,6 +146,7 @@ public static class GameManager
     /// </summary>
     private static void Initialize()
     {
+        // register tiles
         TileDeserializer.Register(Air.Id, bytes => new Air(bytes));
         TileDeserializer.Register(Dirt.Id, bytes => new Dirt(bytes));
         TileDeserializer.Register(Stone.Id, bytes => new Stone(bytes));
@@ -143,7 +156,7 @@ public static class GameManager
         _world = new Quadtree<Tile>(WorldHeight, new Air(), true);
         WorldHeight = _world.MaxHeight;
         
-        Log("Created World", "Load/Logic");
+        Log("Initialized Game Manager", "Load/Logic");
     }
     
     private static void HandleAction((WorldAction action, string arg) action)
@@ -200,8 +213,8 @@ public static class GameManager
         var brScreen = ScreenToWorldCoords((ScreenSize.X, 0));
         return new Range2D(tlScreen, brScreen);
     }
-    
-    // public setters
+
+    #region Public Getters / Setters
     
     /// <summary>
     /// Sets whether the game is running.
@@ -209,6 +222,16 @@ public static class GameManager
     public static void SetRunning(bool value)
     {
         IsRunning = value;
+    }
+
+    public static TimeSpan GetCurrentTickTime()
+    {
+        return TickTimer.Elapsed;
+    }
+    
+    public static TimeSpan GetPreviousTickTime()
+    {
+        return _prevTickTime;
     }
     
     /// <summary>
@@ -236,6 +259,7 @@ public static class GameManager
         ScreenSize = size;
     }
     
+    #endregion 
 }
 
 public enum WorldAction

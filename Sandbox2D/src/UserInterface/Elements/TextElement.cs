@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Xml;
 using Math2D;
-using Sandbox2D.Graphics.Renderables;
+using Sandbox2D.Graphics.ShaderControllers;
 using Sandbox2D.Registries;
 
 namespace Sandbox2D.UserInterface.Elements;
@@ -12,7 +12,7 @@ public class TextElement : IGuiElement
 {
     public Dictionary<string, string> Attributes { get; } = new ();
     
-    private readonly TextRenderable _textRenderable = new(Registry.ShaderProgram.Create("text"));
+    private readonly TextRenderer _textRenderer = new(Registry.ShaderProgram.Create("text"));
     
     public static GuiElementConstructor Constructor { get; } = args => new TextElement(args.Attributes, args.Children);
     public TextElement(List<XmlAttribute> attributes, ConsumableList<XmlNode> children)
@@ -34,16 +34,16 @@ public class TextElement : IGuiElement
             lines.Remove(lines.Length - 1, 1);
         
         var color = new Color(Attributes.GetValueOrDefault("color", "#FFFFFF"));
-        _textRenderable.SetColor(color);
+        _textRenderer.SetColor(color);
         Console.WriteLine(color);
-        _textRenderable.SetText("hello", (4, 4), 2);
-        _textRenderable.SetText("hello", (50, 50), 4);
+        _textRenderer.SetText("hello", (4, 4), 2);
+        _textRenderer.SetText("hello", (50, 50), 4);
     }
     
     public void Render()
     {
         // _textRenderable.SetText("hello", (50, 50), 4);
-        _textRenderable.Render();
+        _textRenderer.Invoke();
     }
     
     public void Update()
@@ -53,7 +53,7 @@ public class TextElement : IGuiElement
     
     public void UpdateVao()
     {
-        _textRenderable.UpdateVao();
+        _textRenderer.UpdateVao();
     }
     
     public void ResetGeometry()

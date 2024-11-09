@@ -20,9 +20,9 @@ public static class Util
     
     private const bool GlEnablePrint = false;
     private const bool GlEnableLog = false;
-    private const bool GlEnableDebug = true;
-    private const bool GlEnableWarn = true;
-    private const bool GlEnableError = true;
+    private const bool GlEnableDebug = false; // true ..
+    private const bool GlEnableWarn = false;
+    private const bool GlEnableError = false;
     
     private const ConsoleColor FatalColor = ConsoleColor.Red;
     private const ConsoleColor ErrorColor = ConsoleColor.Red;
@@ -195,6 +195,20 @@ public static class Util
         Console.ForegroundColor = PrintColor;
         Console.Out.WriteLine($"{(source == "" ? "" : $"[{source,-5}]")} {text}");
         Console.ForegroundColor = DefaultColor;
+    }
+
+    public static string ArrayToString<T>(T[] arr)
+    {
+        var str = new StringBuilder("[");
+        foreach (var v in arr)
+        {
+            str.Append($"{v}, ");
+        }
+
+        str.Remove(str.Length - 2, 2);
+        str.Append(']');
+        
+        return str.ToString();
     }
     
     public static readonly DebugProc DebugMessageDelegate = OnDebugMessage;

@@ -2,7 +2,7 @@
 using Math2D.Quadtree.FeatureNodeTypes;
 using static Math2D.Quadtree.NodeType;
 using static Math2D.Quadtree.QuadtreeUtil;
-using static Math2D.BitUtil;
+using static Math2D.Binary.BitUtil;
 
 namespace Math2D.Quadtree.Features;
 

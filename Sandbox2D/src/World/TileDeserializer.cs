@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using Math2D;
+using Math2D.Binary;
 
 namespace Sandbox2D.World;
 
@@ -25,17 +26,18 @@ public static class TileDeserializer
     {
         Tiles.Add(tileId, constructor);
     }
-    
+
     /// <summary>
     /// Creates a new <see cref="Tile"/> (by running its corresponding <see cref="TileConstructor"/>).
     /// </summary>
     /// <param name="bytes">the data of the <see cref="Tile"/></param>
+    /// <param name="bigEndian">whether the data in <paramref name="bytes"/> is in big endian form</param>
     /// <exception cref="MissingTileException">
     /// thrown when the <paramref name="bytes"/> do not reference a registered <see cref="TileConstructor"/>.
     /// </exception>
-    public static Tile Create(Span<byte> bytes)
+    public static Tile Create(Span<byte> bytes, bool bigEndian = false)
     {
-        var tileId = BitUtil.GetUshort(bytes[..2]);
+        var tileId = (ushort)((bigEndian ? BitUtil.GetULongBe(bytes) : BitUtil.GetULong(bytes)) >> 48);
         
         if (Tiles.TryGetValue(tileId, out var constructor))
         {

@@ -1,4 +1,6 @@
 ﻿using System;
+using OpenTK.Windowing.Common;
+using OpenTK.Windowing.Desktop;
 
 namespace Sandbox2D;
 
@@ -9,9 +11,13 @@ public static class GlobalVariables
     /// actions that need to run every frame
     /// </summary>
     public static readonly RenderManager RenderManager = new (
-        Constants.InitialScreenSize.X,
-        Constants.InitialScreenSize.Y,
-        "Sandbox2D");
+        new GameWindowSettings(),
+        new NativeWindowSettings
+        {
+            ClientSize = (Constants.InitialScreenSize.X, Constants.InitialScreenSize.Y),
+            Title = "Sandbox2D",
+            Flags = ContextFlags.Debug
+        });
     
     /// <summary>
     /// The absolute path to the asset directory of <see cref="Sandbox2D"/>

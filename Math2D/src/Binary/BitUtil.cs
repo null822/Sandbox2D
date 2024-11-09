@@ -1,4 +1,6 @@
-﻿namespace Math2D;
+﻿using System.Runtime.InteropServices;
+
+namespace Math2D.Binary;
 
 /// <summary>
 /// Utilities performing bit/byte manipulation
@@ -14,6 +16,19 @@ public static class BitUtil
     public static ulong Pow2(int v)
     {
         return ~(v == 64 ? 0 : ~0x0uL << v);
+    }
+
+    public static byte Flip(this byte b)
+    {
+        return (byte)(
+            ((b & 0b10000000) >> 7) |
+            ((b & 0b01000000) >> 5) |
+            ((b & 0b00100000) >> 3) |
+            ((b & 0b00010000) >> 1) |
+            ((b & 0b00001000) << 1) |
+            ((b & 0b00000100) << 3) |
+            ((b & 0b00000010) << 5) |
+            ((b & 0b00000001) << 7));
     }
     
     #endregion
@@ -146,6 +161,14 @@ public static class BitUtil
     public static UInt128 Pow2Min1U128(int v)
     {
         return ~(v == 128 ? 0 : ~(UInt128)0x0 << v);
+    }
+
+    public static (long Min, long Max) Pow2MinMax(int v)
+    {
+        var min = -1L << (v - 1);
+        var max = -(min + 1);
+        
+        return (min, max);
     }
     
     /// <summary>
@@ -293,6 +316,25 @@ public static class BitUtil
     
     #region Byte[] Actions
     
+    public static byte[] GetBytes<T>(T str) where T : struct
+    {
+        var size = Marshal.SizeOf(str);
+        var bytes = new byte[size];
+
+        var ptr = IntPtr.Zero;
+        try
+        {
+            ptr = Marshal.AllocHGlobal(size);
+            Marshal.StructureToPtr(str, ptr, true);
+            Marshal.Copy(ptr, bytes, 0, size);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(ptr);
+        }
+        return bytes;
+    }
+    
     public static byte[] GetBytes(short v)
     {
         return [(byte)((v >> 8) & 0xFF), (byte)(v & 0xFF)];
@@ -316,28 +358,28 @@ public static class BitUtil
     public static byte[] GetBytes(long v)
     {
         return [
-            (byte)((v >> 56) & 0xff),
-            (byte)((v >> 48) & 0xff),
-            (byte)((v >> 40) & 0xff),
-            (byte)((v >> 32) & 0xff),
-            (byte)((v >> 24) & 0xff),
-            (byte)((v >> 16) & 0xff),
-            (byte)((v >>  8) & 0xff),
-            (byte)((v >>  0) & 0xff),
+            (byte)((v >> 56) & 0xFF),
+            (byte)((v >> 48) & 0xFF),
+            (byte)((v >> 40) & 0xFF),
+            (byte)((v >> 32) & 0xFF),
+            (byte)((v >> 24) & 0xFF),
+            (byte)((v >> 16) & 0xFF),
+            (byte)((v >>  8) & 0xFF),
+            (byte)(v & 0xFF),
         ];
     }
     
     public static byte[] GetBytes(ulong v)
     {
         return [
-            (byte)((v >> 56) & 0xff),
-            (byte)((v >> 48) & 0xff),
-            (byte)((v >> 40) & 0xff),
-            (byte)((v >> 32) & 0xff),
-            (byte)((v >> 24) & 0xff),
-            (byte)((v >> 16) & 0xff),
-            (byte)((v >>  8) & 0xff),
-            (byte)((v >>  0) & 0xff),
+            (byte)((v >> 56) & 0xFF),
+            (byte)((v >> 48) & 0xFF),
+            (byte)((v >> 40) & 0xFF),
+            (byte)((v >> 32) & 0xFF),
+            (byte)((v >> 24) & 0xFF),
+            (byte)((v >> 16) & 0xFF),
+            (byte)((v >>  8) & 0xFF),
+            (byte)(v & 0xFF),
         ];
     }
     
@@ -346,7 +388,7 @@ public static class BitUtil
         return (short)((d[0] << 8) | d[1]);
     }
     
-    public static ushort GetUshort(Span<byte> d)
+    public static ushort GetUShort(Span<byte> d)
     {
         return (ushort)((d[0] << 8) | d[1]);
     }
@@ -359,7 +401,7 @@ public static class BitUtil
                d[3];
     }
     
-    public static uint GetUint(Span<byte> d)
+    public static uint GetUInt(Span<byte> d)
     {
         return (uint)(d[0] << 24) |
                (uint)(d[1] << 16) |
@@ -417,4 +459,124 @@ public static class BitUtil
     
     #endregion
     
+    #region Byte[] Actions Big Endian
+    
+    public static byte[] GetBytesBe<T>(T str) where T : struct
+    {
+        var size = Marshal.SizeOf(str);
+        var bytes = new byte[size];
+
+        var ptr = IntPtr.Zero;
+        try
+        {
+            ptr = Marshal.AllocHGlobal(size);
+            Marshal.StructureToPtr(str, ptr, true);
+            Marshal.Copy(ptr, bytes, 0, size);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(ptr);
+        }
+        return bytes.Reverse().ToArray();
+    }
+    
+    public static byte[] GetBytesBe(short v)
+    {
+        return [(byte)(v & 0xFF), (byte)((v >> 8) & 0xFF)];
+    }
+    
+    public static byte[] GetBytesBe(ushort v)
+    {
+        return [(byte)(v & 0xFF), (byte)((v >> 8) & 0xFF)];
+    }
+    
+    public static byte[] GetBytesBe(int v)
+    {
+        return [(byte)(v & 0xFF), (byte)((v >> 8) & 0xFF), (byte)((v >> 16) & 0xFF), (byte)((v >> 24) & 0xFF)];
+    }
+    
+    public static byte[] GetBytesBe(uint v)
+    {
+        return [(byte)(v & 0xFF), (byte)((v >> 8) & 0xFF), (byte)((v >> 16) & 0xFF), (byte)((v >> 24) & 0xFF)];
+    }
+    
+    public static byte[] GetBytesBe(long v)
+    {
+        return [
+            (byte)(v & 0xFF),
+            (byte)((v >>  8) & 0xFF),
+            (byte)((v >> 16) & 0xFF),
+            (byte)((v >> 24) & 0xFF),
+            (byte)((v >> 32) & 0xFF),
+            (byte)((v >> 40) & 0xFF),
+            (byte)((v >> 48) & 0xFF),
+            (byte)((v >> 56) & 0xFF),
+        ];
+    }
+    
+    public static byte[] GetBytesBe(ulong v)
+    {
+        return [
+            (byte)(v & 0xFF),
+            (byte)((v >>  8) & 0xFF),
+            (byte)((v >> 16) & 0xFF),
+            (byte)((v >> 24) & 0xFF),
+            (byte)((v >> 32) & 0xFF),
+            (byte)((v >> 40) & 0xFF),
+            (byte)((v >> 48) & 0xFF),
+            (byte)((v >> 56) & 0xFF),
+        ];
+    }
+    
+    public static short GetShortBe(Span<byte> d)
+    {
+        return (short)((d[1] << 8) | d[0]);
+    }
+    
+    public static ushort GetUShortBe(Span<byte> d)
+    {
+        return (ushort)((d[1] << 8) | d[0]);
+    }
+    
+    public static int GetIntBe(Span<byte> d)
+    {
+        return (d[3] << 24) |
+               (d[2] << 16) |
+               (d[1] <<  8) |
+               d[0];
+    }
+    
+    public static uint GetUIntBe(Span<byte> d)
+    {
+        return (uint)(d[3] << 24) |
+               (uint)(d[2] << 16) |
+               (uint)(d[1] <<  8) |
+               d[0];
+    }
+    
+    public static long GetLongBe(Span<byte> d)
+    {
+        return ((long)d[7] << 56) |
+               ((long)d[6] << 48) |
+               ((long)d[5] << 40) |
+               ((long)d[4] << 32) |
+               ((long)d[3] << 24) |
+               ((long)d[2] << 16) |
+               ((long)d[1] <<  8) |
+               d[0];
+    }
+    
+    public static ulong GetULongBe(Span<byte> d)
+    {
+        return ((ulong)d[7] << 56) |
+               ((ulong)d[6] << 48) |
+               ((ulong)d[5] << 40) |
+               ((ulong)d[4] << 32) |
+               ((ulong)d[3] << 24) |
+               ((ulong)d[2] << 16) |
+               ((ulong)d[1] <<  8) |
+               d[0];
+    }
+    
+    #endregion
 }

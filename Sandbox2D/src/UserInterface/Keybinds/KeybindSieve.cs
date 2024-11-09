@@ -25,7 +25,8 @@ public class KeybindSieve
         }
     }
     
-    public void Add(string name, Action action, (Key Key, KeybindKeyType Type)[] keys)
+    public void Add(string name, Key key, KeybindKeyType type, Action action) => Add(name, [(key, type)], action);
+    public void Add(string name, (Key Key, KeybindKeyType Type)[] keys, Action action)
     {
         if (_names.ContainsKey(name))
             throw new Exception($"Keybind \'{name}\' already exists");
