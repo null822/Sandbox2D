@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using System.Text;
 using OpenTK.Graphics.OpenGL4;
 
@@ -15,15 +14,14 @@ public class Shader
         Handle = GL.CreateShader(type);
         
         // bind the shader source
-        // var shaderSource = ;
         GL.ShaderSource(Handle, shaderSource);
         
         // compile the shader
         GL.CompileShader(Handle);
         
         // throw any compilation errors
-        GL.GetShader(Handle, ShaderParameter.CompileStatus, out var code);
-        if (code != (int)All.True) 
+        GL.GetShader(Handle, ShaderParameter.CompileStatus, out var code2);
+        if (code2 != (int)All.True) 
         {
             Util.Fatal(new ShaderCompileException(type, Handle, GL.GetShaderInfoLog(Handle)));
         }

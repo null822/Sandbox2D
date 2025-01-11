@@ -272,7 +272,7 @@ public static class BitUtil
         x = (x | (x >> 8)) & Masks[4];
         x = (x | (x >> 16)) & Masks[5];
         x = (x | (x >> 32)) & Masks[6];
-
+        
         y = (y | (y >> 1)) & Masks[1];
         y = (y | (y >> 2)) & Masks[2];
         y = (y | (y >> 4)) & Masks[3];

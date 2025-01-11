@@ -5,11 +5,8 @@ using OpenTK.Graphics.OpenGL4;
 
 namespace Sandbox2D.Graphics.ShaderControllers;
 
-public class TextureRenderer : IShaderController
+public class TextureRenderer : ShaderController
 {
-    public ShaderProgram Shader { get; }
-    public BufferUsageHint Hint { get; init; }
-    
     public int VertexArrayObject { get; init; } = GL.GenVertexArray();
     public int VertexBufferObject { get; init; } = GL.GenBuffer();
     public int ElementBufferObject { get; init; } = GL.GenBuffer();
@@ -31,10 +28,9 @@ public class TextureRenderer : IShaderController
     ];
     
     public TextureRenderer(ShaderProgram shader, Texture texture, BufferUsageHint hint = BufferUsageHint.StaticDraw)
+        : base(shader, hint)
     {
-        Shader = shader;
         _texture = texture;
-        Hint = hint;
         
         // update the vao (creates it, in this case)
         UpdateVao();
@@ -49,7 +45,7 @@ public class TextureRenderer : IShaderController
         GL.VertexAttribPointer(texCoordLocation, 2, VertexAttribPointerType.Float, false, 5 * sizeof(float), 3 * sizeof(float));
     }
     
-    public void Invoke()
+    public override void Invoke()
     {
         GL.BindVertexArray(VertexArrayObject);
         _texture.Use(TextureUnit.Texture0);
@@ -101,7 +97,7 @@ public class TextureRenderer : IShaderController
     /// <summary>
     /// Resets the geometry of this renderable. Does not update the VAO
     /// </summary>
-    public void ResetGeometry()
+    public override void ResetGeometry()
     {
         _vertices.Clear();
         _indices.Clear();

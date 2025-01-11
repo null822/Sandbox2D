@@ -353,8 +353,8 @@ public class DynamicArray<T> : IDisposable
     }
     
     /// <summary>
-    /// Retrieves every modification that has been done to this <see cref="DynamicArray{T}"/> since the last time this
-    /// method was called, and copies them into <paramref name="destination"/>.
+    /// Retrieves every modification that has been done to this <see cref="DynamicArray{T}"/> since the last time
+    /// <see cref="ClearModifications"/> was called, and copies them into <paramref name="destination"/>.
     /// </summary>
     /// <param name="destination">the buffer into which to copy the modifications</param>
     /// <returns>The amount of modifications that were copied into <paramref name="destination"/></returns>
@@ -370,10 +370,20 @@ public class DynamicArray<T> : IDisposable
         
         _modifications.CopyTo(destination);
         
+        return count;
+    }
+    
+    /// <summary>
+    /// Resets the internally stored modifications.
+    /// </summary>
+    /// <exception cref="DynamicArray{T}.StoredModificationsException">thrown when modification storing is not enabled</exception>
+    public void ClearModifications()
+    {
+        if (!StoreModifications)
+            throw new StoredModificationsException();
+        
         _modifications.Clear();
         ModificationLength = Length;
-
-        return count;
     }
     
     #endregion

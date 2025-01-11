@@ -6,51 +6,18 @@
         <TieredCompilation>false</TieredCompilation>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>default</LangVersion>
-        <OutputType>Exe</OutputType>
-    </PropertyGroup>
-    
-    <PropertyGroup>
-        <ApplicationManifest>app.manifest</ApplicationManifest>
     </PropertyGroup>
     
     <ItemGroup>
       <PackageReference Include="OpenTK" Version="4.8.2" />
       <PackageReference Include="SixLabors.ImageSharp" Version="3.1.5" />
     </ItemGroup>
-
-    <ItemGroup>
-        <Content Include="assets\**\*">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </Content>
-    </ItemGroup>
-
+    
     <ItemGroup>
       <ProjectReference Include="..\Math2D\Math2D.csproj" />
     </ItemGroup>
-
+    
     <ItemGroup>
-      <Compile Remove="assets\**" />
+      <Folder Include="src\Graphics\ShaderControllers\Quadtree\" />
     </ItemGroup>
-
-    <ItemGroup>
-      <EmbeddedResource Remove="assets\**" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <None Remove="assets\**" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <_DeploymentManifestIconFile Remove="assets\icon.ico" />
-    </ItemGroup>
-
-    <PropertyGroup>
-        <ApplicationIcon>assets/icon.ico</ApplicationIcon>
-    </PropertyGroup>
-
-
-    <Target Name="RestoreDotnetTools" BeforeTargets="Restore">
-        <Message Text="Restoring dotnet tools" Importance="High"/>
-        <Exec Command="dotnet tool restore"/>
-    </Target>
 </Project>

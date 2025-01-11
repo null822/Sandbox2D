@@ -1,13 +1,25 @@
 ﻿using System.Collections.Generic;
+using System.Xml;
+using Sandbox2D.Registry_.Registries;
 
 namespace Sandbox2D.UserInterface;
 
-public interface IGuiElement
+public abstract class IGuiElement
 {
     /// <summary>
     /// The attributes of this <see cref="IGuiElement"/>
     /// </summary>
-    protected Dictionary<string, string> Attributes { get; }
+    protected Dictionary<string, string> Attributes { get; } = new();
+    
+    protected IGuiElement(GuiElementArguments args)
+    {
+        args.Children.ConsumeAll(n => n.Name == "#comment");
+        
+        foreach (var attribute in args.Attributes)
+        {
+            Attributes.Add(attribute.Name, attribute.Value);
+        }
+    }
     
     /// <summary>
     /// Sets an attribute.
@@ -31,19 +43,15 @@ public interface IGuiElement
     }
     
     /// <summary>
+    /// Initializes the <see cref="IGuiElement"/>'s rendering data.
+    /// </summary>
+    public virtual void GlInitialize() { }
+    /// <summary>
     /// Renders the <see cref="IGuiElement"/>.
     /// </summary>
-    public void Render();
+    public virtual void Render() { }
     /// <summary>
     /// Updates the <see cref="IGuiElement"/>'s logic.
     /// </summary>
-    public void Update();
-    /// <summary>
-    /// Updates the <see cref="IGuiElement"/>'s VAO.
-    /// </summary>
-    public void UpdateVao();
-    /// <summary>
-    /// Resets the <see cref="IGuiElement"/>'s geometry.
-    /// </summary>
-    public void ResetGeometry();
+    public virtual void Update() { }
 }

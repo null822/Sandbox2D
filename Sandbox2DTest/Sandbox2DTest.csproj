@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>default</LangVersion>
+        <OutputType>Exe</OutputType>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Math2D\Math2D.csproj" />
+      <ProjectReference Include="..\Sandbox2D\Sandbox2D.csproj" />
+    </ItemGroup>
+    
+    <ItemGroup>
+        <Content Include="assets\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+    
+    <PropertyGroup>
+        <ApplicationIcon>assets/icon.ico</ApplicationIcon>
+    </PropertyGroup>
+
+</Project>

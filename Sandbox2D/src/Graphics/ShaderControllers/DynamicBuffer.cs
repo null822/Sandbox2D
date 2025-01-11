@@ -6,11 +6,8 @@ using OpenTK.Graphics.OpenGL4;
 
 namespace Sandbox2D.Graphics.ShaderControllers;
 
-public class DynamicBuffer : IShaderController, IDisposable
+public class DynamicBuffer : ShaderController, IDisposable
 {
-    public ShaderProgram Shader { get; }
-    public BufferUsageHint Hint { get; init; }
-    
     /// <summary>
     /// The handle of the buffer
     /// </summary>
@@ -28,10 +25,8 @@ public class DynamicBuffer : IShaderController, IDisposable
     private int _currentBatchLength;
 
     public DynamicBuffer(BufferUsageHint hint = BufferUsageHint.StaticDraw)
+        : base("data_patch", hint)
     {
-        Shader = Registry.ShaderProgram.Create("data_patch");
-        Hint = hint;
-        
         const int uploadBatchSize = Constants.GpuUploadBatchSize;
         _indexArr = new uint[uploadBatchSize / 4];
         _dataArr = new byte[uploadBatchSize];
@@ -48,7 +43,7 @@ public class DynamicBuffer : IShaderController, IDisposable
         GL.BufferData(BufferTarget.CopyWriteBuffer, uploadBatchSize, new byte[uploadBatchSize], hint);
     }
 
-    public void Invoke() { }
+    public override void Invoke() { }
     
     private void ApplyModifications(uint dataSize)
     {
@@ -143,7 +138,7 @@ public class DynamicBuffer : IShaderController, IDisposable
         return batchEnd;
     }
     
-    public void ResetGeometry()
+    public override void ResetGeometry()
     {
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _buffer);
         GL.BufferData(BufferTarget.ShaderStorageBuffer, 0, Array.Empty<byte>(), Hint);

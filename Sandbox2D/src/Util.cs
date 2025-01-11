@@ -1,17 +1,16 @@
-﻿#nullable enable
-using System;
+﻿using System;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using Math2D;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace Sandbox2D;
 
 public static class Util
 {
-    // whether to print outputs
     private const bool EnablePrint = true;
     private const bool EnableLog = true;
     private const bool EnableDebug = true;
@@ -20,9 +19,9 @@ public static class Util
     
     private const bool GlEnablePrint = false;
     private const bool GlEnableLog = false;
-    private const bool GlEnableDebug = false; // true ..
-    private const bool GlEnableWarn = false;
-    private const bool GlEnableError = false;
+    private const bool GlEnableDebug = true;
+    private const bool GlEnableWarn = true;
+    private const bool GlEnableError = true;
     
     private const ConsoleColor FatalColor = ConsoleColor.Red;
     private const ConsoleColor ErrorColor = ConsoleColor.Red;
@@ -31,70 +30,6 @@ public static class Util
     private const ConsoleColor LogColor = ConsoleColor.Cyan;
     private const ConsoleColor PrintColor = ConsoleColor.Gray;
     private const ConsoleColor DefaultColor = ConsoleColor.White;
-    
-    
-    /// <summary>
-    /// Converts screen coords (like mouse pos) into world coords (like positions of objects).
-    /// </summary>
-    /// <param name="screenCoords">The screen coords to convert</param>
-    public static Vec2<long> ScreenToWorldCoords(Vec2<float> screenCoords)
-    {
-        var center = GameManager.ScreenSize / 2;
-        
-        screenCoords -= center;
-        
-        screenCoords = screenCoords.FlipY();
-        
-        var value = (Vec2<decimal>)screenCoords / GameManager.Scale - GameManager.Translation;
-        
-        return new Vec2<long>(
-            (long)Math.Clamp(Math.Floor(value.X), long.MinValue, long.MaxValue),
-            (long)Math.Clamp(Math.Floor(value.Y), long.MinValue, long.MaxValue));
-    }
-    
-    /// <summary>
-    /// Converts world coords (like positions of objects) into screen coords (like mouse pos).
-    /// </summary>
-    /// <param name="worldCoords">The world coords to convert</param>
-    public static Vec2<int> WorldToScreenCoords(Vec2<long> worldCoords)
-    {
-        var screenSize = GameManager.ScreenSize;
-
-        var center = screenSize / 2f;
-        var value = (((Vec2<decimal>)worldCoords + GameManager.Translation) * GameManager.Scale).FlipY() + (Vec2<decimal>)center;
-        
-        return new Vec2<int>(
-            (int)Math.Clamp(Math.Floor(value.X), int.MinValue, int.MaxValue), 
-            (int)Math.Clamp(Math.Floor(value.Y), int.MinValue, int.MaxValue));
-    }
-    
-    /// <summary>
-    /// Converts screen coords (like mouse pos) into vertex coords (used by OpenGL)
-    /// </summary>
-    /// <param name="screenCoords">the screen coords to convert</param>
-    public static Vec2<float> ScreenToVertexCoords(Vec2<float> screenCoords)
-    {
-        // get the screen size
-        var screenSize = GameManager.ScreenSize;
-        
-        // cast screenCoords to a float
-        var vertexCoords = screenCoords;
-        
-        // divide vertexCoords by screenSize, to get it to a 0-1 range
-        vertexCoords /= screenSize;
-        
-        // multiply vertexCoords by 2, to get it to a 0-2 range
-        vertexCoords *= 2;
-        
-        // subtract 1 from vertexCoords, to get it to a (-1)-1 range
-        vertexCoords -= new Vec2<float>(1);
-        
-        // negate the Y axis to flip the coords correctly
-        vertexCoords = vertexCoords.FlipY();
-        
-        // return vertex coords
-        return vertexCoords;
-    }
     
     public static void Out(object text, LogLevel level = LogLevel.Print, string source = "")
     {

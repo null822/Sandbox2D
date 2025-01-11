@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sandbox2D", "Sandbox2D/Sand
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Math2D", "Math2D\Math2D.csproj", "{A3AD8628-CC57-4AFD-AC31-E44ABB4BDB25}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sandbox2DTest", "Sandbox2DTest\Sandbox2DTest.csproj", "{874C96A4-FE52-4FB1-8826-408AE9601593}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -19,5 +21,9 @@ Global
 		{A3AD8628-CC57-4AFD-AC31-E44ABB4BDB25}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A3AD8628-CC57-4AFD-AC31-E44ABB4BDB25}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A3AD8628-CC57-4AFD-AC31-E44ABB4BDB25}.Release|Any CPU.Build.0 = Release|Any CPU
+		{874C96A4-FE52-4FB1-8826-408AE9601593}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{874C96A4-FE52-4FB1-8826-408AE9601593}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{874C96A4-FE52-4FB1-8826-408AE9601593}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{874C96A4-FE52-4FB1-8826-408AE9601593}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

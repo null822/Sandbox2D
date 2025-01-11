@@ -4,27 +4,21 @@ using System.Text;
 using System.Xml;
 using Math2D;
 using Sandbox2D.Graphics.ShaderControllers;
-using Sandbox2D.Registries;
+using Sandbox2D.Registry_;
+using Sandbox2D.Registry_.Registries;
 
 namespace Sandbox2D.UserInterface.Elements;
 
 public class TextElement : IGuiElement
 {
-    public Dictionary<string, string> Attributes { get; } = new ();
+    private TextRenderer _textRenderer;
+    private Color _textColor;
+    private string _text;
     
-    private readonly TextRenderer _textRenderer = new(Registry.ShaderProgram.Create("text"));
-    
-    public static GuiElementConstructor Constructor { get; } = args => new TextElement(args.Attributes, args.Children);
-    public TextElement(List<XmlAttribute> attributes, ConsumableList<XmlNode> children)
+    public TextElement(GuiElementArguments args) : base(args)
     {
-        children.ConsumeAll(n => n.Name == "#comment");
         
-        foreach (var attribute in attributes)
-        {
-            Attributes.Add(attribute.Name, attribute.Value);
-        }
-        
-        var textNodes = children.ConsumeAll(n => n.Name == "#text");
+        var textNodes = args.Children.ConsumeAll(n => n.Name == "#text");
         var lines = new StringBuilder("asdf");
         foreach (var node in textNodes)
         {
@@ -33,31 +27,31 @@ public class TextElement : IGuiElement
         if (lines.Length != 0)
             lines.Remove(lines.Length - 1, 1);
         
-        var color = new Color(Attributes.GetValueOrDefault("color", "#FFFFFF"));
-        _textRenderer.SetColor(color);
-        Console.WriteLine(color);
-        _textRenderer.SetText("hello", (4, 4), 2);
-        _textRenderer.SetText("hello", (50, 50), 4);
+        _textColor = new Color(Attributes.GetValueOrDefault("color", "#FFFFFF"));
+        Console.WriteLine(_textColor);
+        _text = lines.ToString();
+    }
+
+    public override void GlInitialize()
+    {
+        _textRenderer = new TextRenderer(GlRegistry.ShaderProgram.Create("text"));
     }
     
-    public void Render()
+    public override void Render()
     {
-        // _textRenderable.SetText("hello", (50, 50), 4);
+        _textRenderer.SetColor(_textColor);
+        _textRenderer.SetText(_text, (4, 4), 2, (600, 800)); // TODO: get the actual screen size
+        
         _textRenderer.Invoke();
     }
     
-    public void Update()
+    public void SetText(string text)
     {
-        
+        _text = text;
     }
     
-    public void UpdateVao()
+    public void SetColor(Color color)
     {
-        _textRenderer.UpdateVao();
-    }
-    
-    public void ResetGeometry()
-    {
-        // _textRenderable.ResetGeometry();
+        _textColor = color;
     }
 }

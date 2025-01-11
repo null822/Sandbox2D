@@ -4,21 +4,20 @@ using System.Text;
 using Math2D;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
+using Sandbox2D.Managers;
+using Sandbox2D.Registry_;
 
 namespace Sandbox2D.Graphics.ShaderControllers;
 
-public class TextRenderer : IShaderController
+public class TextRenderer : ShaderController
 {
-    public ShaderProgram Shader { get; }
-    public BufferUsageHint Hint { get; init; }
-    
     public int VertexArrayObject { get; init; } = GL.GenVertexArray();
     public int VertexBufferObject { get; init; } = GL.GenBuffer();
     public int ElementBufferObject { get; init; } = GL.GenBuffer();
     
     private static readonly Vec2<int> GlyphAtlasSize = (32, 8);
     private static readonly Vec2<int> GlyphSize = (6, 10);
-
+    
     private Vector3 _color = Vector3.One;
     
     private readonly int _charBuffer;
@@ -41,10 +40,8 @@ public class TextRenderer : IShaderController
     ];
     
     public TextRenderer(ShaderProgram shader, BufferUsageHint hint = BufferUsageHint.StaticDraw)
+        : base(shader, hint)
     {
-        Shader = shader;
-        Hint = hint;
-        
         _charBuffer = GL.GenBuffer();
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _charBuffer);
         GL.BufferData(BufferTarget.ShaderStorageBuffer, 0, Array.Empty<uint>(), Hint);
@@ -71,11 +68,11 @@ public class TextRenderer : IShaderController
         
         Shader.Set("glyphAtlasSize", GlyphAtlasSize.ToVector2i());
         
-        _glyphTexture = Registry.Texture.Get("font");
+        _glyphTexture = GlRegistry.Texture.Get("font");
         // _glyphTexture.Use(TextureUnit.Texture0);
     }
     
-    public void Invoke()
+    public override void Invoke()
     {
         // bind vao/buffers
         GL.BindVertexArray(VertexArrayObject);
@@ -123,14 +120,16 @@ public class TextRenderer : IShaderController
         GL.BufferData(BufferTarget.ElementArrayBuffer, _indices.Length * sizeof(uint), _indices, Hint);
     }
     
-    public void SetText(string text, Vec2<float> tl, float size)
+    public void SetText(string text, Vec2<float> tl, float size, Vec2<int> screenSize)
     {
         var lines = text.Split('\n');
         var lineSize = new Vec2<int>(lines.Select(line => line.Length).Max(), lines.Length);
         
         var br = new Vec2<float>(tl.X + lineSize.X * GlyphSize.X * size, tl.Y + lineSize.Y * GlyphSize.Y * size);
         
-        var geometry = new Range2Df(Util.ScreenToVertexCoords(tl), Util.ScreenToVertexCoords(br));
+        var geometry = new Range2Df(
+            RenderManager.ScreenToVertexCoords(tl, screenSize), 
+            RenderManager.ScreenToVertexCoords(br, screenSize));
         
         _vertices = 
         [
@@ -166,11 +165,11 @@ public class TextRenderer : IShaderController
     {
         _color = color.ToVector3();
     }
-
+    
     /// <summary>
     /// Resets the geometry of this renderable. Does not update the VAO
     /// </summary>
-    public void ResetGeometry()
+    public override void ResetGeometry()
     {
         _vertices = [
             0.0f, 0.0f, 0.0f, 0.0f,

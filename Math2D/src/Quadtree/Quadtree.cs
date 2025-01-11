@@ -17,7 +17,8 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     // TODO: implement subsets
     // TODO: implement line setting
     // TODO: implement Quadtree pasting
-    
+    // TODO: implement Cellular Automata
+
     /// <summary>
     /// A <see cref="DynamicArray{T}"/> of all the <see cref="QuadtreeNode"/>s within this <see cref="Quadtree{T}"/>, linking to each other and, for leaf nodes, linking to <see cref="Data"/>.
     /// </summary>
@@ -236,6 +237,7 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     
     #region Compression
     
+    // TODO: this takes a long time to complete sometimes
     /// <summary>
     /// Tries to combine as many nodes as possible in this <see cref="Quadtree{T}"/>, which are referenced in <see cref="_modifications"/>.
     /// </summary>
@@ -766,8 +768,8 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     }
     
     /// <summary>
-    /// Retrieves every modification that has been done to this <see cref="Quadtree{T}"/> since the last time this
-    /// method was called, and copies them into <paramref name="tree"/> and <paramref name="data"/>.
+    /// Retrieves every modification that has been done to this <see cref="Quadtree{T}"/> since the last time
+    /// <see cref="ClearModifications()"/> was called, and copies them into <paramref name="tree"/> and <paramref name="data"/>.
     /// </summary>
     /// <param name="tree">the buffer into which to copy the tree modifications</param>
     /// <param name="data">the buffer into which to copy the data modifications</param>
@@ -782,6 +784,18 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         var dataCount = Data.GetModifications(data);
 
         return (treeCount, dataCount);
+    }
+    
+    
+    /// <summary>
+    /// Resets the internally stored modifications.
+    /// </summary>
+    public void ClearModifications()
+    {
+        if (!StoreModifications)
+            throw new StoredModificationsException();
+        Tree.ClearModifications();
+        Data.ClearModifications();
     }
     
     /// <summary>

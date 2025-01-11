@@ -2,7 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
-using Sandbox2D.Registries;
+using Sandbox2D.Registry_;
+using Sandbox2D.Registry_.Registries;
 
 namespace Sandbox2D.UserInterface;
 

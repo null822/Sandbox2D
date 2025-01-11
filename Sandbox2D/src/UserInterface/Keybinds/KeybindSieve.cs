@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Math2D;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace Sandbox2D.UserInterface.Keybinds;
 
-public class KeybindSieve
+public class KeybindSieve : IDisposable
 {
     private const int KeyCount = (int)Key.LastKeyboardKey + 1;
     
@@ -16,6 +18,8 @@ public class KeybindSieve
     private readonly Dictionary<string, int> _names = [];
     private readonly DynamicArray<Action> _actions = new();
     private int _keybindCount;
+    
+    private BitArray _sieveKeybinds = new(0);
     
     public KeybindSieve()
     {
@@ -83,8 +87,12 @@ public class KeybindSieve
     
     public void Call(MouseState mouse, KeyboardState keyboard)
     {
-        // all the keybinds. false = enabled and true = discarded
-        var sieveKeybinds = new BitArray(_keybindCount);
+        if (_sieveKeybinds.Length != _keybindCount)
+        {
+            _sieveKeybinds = new BitArray(_keybindCount);
+        }
+        
+        _sieveKeybinds.SetAll(false);
         
         foreach (var i in _activeStages)
         {
@@ -104,14 +112,24 @@ public class KeybindSieve
             var discards = _stages[i].GetDiscards(prevKeyState, keyState);
             foreach (var discard in discards)
             {
-                sieveKeybinds[discard] = true;
+                _sieveKeybinds[discard] = true;
             }
         }
         
         for (var i = 0; i < _keybindCount; i++)
         {
-            if (!sieveKeybinds[i])
-                _actions[i].Invoke();
+            if (_sieveKeybinds[i]) continue;
+            
+            var action = _actions[i];
+            var task = Task.Factory.StartNew(action);
+            try
+            {
+                task.Wait();
+            }
+            catch (Exception e)
+            {
+                throw e.InnerException ?? e;
+            }
         }
     }
     
@@ -165,18 +183,26 @@ public class KeybindSieve
                    _fallingEdgeDiscards.Count != 0;
         }
         
-        public int[] GetDiscards(bool prevKeyState, bool keyState)
+        public List<int> GetDiscards(bool prevKeyState, bool keyState)
         {
-            return ((prevKeyState, keyState) switch
+            return (prevKeyState, keyState) switch
             {
                 (true, true) => _enabledDiscards,
                 (false, false) => _disabledDiscards,
                 (false, true) => _risingEdgeDiscards,
                 (true, false) => _fallingEdgeDiscards
-            }).ToArray();
+            };
             
         }
         
+    }
+
+    public void Dispose()
+    {
+        _actions.Clear();
+        _names.Clear();
+        _activeStages.Clear();
+        _keybindCount = 0;
     }
 }
 
