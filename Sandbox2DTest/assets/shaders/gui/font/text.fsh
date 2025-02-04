@@ -25,8 +25,7 @@ void main()
     uint lineIndex = lineIndexes[glyphIndex.y];
     uint nextLineIndex = lineIndexes[glyphIndex.y + 1];
     if (lineIndex + glyphIndex.x >= nextLineIndex) {
-        outputColor = vec4(0, 0, 0, 0);
-        return;
+        discard;
     }
     uint charIndex = string[lineIndex + glyphIndex.x];
     
@@ -41,5 +40,9 @@ void main()
     
     vec4 glyphSample = texture(texture0, glyphTexCoord);
     
-    outputColor = glyphSample * vec4(color, 1);
+    if (glyphSample.a == 0) {
+        discard;
+    }
+    
+    outputColor = vec4(glyphSample.rgb * color, 1);
 }

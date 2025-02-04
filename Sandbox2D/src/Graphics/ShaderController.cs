@@ -6,28 +6,20 @@ namespace Sandbox2D.Graphics;
 /// <summary>
 /// Represents an object that interfaces with a <see cref="ShaderProgram"/> that runs on the GPU.
 /// </summary>
-public abstract class ShaderController
+public abstract class ShaderController(ShaderProgram shader, BufferUsageHint hint)
 {
     /// <summary>
     /// The <see cref="ShaderProgram"/> to run on the GPU
     /// </summary>
-    protected ShaderProgram Shader { get; }
-    
+    protected ShaderProgram Shader { get; } = shader;
+
     /// <summary>
     /// The <see cref="BufferUsageHint"/> for any buffers used by this <see cref="ShaderController"/>
     /// </summary>
-    protected BufferUsageHint Hint { get; init; }
-    
-    public ShaderController(ShaderProgram shader, BufferUsageHint hint)
-    {
-        Shader = shader;
-        Hint = hint;
-    }
-    public ShaderController(string shaderProgramName, BufferUsageHint hint)
-    {
-        Shader = GlRegistry.ShaderProgram.Create(shaderProgramName);
-        Hint = hint;
-    }
+    protected BufferUsageHint Hint { get; } = hint;
+
+    protected ShaderController(string shaderProgramName, BufferUsageHint hint)
+        : this(GlRegistry.ShaderProgram.Create(shaderProgramName), hint) { }
     
     /// <summary>
     /// Runs the <see cref="Shader"/>.

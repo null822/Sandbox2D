@@ -16,8 +16,4 @@
     <ItemGroup>
       <ProjectReference Include="..\Math2D\Math2D.csproj" />
     </ItemGroup>
-    
-    <ItemGroup>
-      <Folder Include="src\Graphics\ShaderControllers\Quadtree\" />
-    </ItemGroup>
 </Project>

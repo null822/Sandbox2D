@@ -11,9 +11,9 @@ namespace Sandbox2D.Graphics.ShaderControllers;
 
 public class TextRenderer : ShaderController
 {
-    public int VertexArrayObject { get; init; } = GL.GenVertexArray();
-    public int VertexBufferObject { get; init; } = GL.GenBuffer();
-    public int ElementBufferObject { get; init; } = GL.GenBuffer();
+    private readonly int _vertexArrayObject = GL.GenVertexArray();
+    private readonly int _vertexBufferObject = GL.GenBuffer();
+    private readonly int _elementBufferObject = GL.GenBuffer();
     
     private static readonly Vec2<int> GlyphAtlasSize = (32, 8);
     private static readonly Vec2<int> GlyphSize = (6, 10);
@@ -75,11 +75,11 @@ public class TextRenderer : ShaderController
     public override void Invoke()
     {
         // bind vao/buffers
-        GL.BindVertexArray(VertexArrayObject);
+        GL.BindVertexArray(_vertexArrayObject);
         GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, _charBuffer);
         
         // bind vao/buffers
-        GL.BindVertexArray(VertexArrayObject);
+        GL.BindVertexArray(_vertexArrayObject);
         GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 1, _lineBuffer);
         
         // apply the glyph texture
@@ -91,32 +91,24 @@ public class TextRenderer : ShaderController
         // apply the uniforms
         Shader.Set("color", _color);
         
-        // enable transparency
-        GL.Enable(EnableCap.Blend);
-        GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-
         // render the geometry
         GL.DrawElements(PrimitiveType.Triangles, _indices.Length, DrawElementsType.UnsignedInt, 0);
-        
-        // disable transparency
-        GL.Disable(EnableCap.Blend);
-        GL.BlendFunc(BlendingFactor.One, BlendingFactor.Zero);
         
         // unbind the buffer
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0);
     }
-    
-    public void UpdateVao()
+
+    private void UpdateVao()
     {
         // bind vao
-        GL.BindVertexArray(VertexArrayObject);
+        GL.BindVertexArray(_vertexArrayObject);
         
         // bind/update vbo
-        GL.BindBuffer(BufferTarget.ArrayBuffer, VertexBufferObject);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
         GL.BufferData(BufferTarget.ArrayBuffer, _vertices.Length * sizeof(float), _vertices, Hint);
         
         // bind/update ebo (must be done after vbo)
-        GL.BindBuffer(BufferTarget.ElementArrayBuffer, ElementBufferObject);
+        GL.BindBuffer(BufferTarget.ElementArrayBuffer, _elementBufferObject);
         GL.BufferData(BufferTarget.ElementArrayBuffer, _indices.Length * sizeof(uint), _indices, Hint);
     }
     

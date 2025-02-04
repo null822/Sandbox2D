@@ -7,11 +7,11 @@ namespace Sandbox2D.Graphics.ShaderControllers;
 
 public class TextureRenderer : ShaderController
 {
-    public int VertexArrayObject { get; init; } = GL.GenVertexArray();
-    public int VertexBufferObject { get; init; } = GL.GenBuffer();
-    public int ElementBufferObject { get; init; } = GL.GenBuffer();
-
-    private Texture _texture;
+    private readonly int _vertexArrayObject = GL.GenVertexArray();
+    private readonly int _vertexBufferObject = GL.GenBuffer();
+    private readonly int _elementBufferObject = GL.GenBuffer();
+    
+    private readonly Texture _texture;
     
     // geometry arrays
     private readonly List<float> _vertices = 
@@ -47,23 +47,23 @@ public class TextureRenderer : ShaderController
     
     public override void Invoke()
     {
-        GL.BindVertexArray(VertexArrayObject);
+        GL.BindVertexArray(_vertexArrayObject);
         _texture.Use(TextureUnit.Texture0);
         Shader.Use();
         GL.DrawElements(PrimitiveType.Triangles, _indices.Count, DrawElementsType.UnsignedInt, 0);
     }
     
-    public void UpdateVao()
+    private void UpdateVao()
     {
         // bind vao
-        GL.BindVertexArray(VertexArrayObject);
+        GL.BindVertexArray(_vertexArrayObject);
         
         // bind/update vbo
-        GL.BindBuffer(BufferTarget.ArrayBuffer, VertexBufferObject);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
         GL.BufferData(BufferTarget.ArrayBuffer, _vertices.Count * sizeof(float), _vertices.ToArray(), Hint);
         
         // bind/update ebo (must be done after vbo)
-        GL.BindBuffer(BufferTarget.ElementArrayBuffer, ElementBufferObject);
+        GL.BindBuffer(BufferTarget.ElementArrayBuffer, _elementBufferObject);
         GL.BufferData(BufferTarget.ElementArrayBuffer, _indices.Count * sizeof(uint), _indices.ToArray(), Hint);
     }
     
