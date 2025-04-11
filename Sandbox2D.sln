@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Math2D", "Math2D\Math2D.csp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sandbox2DTest", "Sandbox2DTest\Sandbox2DTest.csproj", "{874C96A4-FE52-4FB1-8826-408AE9601593}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UIExtensions2D", "UIExtensions2D\UIExtensions2D.csproj", "{BA028E55-A340-4A80-B1C4-F10F8AF96F57}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -25,5 +27,9 @@ Global
 		{874C96A4-FE52-4FB1-8826-408AE9601593}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{874C96A4-FE52-4FB1-8826-408AE9601593}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{874C96A4-FE52-4FB1-8826-408AE9601593}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BA028E55-A340-4A80-B1C4-F10F8AF96F57}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BA028E55-A340-4A80-B1C4-F10F8AF96F57}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BA028E55-A340-4A80-B1C4-F10F8AF96F57}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BA028E55-A340-4A80-B1C4-F10F8AF96F57}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

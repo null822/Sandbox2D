@@ -1,6 +1,7 @@
 ﻿using Sandbox2D;
 using Sandbox2D.Registry_;
 using Sandbox2D.UserInterface.Elements;
+// using UIExtensions2D.UiElements;
 
 namespace Sandbox2DTest.RegistryPopulators;
 
@@ -18,21 +19,15 @@ public class CommonRegistryPopulator : IRegistryPopulator
     {
         RegisterGuiElements();
         RegisterGuiEvents();
-        RegisterGuis();
     }
     
     private static void RegisterGuiElements()
     {
-        Registry.GuiElement.Register("test", args => new TestElement(args));
+        // Registry.GuiElement.Register("test", args => new TestElement(args));
     }
     
     private static void RegisterGuiEvents()
     {
         Registry.GuiEvent.Register("run", () => Console.WriteLine("Hello from test event!"));
-    }
-    
-    private static void RegisterGuis()
-    {
-        Registry.Gui.RegisterAll($"{GlobalVariables.AssetDirectory}/gui/");
     }
 }

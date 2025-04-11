@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using OpenTK.Windowing.Desktop;
 
 namespace Sandbox2D.Managers;
@@ -27,7 +25,6 @@ public static class ApplicationManager
     
     public static void Run()
     {
-        // var windowThreads = new Thread[Windows.Count];
         for (var i = 0; i < Windows.Count; i++)
         {
             var t = new Thread(Windows[i].Run)
@@ -35,7 +32,6 @@ public static class ApplicationManager
                 Name = $"Window Thread #{i}"
             };
             t.Start();
-            // windowThreads[i] = t;
         }
         
         while (true)
@@ -60,7 +56,7 @@ public static class ApplicationManager
                 window.NoFrameWaitHandle.WaitOne(); // wait for NoFrame time
                 window.Context.SwapBuffers(); // display frame
             }
-
+            
             if (Windows.Any(w => w.IsShutdown))
             {
                 break;

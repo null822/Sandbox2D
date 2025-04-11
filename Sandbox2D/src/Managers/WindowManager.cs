@@ -12,12 +12,11 @@ using static Sandbox2D.Constants;
 
 namespace Sandbox2D.Managers;
 
-// TODO: implement GUIs
+// TODO: [FINISH] implement GUIs
 // TODO: migrate to OpenTK 5 once its out
 
 public class WindowManager : NativeWindow
 {
-    
     public readonly KeybindSieve KeybindManager = new();
     public readonly RenderManager RenderManager;
     
@@ -31,8 +30,11 @@ public class WindowManager : NativeWindow
     public readonly EventWaitHandle FrameWaitHandle = new ManualResetEvent(false);
     public readonly EventWaitHandle NoFrameWaitHandle = new ManualResetEvent(true);
     
-    // private MouseState _mouseState;
-    // private KeyboardState _keyboardState;
+    private readonly Mutex _resizeStateMutex = new();
+    private bool _doResize;
+    private Vec2<int> _newSize;
+    private bool _doFramebufferResize;
+    private Vec2<int> _newFramebufferSize;
     
     public WindowManager(RenderManager renderManager, NativeWindowSettings settings) : base(settings)
     {
@@ -50,7 +52,6 @@ public class WindowManager : NativeWindow
             Context.MakeCurrent();
             
             OnLoad();
-            OnResize(new ResizeEventArgs(ClientSize));
             _isLoaded = true;
         }
         
@@ -65,8 +66,23 @@ public class WindowManager : NativeWindow
                 if (!cancelArgs.Cancel)
                     break;
             }
+
+            _resizeStateMutex.WaitOne();
+            if (_doResize)
+            {
+                OnResize(_newSize);
+                _doResize = false;
+            }
+
+            if (_doFramebufferResize)
+            {
+                OnFramebufferResize(_newFramebufferSize);
+                _doFramebufferResize = false;
+            }
+            _resizeStateMutex.ReleaseMutex();
             
             FrameWaitHandle.WaitOne(); // wait for Frame time
+            
             
             OnUpdateInput();
             OnRenderFrame();
@@ -75,7 +91,6 @@ public class WindowManager : NativeWindow
             
             FrameWaitHandle.Reset(); // end Frame time
             NoFrameWaitHandle.Set(); // start NoFrame time
-
         }
         IsShutdown = true;
     }
@@ -121,16 +136,41 @@ public class WindowManager : NativeWindow
     }
     
     /// <summary>
-    /// Updates the viewport when the window is resized.
+    /// Called when the window gets resized
     /// </summary>
+    private void OnResize(Vec2<int> newSize)
+    {
+        RenderManager.OnResize(newSize);
+    }
+    
+    /// <summary>
+    /// Called when the framebuffer gets resized
+    /// </summary>
+    private void OnFramebufferResize(Vec2<int> newSize)
+    {
+        GL.Viewport(0, 0, newSize.X, newSize.Y);
+    }
+    
     protected override void OnResize(ResizeEventArgs e)
     {
         base.OnResize(e);
         
-        var newSize = new Vec2<int>(e.Width, e.Height);
-        GL.Viewport(0, 0, newSize.X, newSize.Y);
+        var newSize = e.Size.ToVec2();
+        _resizeStateMutex.WaitOne();
+        _doResize = true;
+        _newSize = newSize;
+        _resizeStateMutex.ReleaseMutex();
+    }
+    
+    protected override void OnFramebufferResize(FramebufferResizeEventArgs e)
+    {
+        base.OnFramebufferResize(e);
         
-        RenderManager.OnResize(newSize);
+        var newSize = e.Size.ToVec2();
+        _resizeStateMutex.WaitOne();
+        _doFramebufferResize = true;
+        _newFramebufferSize = newSize;
+        _resizeStateMutex.ReleaseMutex();
     }
     
     /// <summary>

@@ -173,7 +173,7 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
         // TODO: render brush outline
         
         // render the GUIs
-        Registry.Gui.RenderVisible();
+        GuiManager.RenderVisible();
         
         // FPS display
         var mspt = Math.Max(
@@ -194,7 +194,7 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
         _mouseScreenCoords = new Vec2<float>(mouseState.X, mouseState.Y);
         _mouseWorldCoords = ScreenToWorldCoords(_mouseScreenCoords);
         
-        Registry.Gui.UpdateVisible();
+        GuiManager.UpdateVisible();
         
         // zoom
         if (mouseState.ScrollDelta.Y != 0)
@@ -226,53 +226,21 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
         
         Translation = (0, 0);
         Scale = 1.1m;
-        
+        CalculateScaleBounds();
         
         _rQt = new QuadtreeRenderer(Math.Min(_gameManager.WorldHeight, MaxGpuQtHeight), this,
-            GlRegistry.ShaderProgram.Create("quadtree"), BufferUsageHint.StreamDraw);
-        _rText = new TextRenderer(GlRegistry.ShaderProgram.Create("text"), BufferUsageHint.DynamicDraw);
+            GlContext.Registry.ShaderProgram.Create("quadtree"), BufferUsageHint.StreamDraw);
+        _rText = new TextRenderer(GlContext.Registry.ShaderProgram.Create("text"), BufferUsageHint.DynamicDraw);
         _rText.SetColor(Color.Gray);
         
-        Registry.Gui.SetVisibility("test", false);
+        GuiManager.SetVisibility("test", false);
         
         // start the game logic
         _gameManager.SetRunning(true);
     }
-
-    public override void OnResize(Vec2<int> newSize)
-    {
-        if (ScreenSize != (0, 0))
-        {
-            var scale2D = (Vec2<float>)newSize / (Vec2<float>)ScreenSize;
-            var scale = (decimal)(scale2D.X + scale2D.Y) / 2m;
-            
-            Scale *= scale;
-        }
-        
-        CalculateScaleBounds();
-    }
-    
-    public override void OnClose(CancelEventArgs c)
-    {
-        _worldModifications.Clear();
-    }
-    
-    private void CalculateScaleBounds()
-    {
-        var minScreen = (decimal)Math.Min(ScreenSize.X, ScreenSize.Y);
-        
-        const decimal worldFill = 0.5m;
-        const decimal pixelFill = 0.5m;
-        
-        _scaleMinimum = minScreen / BitUtil.Pow2(_gameManager.WorldHeight) * worldFill;
-        _scaleMaximum = minScreen * pixelFill;
-        
-        Scale = Math.Clamp(Scale, _scaleMinimum, _scaleMaximum);
-    }
     
     private void RegisterKeybinds()
     {
-        KeybindManager.Add("print", Key.D, Enabled, () => Console.WriteLine($"{Thread.CurrentThread.Name}"));
         KeybindManager.Add("mapWorld", Key.M, RisingEdge, () => _worldAction = new WorldAction(WorldActionType.Map, "map.svg"));
         KeybindManager.Add("saveWorld", Key.S, RisingEdge, () =>_worldAction = new WorldAction(WorldActionType.Save, "save.qdt"));
         KeybindManager.Add("loadWorld", Key.L, RisingEdge, () => _worldAction = new WorldAction(WorldActionType.Load, "save.qdt"));
@@ -386,6 +354,37 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
             roundY += roundDist;
         
         return (roundX, roundY);
+    }
+    
+    public override void OnResize(Vec2<int> newSize)
+    {
+        if (ScreenSize != (0, 0))
+        {
+            var scale2D = (Vec2<float>)newSize / (Vec2<float>)ScreenSize;
+            var scale = (decimal)(scale2D.X + scale2D.Y) / 2m;
+            
+            Scale *= scale;
+        }
+        
+        CalculateScaleBounds();
+    }
+    
+    public override void OnClose(CancelEventArgs c)
+    {
+        _worldModifications.Clear();
+    }
+    
+    private void CalculateScaleBounds()
+    {
+        var minScreen = (decimal)Math.Min(ScreenSize.X, ScreenSize.Y);
+        
+        const decimal worldFill = 0.5m;
+        const decimal pixelFill = 0.5m;
+        
+        _scaleMinimum = minScreen / BitUtil.Pow2(_gameManager.WorldHeight) * worldFill;
+        _scaleMaximum = minScreen * pixelFill;
+        
+        Scale = Math.Clamp(Scale, _scaleMinimum, _scaleMaximum);
     }
     
     

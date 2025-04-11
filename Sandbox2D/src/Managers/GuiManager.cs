@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using Sandbox2D.Registry_.Registries;
 using Sandbox2D.UserInterface;
 
-namespace Sandbox2D.Registry_.Registries;
+namespace Sandbox2D.Managers;
 
-public class GuiRegistry : IRegistry<Gui>
+public class GuiManager : IRegistry<Gui>
 {
     private readonly List<Gui> _guiList = [];
     private readonly Dictionary<string, int> _guiNames = new();
@@ -18,7 +19,8 @@ public class GuiRegistry : IRegistry<Gui>
         foreach (var xmlPathS in Directory.GetFiles(path, "", SearchOption.AllDirectories))
         {
             var xmlPath = xmlPathS.Replace(Path.DirectorySeparatorChar, '/');
-            var isGui = Path.GetExtension(xmlPath) switch
+            var extension = Path.GetExtension(xmlPath);
+            var isGui = extension switch
             {
                 ".gui" => true,
                 _ => false,
@@ -27,17 +29,15 @@ public class GuiRegistry : IRegistry<Gui>
             if (!isGui)
                 continue;
             
-            var name = xmlPath
-                .Replace($"{path}{Path.DirectorySeparatorChar}", "")
-                .Replace(Path.GetExtension(xmlPath), "");
+            var name = Path.GetFileName(xmlPath).Replace(extension, "");
             Register(name, new Gui(xmlPath));
         }
     }
     
-    public void Register(string id, Gui shader)
+    public void Register(string id, Gui gui)
     {
         _guiNames.Add(id, _guiList.Count);
-        _guiList.Add(shader);
+        _guiList.Add(gui);
     }
     
     public Gui Get(string name)
@@ -100,47 +100,21 @@ public class GuiRegistry : IRegistry<Gui>
     /// <param name="visible">a <see cref="bool"/> stating whether the <see cref="Gui"/> is visible or not</param>
     public void SetVisibility(string id, bool visible)
     {
-        if (_guiNames.TryGetValue(id, out var index))
+        var index = _guiNames[id];
+        
+        var currentIndex = _visibleGuis.IndexOf(index);
+        var currentIsVisible = currentIndex != -1;
+        
+        // exit if the GUI is already in the correct state
+        if (currentIsVisible == visible) return;
+            
+        if (visible)
         {
-            var currentIndex = _visibleGuis.IndexOf(index);
-            var currentIsVisible = currentIndex != -1;
-            
-            // exit if the GUI is already in the correct state
-            if (currentIsVisible == visible) return;
-            
-            if (visible)
-            {
-                _visibleGuis.Add(index);
-            }
-            else
-            {
-                _visibleGuis.RemoveAt(currentIndex);
-            }
-            
+            _visibleGuis.Add(index);
         }
-    }
-    
-    /// <summary>
-    /// Sets an attribute of a <see cref="Gui"/>.
-    /// </summary>
-    /// <param name="id">the id of the GUI</param>
-    /// <param name="elementId">the id of the IGuiElement on which the attribute will be set</param>
-    /// <param name="attributeName">the name of the attribute</param>
-    /// <param name="value">the new value</param>
-    public void SetAttribute(string id, string elementId, string attributeName, string value)
-    {
-        Get(id).SetAttribute(elementId, attributeName, value);
-    }
-    
-    /// <summary>
-    /// Gets the value of an attribute of a <see cref="Gui"/>.
-    /// </summary>
-    /// <param name="id">the id of the GUI</param>
-    /// <param name="elementId">the id of the IGuiElement containing the attribute to get</param>
-    /// <param name="attributeName">the name of the attribute to get</param>
-    /// <returns>the value of the attribute, or an empty string if it was not found</returns>
-    public string GetAttribute(string id, string elementId, string attributeName)
-    {
-        return Get(id).GetAttribute(elementId, attributeName);
+        else
+        {
+            _visibleGuis.RemoveAt(currentIndex);
+        }
     }
 }

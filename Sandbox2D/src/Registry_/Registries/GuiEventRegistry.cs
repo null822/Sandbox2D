@@ -8,10 +8,10 @@ public class GuiEventRegistry : IRegistry<GuiEvent, Action[]>
 {
     private readonly Dictionary<string, GuiEvent> _events = new();
     
-    public void Register(string name, params Action[] actions)
+    public void Register(string name, params Action[] gui)
     {
         var @event = new GuiEvent();
-        foreach (var action in actions)
+        foreach (var action in gui)
         {
             @event += action;
         }

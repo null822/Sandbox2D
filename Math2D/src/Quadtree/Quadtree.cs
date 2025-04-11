@@ -237,7 +237,7 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     
     #region Compression
     
-    // TODO: this takes a long time to complete sometimes
+    // TODO: [PERFORMANCE] this takes a long time to complete sometimes
     /// <summary>
     /// Tries to combine as many nodes as possible in this <see cref="Quadtree{T}"/>, which are referenced in <see cref="_modifications"/>.
     /// </summary>

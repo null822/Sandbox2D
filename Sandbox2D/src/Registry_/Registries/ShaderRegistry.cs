@@ -63,9 +63,9 @@ public class ShaderRegistry : IRegistry<Shader>
         };
     }
     
-    public void Register(string id, Shader shader)
+    public void Register(string id, Shader gui)
     {
-        _shaders.Add(id, shader);
+        _shaders.Add(id, gui);
     }
     
     public Shader Get(string name)

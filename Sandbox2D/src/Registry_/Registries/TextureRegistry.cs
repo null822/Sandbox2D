@@ -31,9 +31,9 @@ public class TextureRegistry : IRegistry<Texture>
         }
     }
     
-    public void Register(string id, Texture texture)
+    public void Register(string id, Texture gui)
     {
-        _textures.Add(id, texture);
+        _textures.Add(id, gui);
     }
     
     public Texture Get(string name)

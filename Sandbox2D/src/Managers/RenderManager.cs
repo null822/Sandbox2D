@@ -16,13 +16,14 @@ namespace Sandbox2D.Managers;
 public abstract class RenderManager(IRegistryPopulator registryPopulator) : IDisposable
 {
     private WindowManager _windowManager;
-
-    private readonly HashSet<string> _supportedExtensions = [];
     
+    private readonly HashSet<string> _supportedExtensions = [];
+
     public Vec2<int> ScreenSize => _windowManager.ClientSize.ToVec2();
     protected KeybindSieve KeybindManager => _windowManager.KeybindManager;
+    protected static GuiManager GuiManager => GlContext.Registry.Gui;
     protected IGLFWGraphicsContext Context => _windowManager.Context;
-
+    
     public void SetWindowManager(WindowManager windowManager)
     {
         _windowManager = windowManager;
@@ -67,7 +68,9 @@ public abstract class RenderManager(IRegistryPopulator registryPopulator) : IDis
     /// </summary>
     public virtual void Initialize()
     {
-        GlRegistry.RegisterContext();
+        GlContext.RegisterContext();
+        GlContext.RenderManager = this;
+        
         registryPopulator.Register();
         
         // load supported extensions

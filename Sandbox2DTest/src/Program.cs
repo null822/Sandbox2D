@@ -18,7 +18,7 @@ public static class Program
     private static readonly MainGameManager GameManager;
     
     private static readonly MainRenderManager RenderManager;
-    private static readonly MainRenderManager TestRenderManager;
+    // private static readonly MainRenderManager TestRenderManager;
     
     private static readonly CommonRegistryPopulator CommonRegistryPopulator = new();
     private static readonly ClientRegistryPopulator ClientRegistryPopulator = new();
@@ -31,8 +31,8 @@ public static class Program
         Thread.CurrentThread.Name = "Main Thread";
         
         RenderManager = new MainRenderManager(ClientRegistryPopulator);
-        TestRenderManager = new MainRenderManager(ClientRegistryPopulator);
-        GameManager = new MainGameManager(Constants.Tps, [RenderManager, TestRenderManager]);
+        // TestRenderManager = new MainRenderManager(ClientRegistryPopulator);
+        GameManager = new MainGameManager(Constants.Tps, [RenderManager/*, TestRenderManager*/]);
     }
     
     /// <summary>
@@ -54,7 +54,7 @@ public static class Program
             
             // connect server with client(s)
             RenderManager.SetGameManager(GameManager);
-            TestRenderManager.SetGameManager(GameManager);
+            // TestRenderManager.SetGameManager(GameManager);
             
             var settings = new NativeWindowSettings
             {
@@ -75,7 +75,7 @@ public static class Program
             
             // create windows
             ApplicationManager.AddWindow(RenderManager, settings);
-            ApplicationManager.AddWindow(TestRenderManager, testSettings);
+            // ApplicationManager.AddWindow(TestRenderManager, testSettings);
             
             if (args.Length == 1)
                 RenderManager.SetWorldAction(new WorldAction(WorldActionType.Load, args[0]));

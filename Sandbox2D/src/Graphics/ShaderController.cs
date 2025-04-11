@@ -19,7 +19,7 @@ public abstract class ShaderController(ShaderProgram shader, BufferUsageHint hin
     protected BufferUsageHint Hint { get; } = hint;
 
     protected ShaderController(string shaderProgramName, BufferUsageHint hint)
-        : this(GlRegistry.ShaderProgram.Create(shaderProgramName), hint) { }
+        : this(GlContext.Registry.ShaderProgram.Create(shaderProgramName), hint) { }
     
     /// <summary>
     /// Runs the <see cref="Shader"/>.

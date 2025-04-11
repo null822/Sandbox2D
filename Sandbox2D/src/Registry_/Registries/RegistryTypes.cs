@@ -20,8 +20,8 @@ public interface IRegistry<T, in TIn>
     /// Registers a new <typeparamref name="T"/>.
     /// </summary>
     /// <param name="id">the ID of the new <typeparamref name="T"/></param>
-    /// <param name="shaderIds">the value used to initialize the new <typeparamref name="T"/></param>
-    public void Register(string id, TIn shaderIds);
+    /// <param name="gui">the value used to initialize the new <typeparamref name="T"/></param>
+    public void Register(string id, TIn gui);
     /// <summary>
     /// Gets a registered instance of <typeparamref name="T"/>.
     /// </summary>
@@ -80,8 +80,8 @@ public interface IRegistryFactory<T, in TCtor, in TParams> where TCtor : Delegat
     /// Registers a new <typeparamref name="T"/>.
     /// </summary>
     /// <param name="id">the ID of the new <typeparamref name="T"/></param>
-    /// <param name="delegate">the delegate used to initialize the new <typeparamref name="T"/></param>
-    public void Register(string id, TCtor @delegate);
+    /// <param name="constructor">the delegate used to initialize the new <typeparamref name="T"/></param>
+    public void Register(string id, TCtor constructor);
     /// <summary>
     /// Constructs a new instance of <typeparamref name="T"/>.
     /// </summary>

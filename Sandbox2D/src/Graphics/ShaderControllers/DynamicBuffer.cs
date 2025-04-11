@@ -112,16 +112,17 @@ public class DynamicBuffer : ShaderController, IDisposable
             if (!unique.Add(modification.Index)) continue;
             
             modification.Value
-            .Serialize(true)
-            .CopyTo(_dataArr, index * dataSize);
+                .Serialize(true)
+                .CopyTo(_dataArr, index * dataSize);
             
             _indexArr[index] = (uint)modification.Index;
-
+            
             index++;
         }
         _currentBatchLength = index;
         
         GL.BindBuffer(BufferTarget.CopyWriteBuffer, _dataBuffer);
+
         GL.BufferSubData(BufferTarget.CopyWriteBuffer,
             IntPtr.Zero,
             checked((IntPtr)(_currentBatchLength * dataSize)),
@@ -134,6 +135,7 @@ public class DynamicBuffer : ShaderController, IDisposable
         GL.BindBuffer(BufferTarget.CopyWriteBuffer, 0);
         
         ApplyModifications((uint)dataSize);
+        
         
         return batchEnd;
     }

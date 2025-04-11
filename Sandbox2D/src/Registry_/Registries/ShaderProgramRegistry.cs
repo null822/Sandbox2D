@@ -14,7 +14,7 @@ public class ShaderProgramRegistry : IRegistryFactory<ShaderProgram, string[]>
         var handles = new int[shaderIds.Length];
         for (var i = 0; i < shaderIds.Length; i++)
         {
-            handles[i] = GlRegistry.Shader.Get(shaderIds[i]).Handle;
+            handles[i] = GlContext.Registry.Shader.Get(shaderIds[i]).Handle;
         }
         
         _shaders.Add(id, handles);

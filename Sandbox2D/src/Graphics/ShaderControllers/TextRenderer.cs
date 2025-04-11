@@ -68,7 +68,7 @@ public class TextRenderer : ShaderController
         
         Shader.Set("glyphAtlasSize", GlyphAtlasSize.ToVector2i());
         
-        _glyphTexture = GlRegistry.Texture.Get("font");
+        _glyphTexture = GlContext.Registry.Texture.Get("font");
         // _glyphTexture.Use(TextureUnit.Texture0);
     }
     

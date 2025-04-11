@@ -1,5 +1,5 @@
 ﻿<body>
-    <test geometry="" id="test1" onClick="run">
+    <test id="test1" onClick="run">
         <text text="Hello, world!" color="#FF0000"/>
         hi there
     </test>
