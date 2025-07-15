@@ -126,10 +126,10 @@ public static class QuadtreeUtil
     /// A <see cref="Comparer{T}"/> that allows for sorting <see cref="Range2D"/>s by their <see cref="Range2D.Bl"/>
     /// corner in an increasing, bottom-left to top right-order.
     /// </summary>
-    public static readonly Comparer<Range2D> RangeBlComparer = Comparer<Range2D>.Create((a, b) =>
+    public static readonly Comparer<Modification> RangeBlComparer = Comparer<Modification>.Create((a, b) =>
     {
-        var ac = a.Bl;
-        var bc = b.Bl;
+        var ac = a.Range.Bl;
+        var bc = b.Range.Bl;
 
         if (ac == bc) return 0;
         if (ac <= bc) return -1;

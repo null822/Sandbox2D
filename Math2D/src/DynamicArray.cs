@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.Collections;
 using System.Runtime.InteropServices;
 using System.Text;
 using Math2D.Binary;
@@ -17,7 +18,7 @@ namespace Math2D;
 /// - Elements are never copied/moved<br></br>
 /// </summary>
 /// <typeparam name="T">the type of the elements held within</typeparam>
-public class DynamicArray<T> : IDisposable
+public class DynamicArray<T> : IDisposable, IEnumerable<T>
 {
     private readonly ArrayPool<T> _dataPool;
     private readonly List<T[]> _data = [];
@@ -28,7 +29,7 @@ public class DynamicArray<T> : IDisposable
     
     /// <summary>
     /// A <see cref="DynamicArray{T}"/> of <see cref="ulong"/>s, used as a bitset to store the usage state of each
-    /// value in this <see cref="DynamicArray{T}"/>. See <see cref="IsOccupied"/> and <see cref="SetOccupied"/>.
+    /// value in this <see cref="DynamicArray{T}"/>. See <see cref="IsOccupiedInternal"/> and <see cref="SetOccupied"/>.
     /// <code>
     /// 0 = vacant
     /// 1 = used
@@ -127,7 +128,7 @@ public class DynamicArray<T> : IDisposable
     private T Get(long i)
     {
         if (i < 0 || i >= Length) throw new InvalidIndexException(i, Length);
-        if (StoreOccupied && !IsOccupied(i)) throw new DeletedElementException(i);
+        if (StoreOccupied && !IsOccupiedInternal(i)) throw new DeletedElementException(i);
         
         
         var value = GetData(i);
@@ -197,6 +198,14 @@ public class DynamicArray<T> : IDisposable
         
         // if the last element in the array was removed, shrink the array
         if (shrink && i == Length - 1) Shrink();
+    }
+
+    public bool IsOccupied(long i)
+    {
+        if (!StoreOccupied) throw new StoredVacanciesException();
+        if (i < 0 || i >= Length) throw new InvalidIndexException(i, Length);
+
+        return IsOccupiedInternal(i);
     }
     
     
@@ -291,7 +300,7 @@ public class DynamicArray<T> : IDisposable
     /// <summary>
     /// Clears the <see cref="DynamicArray{T}"/>, resetting it back to its initial state.
     /// </summary>
-    public void Clear()
+    public void Clear(bool deallocate = true)
     {
         // remove vacancies and any modifications
         if (StoreOccupied) _occupiedIndexes.Clear();
@@ -305,12 +314,16 @@ public class DynamicArray<T> : IDisposable
         Length = 0;
         
         // delete all data chunks
-        foreach (var arr in _data)
+        if (deallocate)
         {
-            _dataPool.Return(arr, true);
-            Array.Clear(arr);
+            foreach (var arr in _data)
+            {
+                _dataPool.Return(arr, true);
+                Array.Clear(arr);
+            }
+
+            _data.RemoveRange(0, _data.Count);
         }
-        _data.RemoveRange(0, _data.Count);
     }
 
     #endregion
@@ -408,7 +421,7 @@ public class DynamicArray<T> : IDisposable
     {
         for (long i = 0; i < Length; i++)
         {
-            if (StoreOccupied && IsOccupied(i)) continue; // skip vacant spaces
+            if (StoreOccupied && IsOccupiedInternal(i)) continue; // skip vacant spaces
             if (match.Invoke(this[i])) return i;
         }
 
@@ -600,7 +613,7 @@ public class DynamicArray<T> : IDisposable
     /// </summary>
     /// <param name="i">the index of the element</param>
     /// <returns>true if used, false if vacant</returns>
-    private bool IsOccupied(long i)
+    private bool IsOccupiedInternal(long i)
     {
         return ((_occupiedIndexes[i / 64] >> (int)(i % 64)) & 0x1uL) == 1;
     }
@@ -713,6 +726,41 @@ public class DynamicArray<T> : IDisposable
         Exception($"Element at index {i} was removed and can no longer be accessed");
     
     #endregion
+    
+    public IEnumerator<T> GetEnumerator()
+    {
+        return new Enumerator(this);
+    }
+    
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+
+    private class Enumerator(DynamicArray<T> array) : IEnumerator<T>
+    {
+        private long _index = -1;
+        
+        private T Current => array[_index];
+        private object? CurrentObj => Current;
+        
+        T IEnumerator<T>.Current => Current;
+        object? IEnumerator.Current => CurrentObj;
+
+        public bool MoveNext()
+        {
+            while (true)
+            {
+                _index++;
+                
+                if (_index >= array.Length) return false;
+                if (array.IsOccupiedInternal(_index)) return true;
+            }
+        }
+        
+        public void Reset() => _index = -1;
+        public void Dispose() { }
+    }
 }
 
 /// <summary>

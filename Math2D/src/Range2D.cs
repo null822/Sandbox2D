@@ -5,7 +5,7 @@ namespace Math2D;
 /// <summary>
 /// Represents a 2-dimensional rectangle, with all corner coordinates being inclusive.
 /// </summary>
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Sequential, Size = 8 * 4)]
 public readonly struct Range2D : IEquatable<Range2D>
 {
     /// <summary>
@@ -360,6 +360,19 @@ public readonly struct Range2D : IEquatable<Range2D>
         var squaresArray = squares.ToArray();
         squares.Clear();
         return squaresArray;
+    }
+    
+    /// <summary>
+    /// Returns a new <see cref="Range2D"/> that spans the area of this <see cref="Range2D"/> and the supplied one.
+    /// </summary>
+    /// <param name="other">the other <see cref="Range2D"/></param>
+    public Range2D Combine(Range2D other)
+    {
+        return new Range2D(
+            Math.Min(MinX, other.MinX),
+            Math.Min(MinY, other.MinY),
+            Math.Max(MaxX, other.MaxX),
+            Math.Max(MaxY, other.MaxY));
     }
     
     public Range2D Scale(decimal scale)

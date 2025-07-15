@@ -1,5 +1,5 @@
 ﻿using System.Numerics;
-using Math2D.Binary;
+using System.Runtime.InteropServices;
 using Math2D.Quadtree.Features;
 using static Math2D.Quadtree.QuadtreeUtil;
 using static Math2D.Quadtree.NodeType;
@@ -44,9 +44,10 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     public Range2D Dimensions { get; }
     
     /// <summary>
-    /// The modifications that have been done to this <see cref="Quadtree{T}"/> since the last time <see cref="Compress"/> was called.
+    /// The <see cref="Modification"/>s that have happened to this <see cref="Quadtree{T}"/> since the last time
+    /// <see cref="ClearModifications()"/> was called.
     /// </summary>
-    private readonly DynamicArray<Range2D> _modifications = null!;
+    private readonly DynamicArray<Modification> _modifications = null!;
     
     /// <summary>
     /// Whether modifications are stored.
@@ -87,7 +88,11 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         
         // create modifications array
         if (storeModifications)
-            _modifications = new DynamicArray<Range2D>(25_00 /* 80kb per chunk */, false, false);
+        {
+            _modifications = new DynamicArray<Modification>(
+                80_000 / Marshal.SizeOf<Modification>() /* 80kb per chunk */,
+                false, true);
+        }
     }
     
     /// <summary>
@@ -113,7 +118,7 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         Dimensions = NodeRangeFromPos(new Vec2<long>(halfSize), MaxHeight);
         StoreModifications = tree.StoreModifications && data.StoreModifications;
         if (StoreModifications)
-            _modifications = new DynamicArray<Range2D>(25_00 /* 80kb per chunk */, false, false);
+            _modifications = new DynamicArray<Modification>(25_00 /* 80kb per chunk */, false, false);
     }
     
     #region Get / Set
@@ -152,7 +157,7 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         
         // store the modification
         if (StoreModifications)
-            _modifications.Add(NodeRangeFromPos(pos, 0));
+            AddModification(NodeRangeFromPos(pos, 0));
     }
     
     /// <summary>
@@ -168,7 +173,7 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
         
         // store the modification
         if (StoreModifications)
-            _modifications.Add(range);
+            AddModification(range);
         
         // store the `value` and keep a reference to it
         var valueRef = Data.Add(value);
@@ -254,41 +259,66 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             if (_modifications.Length == 0)
                 return;
             
-            // combine the modifications to reduce the amount of times the same area is compressed multiple times
-            _modifications.Sort(RangeBlComparer);
-            var combinedMods = new DynamicArray<Range2D>();
-            combinedMods.EnsureCapacity(_modifications.Length);
-            combinedMods.Add(_modifications[0]);
-            for (var i = 1; i < _modifications.Length; i++)
+            // combine the modifications to reduce the amount of times the same area is compressed multiple times and
+            // the performance penalty from many small compressions
+            for (var i = 0; i < _modifications.Length; i++)
             {
-                var modification = _modifications[i];
-                var last = combinedMods[combinedMods.Length - 1];
+                if (!_modifications.IsOccupied(i)) continue;
+                var a = _modifications[i];
                 
-                if (modification == last) continue;
-                if (last.Overlaps(modification))
+                var wasCombined = false;
+                
+                for (var j = 0; j < i; j++)
                 {
-                    var comb = new Range2D(last.Bl, modification.Tr);
+                    if (!_modifications.IsOccupied(j)) continue;
+                    var b = _modifications[j];
                     
-                    // if combining the modifications doesn't create too much extra area, combine them
-                    if (comb.Area <= last.Area + modification.Area - comb.Area)
+                    // if the current range is already in the combined modifications, delete it
+                    if (b.Range.Contains(a.Range))
                     {
-                        combinedMods[combinedMods.Length - 1] = comb;
-                        continue;
+                        _modifications.Remove(i);
+                        wasCombined = true;
+                        break;
+                    }
+
+                    // if combining the modifications doesn't create too much extra area, combine them
+                    var combined = b.Range.Combine(a.Range);
+                    var combArea = combined.Area;
+                    var areaSum = b.Range.Area + a.Range.Area;
+                    if (combArea <= PerformanceConfig.EagerCompressArea // if the modification is too small to keep
+                        || combArea <= 2 * areaSum) // if the modifications are close enough together to combine
+                    {
+                        _modifications[j] = new Modification(combined, 0);
+                        _modifications.Remove(i, false);
+                        wasCombined = true;
+                        break;
                     }
                 }
                 
-                // otherwise, just add the area separately
-                combinedMods.Add(modification);
+                // increment the time of the modification if it was not combined
+                if (!wasCombined)
+                {
+                    a.Time++;
+                    _modifications[i] = a;
+                }
             }
             
             // compress all the ranges
-            for (var i = 0; i < combinedMods.Length; i++)
+            for (var i = 0; i < _modifications.Length; i++)
             {
-                CompressRange(combinedMods[i]);
+                if (!_modifications.IsOccupied(i)) continue;
+                var modification = _modifications[i];
+                
+                // don't compress small, new modifications to reduce overhead (they may be combined in future calls to Compress())
+                if (modification.Range.Area <= PerformanceConfig.EagerCompressArea
+                    && modification.Time < PerformanceConfig.MaxModificationLifetime)
+                    continue;
+                
+                CompressRange(modification.Range);
+                _modifications.Remove(i);
             }
             
-            _modifications.Clear();
-            combinedMods.Clear();
+            _modifications.Shrink();
         }
         
         // shrink the tree section
@@ -360,7 +390,7 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             // don't compress the root node or its immediate children since they are needed for subsets
             if (height >= MaxHeight) break;
             
-            // if this node is not the last node in its parent, don't try to compress it, since it's parent will be
+            // if this node is not the last node in its parent, don't try to compress it, since its parent will be
             // reached by CompressRange() later anyway
             if (ZValueIndex(zValue, height) != 3 && !forceFull) return;
             
@@ -399,6 +429,11 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
             // try to compress the current node's parent
             height++;
         }
+    }
+
+    private void AddModification(Range2D range)
+    {
+        _modifications.Add(new Modification(range, 0));
     }
     
     #endregion
@@ -831,9 +866,8 @@ public sealed class Quadtree<T> : IDisposable where T : IQuadtreeElement<T>
     private class PositionOutOfBoundsException(Vec2<long> pos, Range2D bound) : Exception(
         $"Position {pos} is Outside QuadTree Bounds of {bound}");
     
-    public class StoredModificationsException() :
+    private class StoredModificationsException() :
         Exception("Unable to retrieve modifications from Quadtree: Modification Storing is disabled");
     
     #endregion
-    
 }
