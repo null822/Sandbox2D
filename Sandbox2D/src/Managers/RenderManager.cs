@@ -6,7 +6,7 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using Sandbox2D.Registry_;
-using Sandbox2D.UserInterface.Keybinds;
+using Sandbox2D.UserInterface.Input;
 
 namespace Sandbox2D.Managers;
 
@@ -16,6 +16,7 @@ namespace Sandbox2D.Managers;
 public abstract class RenderManager(IRegistryPopulator registryPopulator) : IDisposable
 {
     private WindowManager _windowManager;
+    public long Id => _windowManager.Id;
     
     private readonly HashSet<string> _supportedExtensions = [];
 
@@ -30,15 +31,20 @@ public abstract class RenderManager(IRegistryPopulator registryPopulator) : IDis
     }
     
     /// <summary>
-    /// Renders the next frame.
+    /// Updates the <see cref="RenderManager"/>. Runs before <see cref="UpdateControls"/>
     /// </summary>
-    /// <param name="frametime">the amount of time that passed since the previous frame, in seconds</param>
-    public virtual void Render(double frametime) { }
+    public virtual void Update() { }
     
     /// <summary>
     /// Handles all the controls. Runs before <see cref="Render"/>.
     /// </summary>
-    public virtual void UpdateControls(MouseState mouseState, KeyboardState keyboardState) { }
+    public virtual void UpdateControls(InputTimeline frame) { }
+    
+    /// <summary>
+    /// Renders the next frame.
+    /// </summary>
+    /// <param name="frametime">the amount of time that passed since the previous frame, in seconds</param>
+    public virtual void Render(double frametime) { }
     
     /// <summary>
     /// Called every time the window gets resized.

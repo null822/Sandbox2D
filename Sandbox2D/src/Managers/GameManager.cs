@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 
 namespace Sandbox2D.Managers;
@@ -107,31 +108,73 @@ public abstract class GameManager(double tps, RenderManager[] renderManagers)
         return _prevTickTime;
     }
     
-    /// <summary>
-    /// Runs the supplied function <paramref name="f"/> on every <see cref="RenderManager"/> that matches the type parameter
-    /// <typeparamref name="TR"/>.
-    /// </summary>
-    protected void RenderManagerApply<TR>(Action<TR> f) where TR : RenderManager
+    protected void CallRenderManagers<Manager>(IList<RenderManagerCall<Manager>> calls)
+        where Manager : RenderManager
     {
         foreach (var r in RenderManagers)
         {
-            if (r is not TR renderManager) continue;
-            f.Invoke(renderManager);
+            if (r is not Manager renderManager) continue;
+            
+            var managerCalls = calls
+                .Where(c => c.ManagerId == renderManager.Id);
+
+            foreach (var call in managerCalls)
+            {
+                call.Call.Invoke(renderManager);
+            }
         }
     }
     
-    /// <summary>
-    /// Runs and returns the result of the supplied function <paramref name="f"/> on every <see cref="RenderManager"/>
-    /// that matches the type parameter <typeparamref name="TR"/>.
-    /// </summary>
-    protected TV[] RenderManagerGet<TR, TV>(Func<TR, TV> f) where TR : RenderManager
+    
+    protected List<ManagerResponse<Result>> CallRenderManagers<Manager, Result>(IList<RenderManagerCall<Manager, Result>> calls)
+        where Manager : RenderManager
     {
-        var values = new List<TV>(RenderManagers.Length);
+        var results = new List<ManagerResponse<Result>>();
         foreach (var r in RenderManagers)
         {
-            if (r is not TR renderManager) continue;
-            values.Add(f.Invoke(renderManager));
+            if (r is not Manager renderManager) continue;
+            
+            var managerCalls = calls
+                .Where(c => c.ManagerId == renderManager.Id);
+            
+            results.AddRange(managerCalls.Select(call =>
+                new ManagerResponse<Result>(renderManager.Id, call.Call.Invoke(renderManager))));
         }
-        return values.ToArray();
+
+        return results;
+    }
+
+    protected List<ManagerResponse<Result>> CallRenderManagers<Manager, Result>(Func<Manager, Result> call)
+        where Manager : RenderManager
+    {
+        var results = new List<ManagerResponse<Result>>();
+        foreach (var r in RenderManagers)
+        {
+            if (r is not Manager renderManager) continue;
+            
+            results.Add(new ManagerResponse<Result>(renderManager.Id, call.Invoke(renderManager)));
+        }
+
+        return results;
+    }
+    
+    protected void CallRenderManagers<Manager, Result>(Action<Manager> call)
+        where Manager : RenderManager
+    {
+        foreach (var r in RenderManagers)
+        {
+            if (r is not Manager renderManager) continue;
+            
+            call.Invoke(renderManager);
+        }
+
     }
 }
+
+public record ManagerResponse<T>(long ManagerId, T Response);
+
+public record RenderManagerCall<Manager, Result>(long ManagerId, Func<Manager, Result> Call)
+    where Manager : RenderManager;
+public record RenderManagerCall<Manager>(long ManagerId, Action<Manager> Call)
+    where Manager : RenderManager;
+    

@@ -6,7 +6,8 @@ using Math2D;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
-using Sandbox2D.UserInterface.Keybinds;
+using OpenTK.Windowing.GraphicsLibraryFramework;
+using Sandbox2D.UserInterface.Input;
 using static Sandbox2D.Util;
 using static Sandbox2D.Constants;
 
@@ -20,6 +21,10 @@ public class WindowManager : NativeWindow
     public readonly KeybindSieve KeybindManager = new();
     public readonly RenderManager RenderManager;
     
+    public readonly long Id;
+
+    private readonly InputTimeline _inputFrame = new();
+    
     private bool _isRunning;
     public bool IsShutdown { get; private set; }
     private bool _isLoaded;
@@ -27,21 +32,44 @@ public class WindowManager : NativeWindow
     private readonly Stopwatch _frameTimer = new();
     private TimeSpan _prevFrameTime = TimeSpan.Zero;
     
-    public readonly EventWaitHandle FrameWaitHandle = new ManualResetEvent(false);
-    public readonly EventWaitHandle NoFrameWaitHandle = new ManualResetEvent(true);
+    public readonly EventWaitHandle RenderTimeHandle = new ManualResetEvent(true);
+    public readonly EventWaitHandle RenderSyncHandle = new ManualResetEvent(true);
     
-    private readonly Mutex _resizeStateMutex = new();
+    private readonly Lock _resizeStateLock = new();
     private bool _doResize;
     private Vec2<int> _newSize;
     private bool _doFramebufferResize;
     private Vec2<int> _newFramebufferSize;
     
-    public WindowManager(RenderManager renderManager, NativeWindowSettings settings) : base(settings)
+    // stored to prevent deletion by the garbage collector (only stored as pointers in unmanaged code otherwise)
+    private GLFWCallbacks.KeyCallback _keyCallback;
+    private GLFWCallbacks.MouseButtonCallback _mouseButtonCallback;
+    private GLFWCallbacks.CursorPosCallback _cursorPosCallback;
+    private GLFWCallbacks.ScrollCallback _scrollCallback;
+    
+    public unsafe WindowManager(RenderManager renderManager, NativeWindowSettings settings) : base(settings)
     {
+        Id = (long)WindowPtr;
+        
         RenderManager = renderManager;
         renderManager.SetWindowManager(this);
+        
+        RegisterInputCallbacks();
     }
 
+    private unsafe void RegisterInputCallbacks()
+    {
+        _keyCallback = KeyCallback;
+        _mouseButtonCallback = MouseButtonCallback;
+        _cursorPosCallback = CursorPosCallback;
+        _scrollCallback = ScrollCallback;
+        
+        GLFW.SetKeyCallback(WindowPtr, _keyCallback);
+        GLFW.SetMouseButtonCallback(WindowPtr, _mouseButtonCallback);
+        GLFW.SetCursorPosCallback(WindowPtr, _cursorPosCallback);
+        GLFW.SetScrollCallback(WindowPtr, _scrollCallback);
+    }
+    
     public void Run()
     {
         IsShutdown = false;
@@ -67,30 +95,35 @@ public class WindowManager : NativeWindow
                     break;
             }
 
-            _resizeStateMutex.WaitOne();
-            if (_doResize)
+            lock (_resizeStateLock)
             {
-                OnResize(_newSize);
-                _doResize = false;
-            }
+                if (_doResize)
+                {
+                    OnResize(_newSize);
+                    _doResize = false;
+                }
 
-            if (_doFramebufferResize)
-            {
-                OnFramebufferResize(_newFramebufferSize);
-                _doFramebufferResize = false;
+                if (_doFramebufferResize)
+                {
+                    OnFramebufferResize(_newFramebufferSize);
+                    _doFramebufferResize = false;
+                }
             }
-            _resizeStateMutex.ReleaseMutex();
-            
-            FrameWaitHandle.WaitOne(); // wait for Frame time
             
             
-            OnUpdateInput();
-            OnRenderFrame();
+            // wait for, and then render the frame
+            RenderTimeHandle.WaitOne();
+            
+            _inputFrame.SwapBuffers(); // swap input buffers, reading from the one that was previously being written to
+            
+            RenderManager.Update(); // update
+            OnUpdateInput(); // update input
+            OnRenderFrame(); // render the frame
             
             GL.Flush(); // ensure the frame is fully rendered
             
-            FrameWaitHandle.Reset(); // end Frame time
-            NoFrameWaitHandle.Set(); // start NoFrame time
+            RenderTimeHandle.Reset(); // end render time
+            RenderSyncHandle.Set(); // start render sync time
         }
         IsShutdown = true;
     }
@@ -112,8 +145,8 @@ public class WindowManager : NativeWindow
     /// </summary>
     private void OnUpdateInput()
     {
-        KeybindManager.Call(MouseState, KeyboardState);
-        RenderManager.UpdateControls(MouseState, KeyboardState);
+        KeybindManager.Call(_inputFrame);
+        RenderManager.UpdateControls(_inputFrame);
     }
     
     /// <summary>
@@ -156,10 +189,11 @@ public class WindowManager : NativeWindow
         base.OnResize(e);
         
         var newSize = e.Size.ToVec2();
-        _resizeStateMutex.WaitOne();
-        _doResize = true;
-        _newSize = newSize;
-        _resizeStateMutex.ReleaseMutex();
+        lock (_resizeStateLock)
+        {
+            _doResize = true;
+            _newSize = newSize;
+        }
     }
     
     protected override void OnFramebufferResize(FramebufferResizeEventArgs e)
@@ -167,10 +201,11 @@ public class WindowManager : NativeWindow
         base.OnFramebufferResize(e);
         
         var newSize = e.Size.ToVec2();
-        _resizeStateMutex.WaitOne();
-        _doFramebufferResize = true;
-        _newFramebufferSize = newSize;
-        _resizeStateMutex.ReleaseMutex();
+        lock (_resizeStateLock)
+        {
+            _doFramebufferResize = true;
+            _newFramebufferSize = newSize;
+        }
     }
     
     /// <summary>
@@ -182,6 +217,26 @@ public class WindowManager : NativeWindow
         KeybindManager.Dispose();
         Shutdown();
         base.OnClosing(e);
+    }
+    
+    private unsafe void KeyCallback(Window* window, Keys key, int scancode, InputAction action, KeyModifiers mods)
+    {
+        _inputFrame.AddKeyboardKey(key, scancode, action, mods);
+    }
+    
+    private unsafe void MouseButtonCallback(Window* window, MouseButton button, InputAction action, KeyModifiers mods)
+    {
+        _inputFrame.AddMouseButton(button, action, mods);
+    }
+    
+    private unsafe void CursorPosCallback(Window* window, double posX, double posY)
+    {
+        _inputFrame.AddMousePos(posX, posY);
+    }
+    
+    private unsafe void ScrollCallback(Window* window, double offsetX, double offsetY)
+    {
+        _inputFrame.AddMouseScroll(offsetX, offsetY);
     }
     
     public void Shutdown()

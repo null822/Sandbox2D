@@ -1,278 +1,286 @@
-﻿namespace Sandbox2D.UserInterface.Keybinds;
+﻿using OpenTK.Windowing.GraphicsLibraryFramework;
 
-public enum Key
+namespace Sandbox2D.UserInterface.Input;
+
+/// <summary>
+/// Represents a key. Represents a merged version of <see cref="Keys"/> and <see cref="MouseButton"/>.
+/// </summary>
+public enum Key : short
 {
     /// <summary>An unknown key</summary>
-    Unknown = -1, // 0xFFFFFFFF
+    Unknown = -0x1,
     
     /// <summary>The lowest mouse button available</summary>
-    FirstMouseKey = 0,
+    FirstMouseKey = 0x0000,
     /// <summary>The highest mouse button available</summary>
-    LastMouseKey = 7,
+    LastMouseKey = 0x0007,
     /// <summary>The lowest keyboard key available</summary>
-    FirstKeyboardKey = 32,
-    /// <summary>The highest keyboard key available, and also the highest element in this <see cref="Key"/> enum</summary>
-    LastKeyboardKey = 348,
-    
+    FirstKeyboardKey = 0x0020,
+    /// <summary>The highest keyboard key available</summary>
+    LastKeyboardKey = 0x015C,
+    /// <summary>The lowest key available</summary>
+    FirstKey = 0x000,
+    /// <summary>The highest key available</summary>
+    LastKey = 0x15C,
     
     /// <summary>The left mouse button</summary>
-    LeftMouse = 0,
+    LeftMouse = 0x0000,
     /// <summary>The right mouse button</summary>
-    RightMouse = 1,
+    RightMouse = 0x0001,
     /// <summary>The middle mouse button</summary>
-    MiddleMouse = 2,
+    MiddleMouse = 0x0002,
     
     /// <summary>The first mouse button</summary>
-    Mouse1 = 0,
+    Mouse1 = 0x0000,
     /// <summary>The second mouse button</summary>
-    Mouse2 = 1,
+    Mouse2 = 0x0001,
     /// <summary>The third mouse button</summary>
-    Mouse3 = 2,
+    Mouse3 = 0x0002,
     /// <summary>The fourth mouse button</summary>
-    Mouse4 = 3,
+    Mouse4 = 0x0003,
     /// <summary>The fifth mouse button</summary>
-    Mouse5 = 4,
+    Mouse5 = 0x0004,
     /// <summary>The sixth mouse button</summary>
-    Mouse6 = 5,
+    Mouse6 = 0x0005,
     /// <summary>The seventh mouse button</summary>
-    Mouse7 = 6,
+    Mouse7 = 0x0006,
     /// <summary>The eighth mouse button</summary>
-    Mouse8 = 7,
+    Mouse8 = 0x0007,
     
     /// <summary>The spacebar key</summary>
-    Space = 32, // 0x00000020
+    Space = 0x0020,
     /// <summary>The apostrophe key</summary>
-    Apostrophe = 39, // 0x00000027
+    Apostrophe = 0x0027,
     /// <summary>The comma key</summary>
-    Comma = 44, // 0x0000002C
+    Comma = 0x002C,
     /// <summary>The minus key</summary>
-    Minus = 45, // 0x0000002D
+    Minus = 0x002D,
     /// <summary>The period key</summary>
-    Period = 46, // 0x0000002E
+    Period = 0x002E,
     /// <summary>The slash key</summary>
-    Slash = 47, // 0x0000002F
+    Slash = 0x002F,
     /// <summary>The 0 key</summary>
-    D0 = 48, // 0x00000030
+    D0 = 0x0030,
     /// <summary>The 1 key</summary>
-    D1 = 49, // 0x00000031
+    D1 = 0x0031,
     /// <summary>The 2 key</summary>
-    D2 = 50, // 0x00000032
+    D2 = 0x0032,
     /// <summary>The 3 key</summary>
-    D3 = 51, // 0x00000033
+    D3 = 0x0033,
     /// <summary>The 4 key</summary>
-    D4 = 52, // 0x00000034
+    D4 = 0x0034,
     /// <summary>The 5 key</summary>
-    D5 = 53, // 0x00000035
+    D5 = 0x0035,
     /// <summary>The 6 key</summary>
-    D6 = 54, // 0x00000036
+    D6 = 0x0036,
     /// <summary>The 7 key</summary>
-    D7 = 55, // 0x00000037
+    D7 = 0x0037,
     /// <summary>The 8 key</summary>
-    D8 = 56, // 0x00000038
+    D8 = 0x0038,
     /// <summary>The 9 key</summary>
-    D9 = 57, // 0x00000039
+    D9 = 0x0039,
     /// <summary>The semicolon key</summary>
-    Semicolon = 59, // 0x0000003B
+    Semicolon = 0x003B,
     /// <summary>The equal key</summary>
-    Equal = 61, // 0x0000003D
+    Equal = 0x003D,
     /// <summary>The A key</summary>
-    A = 65, // 0x00000041
+    A = 0x0041,
     /// <summary>The B key</summary>
-    B = 66, // 0x00000042
+    B = 0x0042,
     /// <summary>The C key</summary>
-    C = 67, // 0x00000043
+    C = 0x0043,
     /// <summary>The D key</summary>
-    D = 68, // 0x00000044
+    D = 0x0044,
     /// <summary>The E key</summary>
-    E = 69, // 0x00000045
+    E = 0x0045,
     /// <summary>The F key</summary>
-    F = 70, // 0x00000046
+    F = 0x0046,
     /// <summary>The G key</summary>
-    G = 71, // 0x00000047
+    G = 0x0047,
     /// <summary>The H key</summary>
-    H = 72, // 0x00000048
+    H = 0x0048,
     /// <summary>The I key</summary>
-    I = 73, // 0x00000049
+    I = 0x0049,
     /// <summary>The J key</summary>
-    J = 74, // 0x0000004A
+    J = 0x004A,
     /// <summary>The K key</summary>
-    K = 75, // 0x0000004B
+    K = 0x004B,
     /// <summary>The L key</summary>
-    L = 76, // 0x0000004C
+    L = 0x004C,
     /// <summary>The M key</summary>
-    M = 77, // 0x0000004D
+    M = 0x004D,
     /// <summary>The N key</summary>
-    N = 78, // 0x0000004E
+    N = 0x004E,
     /// <summary>The O key</summary>
-    O = 79, // 0x0000004F
+    O = 0x004F,
     /// <summary>The P key</summary>
-    P = 80, // 0x00000050
+    P = 0x0050,
     /// <summary>The Q key</summary>
-    Q = 81, // 0x00000051
+    Q = 0x0051,
     /// <summary>The R key</summary>
-    R = 82, // 0x00000052
+    R = 0x0052,
     /// <summary>The S key</summary>
-    S = 83, // 0x00000053
+    S = 0x0053,
     /// <summary>The T key</summary>
-    T = 84, // 0x00000054
+    T = 0x0054,
     /// <summary>The U key</summary>
-    U = 85, // 0x00000055
+    U = 0x0055,
     /// <summary>The V key</summary>
-    V = 86, // 0x00000056
+    V = 0x0056,
     /// <summary>The W key</summary>
-    W = 87, // 0x00000057
+    W = 0x0057,
     /// <summary>The X key</summary>
-    X = 88, // 0x00000058
+    X = 0x0058,
     /// <summary>The Y key</summary>
-    Y = 89, // 0x00000059
+    Y = 0x0059,
     /// <summary>The Z key</summary>
-    Z = 90, // 0x0000005A
+    Z = 0x005A,
     /// <summary>The left bracket(opening bracket) key</summary>
-    LeftBracket = 91, // 0x0000005B
+    LeftBracket = 0x005B,
     /// <summary>The backslash</summary>
-    Backslash = 92, // 0x0000005C
+    Backslash = 0x005C,
     /// <summary>The right bracket(closing bracket) key</summary>
-    RightBracket = 93, // 0x0000005D
+    RightBracket = 0x005D,
     /// <summary>The grave accent key</summary>
-    GraveAccent = 96, // 0x00000060
+    GraveAccent = 0x0060,
     /// <summary>The escape key</summary>
-    Escape = 256, // 0x00000100
+    Escape = 0x0100,
     /// <summary>The enter key</summary>
-    Enter = 257, // 0x00000101
+    Enter = 0x0101,
     /// <summary>The tab key</summary>
-    Tab = 258, // 0x00000102
+    Tab = 0x0102,
     /// <summary>The backspace key</summary>
-    Backspace = 259, // 0x00000103
+    Backspace = 0x0103,
     /// <summary>The insert key</summary>
-    Insert = 260, // 0x00000104
+    Insert = 0x0104,
     /// <summary>The delete key</summary>
-    Delete = 261, // 0x00000105
+    Delete = 0x0105,
     /// <summary>The right arrow key</summary>
-    RightArrow = 262, // 0x00000106
+    RightArrow = 0x0106,
     /// <summary>The left arrow key</summary>
-    LeftArrow = 263, // 0x00000107
+    LeftArrow = 0x0107,
     /// <summary>The down arrow key</summary>
-    DownArrow = 264, // 0x00000108
+    DownArrow = 0x0108,
     /// <summary>The up arrow key</summary>
-    UpArrow = 265, // 0x00000109
+    UpArrow = 0x0109,
     /// <summary>The page up key</summary>
-    PageUp = 266, // 0x0000010A
+    PageUp = 0x010A,
     /// <summary>The page down key</summary>
-    PageDown = 267, // 0x0000010B
+    PageDown = 0x010B,
     /// <summary>The home key</summary>
-    Home = 268, // 0x0000010C
+    Home = 0x010C,
     /// <summary>The end key</summary>
-    End = 269, // 0x0000010D
+    End = 0x010D,
     /// <summary>The caps lock key</summary>
-    CapsLock = 280, // 0x00000118
+    CapsLock = 0x0118,
     /// <summary>The scroll lock key</summary>
-    ScrollLock = 281, // 0x00000119
+    ScrollLock = 0x0119,
     /// <summary>The num lock key</summary>
-    NumLock = 282, // 0x0000011A
+    NumLock = 0x011A,
     /// <summary>The print screen key</summary>
-    PrintScreen = 283, // 0x0000011B
+    PrintScreen = 0x011B,
     /// <summary>The pause key</summary>
-    Pause = 284, // 0x0000011C
+    Pause = 0x011C,
     /// <summary>The F1 key</summary>
-    F1 = 290, // 0x00000122
+    F1 = 0x0122,
     /// <summary>The F2 key</summary>
-    F2 = 291, // 0x00000123
+    F2 = 0x0123,
     /// <summary>The F3 key</summary>
-    F3 = 292, // 0x00000124
+    F3 = 0x0124,
     /// <summary>The F4 key</summary>
-    F4 = 293, // 0x00000125
+    F4 = 0x0125,
     /// <summary>The F5 key</summary>
-    F5 = 294, // 0x00000126
+    F5 = 0x0126,
     /// <summary>The F6 key</summary>
-    F6 = 295, // 0x00000127
+    F6 = 0x0127,
     /// <summary>The F7 key</summary>
-    F7 = 296, // 0x00000128
+    F7 = 0x0128,
     /// <summary>The F8 key</summary>
-    F8 = 297, // 0x00000129
+    F8 = 0x0129,
     /// <summary>The F9 key</summary>
-    F9 = 298, // 0x0000012A
+    F9 = 0x012A,
     /// <summary>The F10 key</summary>
-    F10 = 299, // 0x0000012B
+    F10 = 0x012B,
     /// <summary>The F11 key</summary>
-    F11 = 300, // 0x0000012C
+    F11 = 0x012C,
     /// <summary>The F12 key</summary>
-    F12 = 301, // 0x0000012D
+    F12 = 0x012D,
     /// <summary>The F13 key</summary>
-    F13 = 302, // 0x0000012E
+    F13 = 0x012E,
     /// <summary>The F14 key</summary>
-    F14 = 303, // 0x0000012F
+    F14 = 0x012F,
     /// <summary>The F15 key</summary>
-    F15 = 304, // 0x00000130
+    F15 = 0x0130,
     /// <summary>The F16 key</summary>
-    F16 = 305, // 0x00000131
+    F16 = 0x0131,
     /// <summary>The F17 key</summary>
-    F17 = 306, // 0x00000132
+    F17 = 0x0132,
     /// <summary>The F18 key</summary>
-    F18 = 307, // 0x00000133
+    F18 = 0x0133,
     /// <summary>The F19 key</summary>
-    F19 = 308, // 0x00000134
+    F19 = 0x0134,
     /// <summary>The F20 key</summary>
-    F20 = 309, // 0x00000135
+    F20 = 0x0135,
     /// <summary>The F21 key</summary>
-    F21 = 310, // 0x00000136
+    F21 = 0x0136,
     /// <summary>The F22 key</summary>
-    F22 = 311, // 0x00000137
+    F22 = 0x0137,
     /// <summary>The F23 key</summary>
-    F23 = 312, // 0x00000138
+    F23 = 0x0138,
     /// <summary>The F24 key</summary>
-    F24 = 313, // 0x00000139
+    F24 = 0x0139,
     /// <summary>The F25 key</summary>
-    F25 = 314, // 0x0000013A
+    F25 = 0x013A,
     /// <summary>The 0 key on the key pad</summary>
-    KeyPad0 = 320, // 0x00000140
+    KeyPad0 = 0x0140,
     /// <summary>The 1 key on the key pad</summary>
-    KeyPad1 = 321, // 0x00000141
+    KeyPad1 = 0x0141,
     /// <summary>The 2 key on the key pad</summary>
-    KeyPad2 = 322, // 0x00000142
+    KeyPad2 = 0x0142,
     /// <summary>The 3 key on the key pad</summary>
-    KeyPad3 = 323, // 0x00000143
+    KeyPad3 = 0x0143,
     /// <summary>The 4 key on the key pad</summary>
-    KeyPad4 = 324, // 0x00000144
+    KeyPad4 = 0x0144,
     /// <summary>The 5 key on the key pad</summary>
-    KeyPad5 = 325, // 0x00000145
+    KeyPad5 = 0x0145,
     /// <summary>The 6 key on the key pad</summary>
-    KeyPad6 = 326, // 0x00000146
+    KeyPad6 = 0x0146,
     /// <summary>The 7 key on the key pad</summary>
-    KeyPad7 = 327, // 0x00000147
+    KeyPad7 = 0x0147,
     /// <summary>The 8 key on the key pad</summary>
-    KeyPad8 = 328, // 0x00000148
+    KeyPad8 = 0x0148,
     /// <summary>The 9 key on the key pad</summary>
-    KeyPad9 = 329, // 0x00000149
+    KeyPad9 = 0x0149,
     /// <summary>The decimal key on the key pad</summary>
-    KeyPadDecimal = 330, // 0x0000014A
+    KeyPadDecimal = 0x014A,
     /// <summary>The divide key on the key pad</summary>
-    KeyPadDivide = 331, // 0x0000014B
+    KeyPadDivide = 0x014B,
     /// <summary>The multiply key on the key pad</summary>
-    KeyPadMultiply = 332, // 0x0000014C
+    KeyPadMultiply = 0x014C,
     /// <summary>The subtract key on the key pad</summary>
-    KeyPadSubtract = 333, // 0x0000014D
+    KeyPadSubtract = 0x014D,
     /// <summary>The add key on the key pad</summary>
-    KeyPadAdd = 334, // 0x0000014E
+    KeyPadAdd = 0x014E,
     /// <summary>The enter key on the key pad</summary>
-    KeyPadEnter = 335, // 0x0000014F
+    KeyPadEnter = 0x014F,
     /// <summary>The equal key on the key pad</summary>
-    KeyPadEqual = 336, // 0x00000150
+    KeyPadEqual = 0x0150,
     /// <summary>The left shift key</summary>
-    LeftShift = 340, // 0x00000154
+    LeftShift = 0x0154,
     /// <summary>The left control key</summary>
-    LeftControl = 341, // 0x00000155
+    LeftControl = 0x0155,
     /// <summary>The left alt key</summary>
-    LeftAlt = 342, // 0x00000156
+    LeftAlt = 0x0156,
     /// <summary>The left super key</summary>
-    LeftSuper = 343, // 0x00000157
+    LeftSuper = 0x0157,
     /// <summary>The right shift key</summary>
-    RightShift = 344, // 0x00000158
+    RightShift = 0x0158,
     /// <summary>The right control key</summary>
-    RightControl = 345, // 0x00000159
+    RightControl = 0x0159,
     /// <summary>The right alt key</summary>
-    RightAlt = 346, // 0x0000015A
+    RightAlt = 0x015A,
     /// <summary>The right super key</summary>
-    RightSuper = 347, // 0x0000015B
+    RightSuper = 0x015B,
     /// <summary>The menu key</summary>
-    Menu = 348, // 0x0000015C
+    Menu = 0x015C,
 }

@@ -1,12 +1,11 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Math2D;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 
-namespace Sandbox2D.UserInterface.Keybinds;
+namespace Sandbox2D.UserInterface.Input;
 
 public class KeybindSieve : IDisposable
 {
@@ -85,7 +84,7 @@ public class KeybindSieve : IDisposable
         }
     }
     
-    public void Call(MouseState mouse, KeyboardState keyboard)
+    public void Call(InputTimeline timeline)
     {
         if (_sieveKeybinds.Length != _keybindCount)
         {
@@ -96,20 +95,7 @@ public class KeybindSieve : IDisposable
         
         foreach (var i in _activeStages)
         {
-            var keyState = i switch
-            {
-                < (int)Key.LastMouseKey + 1 => mouse.IsButtonDown((MouseButton)i),
-                < (int)Key.LastKeyboardKey + 1 => keyboard.IsKeyDown((Keys)i),
-                _ => false
-            };
-            var prevKeyState = i switch
-            {
-                < (int)Key.LastMouseKey + 1 => mouse.WasButtonDown((MouseButton)i),
-                < (int)Key.LastKeyboardKey + 1 => keyboard.WasKeyDown((Keys)i),
-                _ => false
-            };
-            
-            var discards = _stages[i].GetDiscards(prevKeyState, keyState);
+            var discards = _stages[i].GetDiscards(timeline[(Key)i]);
             foreach (var discard in discards)
             {
                 _sieveKeybinds[discard] = true;
@@ -139,6 +125,7 @@ public class KeybindSieve : IDisposable
         private readonly List<int> _disabledDiscards = [];
         private readonly List<int> _risingEdgeDiscards = [];
         private readonly List<int> _fallingEdgeDiscards = [];
+        private readonly List<int> _repeatDiscards = [];
         
         public void Add(int keybindIndex, KeybindKeyType type)
         {
@@ -173,6 +160,7 @@ public class KeybindSieve : IDisposable
             _disabledDiscards.Remove(keybindIndex);
             _risingEdgeDiscards.Remove(keybindIndex);
             _fallingEdgeDiscards.Remove(keybindIndex);
+            _repeatDiscards.Remove(keybindIndex);
         }
         
         public bool IsActive()
@@ -180,17 +168,19 @@ public class KeybindSieve : IDisposable
             return _enabledDiscards.Count != 0 ||
                    _disabledDiscards.Count != 0 ||
                    _risingEdgeDiscards.Count != 0 ||
-                   _fallingEdgeDiscards.Count != 0;
+                   _fallingEdgeDiscards.Count != 0 ||
+                   _repeatDiscards.Count != 0;
         }
         
-        public List<int> GetDiscards(bool prevKeyState, bool keyState)
+        public List<int> GetDiscards(InputState input)
         {
-            return (prevKeyState, keyState) switch
+            return input.Type switch
             {
-                (true, true) => _enabledDiscards,
-                (false, false) => _disabledDiscards,
-                (false, true) => _risingEdgeDiscards,
-                (true, false) => _fallingEdgeDiscards
+                InputStateType.Pressed => _enabledDiscards,
+                InputStateType.Released => _disabledDiscards,
+                InputStateType.RisingEdge => _risingEdgeDiscards,
+                InputStateType.FallingEdge => _fallingEdgeDiscards,
+                InputStateType.Repeat => _repeatDiscards,
             };
             
         }

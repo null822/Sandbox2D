@@ -1,13 +1,16 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using OpenTK.Windowing.Desktop;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace Sandbox2D.Managers;
 
 public static class ApplicationManager
 {
     private static readonly List<WindowManager> Windows = [];
+    private static readonly List<bool> IsWindowRendering = [];
     
     public static bool IsShutdown { get; private set; }
     
@@ -21,6 +24,7 @@ public static class ApplicationManager
         
         window.Context.MakeNoneCurrent(); // do not keep the context on the main thread
         Windows.Add(window);
+        IsWindowRendering.Add(false);
     }
     
     public static void Run()
@@ -34,6 +38,12 @@ public static class ApplicationManager
             t.Start();
         }
         
+        var inputFrameTimer = new Stopwatch();
+        var inputFrameTime = 0d;
+        const double msPerInputFrame = 1000d / Constants.InputFramerate;
+        const double inputFrameTimerResetMs = 1_000;
+        
+        inputFrameTimer.Start();
         while (true)
         {
             foreach (var window in Windows)
@@ -41,20 +51,50 @@ public static class ApplicationManager
                 window.NewInputFrame();
             }
             
-            NativeWindow.ProcessWindowEvents(false);
-            
-            foreach (var window in Windows)
+            GLFW.PollEvents();
+
+            for (var i = 0; i < Windows.Count; i++)
             {
-                window.NoFrameWaitHandle.Reset(); // end NoFrame time
-                window.FrameWaitHandle.Set(); // start Frame time
+                var window = Windows[i];
+                window.RenderSyncHandle.Reset(); // end render sync time
+                window.RenderTimeHandle.Set(); // start render time
+                IsWindowRendering[i] = true;
             }
-            
+
             // frames get rendered
             
-            foreach (var window in Windows)
+            while (true)
             {
-                window.NoFrameWaitHandle.WaitOne(); // wait for NoFrame time
-                window.Context.SwapBuffers(); // display frame
+                var allDone = true;
+                for (var i = 0; i < Windows.Count; i++)
+                {
+                    if (!IsWindowRendering[i]) continue;
+                    
+                    var window = Windows[i];
+                    var done = window.RenderSyncHandle.WaitOne(0); // check if we can enter sync time, if so, enter
+                    if (done)
+                    {
+                        window.Context.SwapBuffers(); // display frame
+                        IsWindowRendering[i] = false;
+                    }
+                    
+                    allDone &= done;
+                }
+
+                if (inputFrameTimer.Elapsed.TotalMilliseconds - inputFrameTime > msPerInputFrame)
+                {
+                    GLFW.PollEvents();
+                    inputFrameTime += msPerInputFrame;
+                    
+                    if (inputFrameTimer.Elapsed.TotalMilliseconds >= inputFrameTimerResetMs)
+                    {
+                        inputFrameTime = 0;
+                        inputFrameTimer.Restart();
+                    }
+                }
+                
+                if (allDone)
+                    break;
             }
             
             if (Windows.Any(w => w.IsShutdown))
@@ -66,7 +106,7 @@ public static class ApplicationManager
         foreach (var window in Windows)
         {
             window.Shutdown();
-            window.FrameWaitHandle.Set();
+            window.RenderTimeHandle.Set();
         }
         
         IsShutdown = true;

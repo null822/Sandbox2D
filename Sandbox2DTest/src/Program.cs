@@ -78,7 +78,7 @@ public static class Program
             // ApplicationManager.AddWindow(TestRenderManager, testSettings);
             
             if (args.Length == 1)
-                RenderManager.SetWorldAction(new WorldAction(WorldActionType.Load, args[0]));
+                RenderManager.LoadWorld(args[0]);
             
             // run the system checks
             Log("===============[ SYSTEM CHECKS  ]===============", "Load");

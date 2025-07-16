@@ -3,6 +3,7 @@ using Math2D.Quadtree;
 using Math2D.Quadtree.Features;
 using Sandbox2D;
 using Sandbox2D.Managers;
+using Sandbox2DTest.Packets;
 using Sandbox2DTest.World;
 using Sandbox2DTest.World.Tiles;
 using static Sandbox2D.Util;
@@ -22,11 +23,11 @@ public class MainGameManager(double tps, RenderManager[] renderManagers) : GameM
     {
         // apply any world modifications
         var incomingModifications = 
-            RenderManagerGet<MainRenderManager, WorldModification[]>(r => r.GetWorldModifications());
+            CallRenderManagers<MainRenderManager, WorldModification[]>(r => r.GetWorldModifications());
         
         foreach (var modifications in incomingModifications)
         {
-            foreach (var modification in modifications)
+            foreach (var modification in modifications.Response)
             {
                 var range = modification.Range;
                 
@@ -49,11 +50,29 @@ public class MainGameManager(double tps, RenderManager[] renderManagers) : GameM
         _world.Compress();
         // _world.UpdateSubset(screenRange); //TODO: implement subset
         
-        var actions = RenderManagerGet<MainRenderManager, WorldAction?>(r => r.GetWorldAction());
-        foreach (var action in actions)
+        // get the new packets
+        var incomingPackets = CallRenderManagers<MainRenderManager, LocalPacket[]>(
+            r => r.GetOutgoingPackets());
+        
+        // process the packets
+        var outgoingPackets = new List<RenderManagerCall<MainRenderManager>>();
+        foreach (var (managerId, localPackets) in incomingPackets)
         {
-            HandleAction(action);
+            var responses = localPackets
+                .Select(HandleAction)
+                .Where(p => p != null)
+                .Select(p => p!.Value)
+                .ToArray();
+            
+            if (responses.Length != 0)
+            {
+                outgoingPackets.Add(new RenderManagerCall<MainRenderManager>(managerId,
+                    m => m.AddIncomingPackets(responses)));
+            }
         }
+        
+        // send back the responses
+        CallRenderManagers(outgoingPackets);
         
         UpdateRender();
     }
@@ -100,16 +119,13 @@ public class MainGameManager(double tps, RenderManager[] renderManagers) : GameM
         Log("Initialized Game Manager", "Load/Logic");
     }
     
-    private void HandleAction(WorldAction? action)
+    private LocalPacket? HandleAction(LocalPacket action)
     {
-        if (action == null)
-            return;
-        
         switch (action.Type) 
         {
-            case WorldActionType.Save: 
+            case LocalPacketType.Save: 
             {
-                var save = File.Create(action.Arg);
+                var save = File.Create(action.GetArg<string>());
                 new SerializableQuadtree<Tile>(_world).Serialize(save);
                 save.Close();
                 save.Dispose();
@@ -117,9 +133,9 @@ public class MainGameManager(double tps, RenderManager[] renderManagers) : GameM
                 Log("QuadTree Saved"); 
                 break;
             }
-            case WorldActionType.Load: 
+            case LocalPacketType.Load: 
             { 
-                var save = File.Open(action.Arg, FileMode.Open);
+                var save = File.Open(action.GetArg<string>(), FileMode.Open);
                 _world.Dispose();
                 _world = SerializableQuadtree<Tile>.Deserialize<Tile>(save, true).Base;
                 WorldHeight = _world.MaxHeight;
@@ -129,19 +145,19 @@ public class MainGameManager(double tps, RenderManager[] renderManagers) : GameM
                 Log("QuadTree Loaded");
                 break;
             }
-            case WorldActionType.Clear:
+            case LocalPacketType.Clear:
             {
                 _world.Clear();
                 
                 Log("World Cleared");
                 break;
             }
-            case WorldActionType.Map:
+            case LocalPacketType.Map:
             {
                 var svgScale = (decimal)Constants.QuadTreeSvgSize / ~(WorldHeight == 64 ? 0 : ~0x0uL << WorldHeight);
                 var svgMap = new MappableQuadtree<Tile>(_world).GetSvgMap(svgScale);
                 
-                var map = File.CreateText(action.Arg);
+                var map = File.CreateText(action.GetArg<string>());
                 map.Write(svgMap);
                 map.Close();
                 map.Dispose();
@@ -149,7 +165,16 @@ public class MainGameManager(double tps, RenderManager[] renderManagers) : GameM
                 Log("QuadTree Mapped");
                 break; 
             }
+            case LocalPacketType.GetTile:
+            {
+                return new LocalPacket(
+                    action.ResponseName ?? "Requested Tile",
+                    LocalPacketType.Tile,
+                    _world[action.GetArg<Vec2<long>>()]);
+            }
         }
+
+        return null;
     }
     
     #region Public Getters / Setters
@@ -162,12 +187,5 @@ public class MainGameManager(double tps, RenderManager[] renderManagers) : GameM
     #endregion
 }
 
-public enum WorldActionType
-{
-    Save,
-    Load,
-    Clear,
-    Map
-}
 
-public record WorldAction(WorldActionType Type, string Arg);
+

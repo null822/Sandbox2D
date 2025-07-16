@@ -3,18 +3,18 @@ using Math2D;
 using Math2D.Binary;
 using Math2D.Quadtree;
 using OpenTK.Graphics.OpenGL4;
-using OpenTK.Windowing.GraphicsLibraryFramework;
 using Sandbox2D;
 using Sandbox2D.Graphics.ShaderControllers;
 using Sandbox2D.Managers;
 using Sandbox2D.Registry_;
-using Sandbox2D.UserInterface.Keybinds;
+using Sandbox2D.UserInterface.Input;
 using Sandbox2DTest.Graphics.ShaderControllers;
+using Sandbox2DTest.Packets;
 using Sandbox2DTest.World;
 using Sandbox2DTest.World.Tiles;
 using static Sandbox2D.Util;
 using static Sandbox2D.Constants;
-using static Sandbox2D.UserInterface.Keybinds.KeybindKeyType;
+using static Sandbox2D.UserInterface.Input.KeybindKeyType;
 
 namespace Sandbox2DTest;
 
@@ -57,8 +57,12 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
     
     // world editing
     private Tile _activeBrush = new Air();
+
+    private readonly Lock _outgoingPacketLock = new();
+    private readonly List<LocalPacket> _outgoingPackets = [];
+    private readonly Lock _incomingPacketLock = new();
+    private readonly List<LocalPacket> _incomingPackets = [];
     
-    private WorldAction? _worldAction;
     private readonly List<WorldModification> _worldModifications = [];
     private readonly Random _random = new();
     
@@ -185,21 +189,54 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
         _rText.Invoke();
         
     }
-    
-    /// <summary>
-    /// Handles all the controls. Runs before <see cref="Render"/>.
-    /// </summary>
-    public override void UpdateControls(MouseState mouseState, KeyboardState keyboardState)
+
+    public override void Update()
     {
-        _mouseScreenCoords = new Vec2<float>(mouseState.X, mouseState.Y);
+        
+        foreach (var packet in GetIncomingPackets())
+        {
+            switch (packet.Name)
+            {
+                case "new_brush":
+                    _activeBrush = packet.GetArg<Tile>();
+                    Log($"Brush Changed to {_activeBrush}");
+                    break;
+            }
+        }
+    }
+    
+    public override void UpdateControls(InputTimeline frame)
+    {
+        _mouseScreenCoords = frame.MousePos;
         _mouseWorldCoords = ScreenToWorldCoords(_mouseScreenCoords);
         
         GuiManager.UpdateVisible();
         
-        // zoom
-        if (mouseState.ScrollDelta.Y != 0)
+        if (frame.IsPressed(Key.LeftMouse) && frame.IsReleased(Key.LeftShift) && frame.IsReleased(Key.LeftControl))
         {
-            _scrollPos += -mouseState.ScrollDelta.Y;
+            _worldModifications.Add(
+                new WorldModification(
+                    new Range2D(RoundMouseWorldCoords(_mouseWorldCoords)),
+                    _activeBrush
+                ));
+            
+            foreach (var input in frame)
+            {
+                if (input.Type == InputType.MousePos)
+                {
+                    _worldModifications.Add(
+                        new WorldModification(
+                            new Range2D(RoundMouseWorldCoords(ScreenToWorldCoords(input.Vec))),
+                            _activeBrush
+                        ));
+                }
+            }
+        }
+        
+        // zoom
+        if (frame.MouseScrollDelta.Y != 0)
+        {
+            _scrollPos += -frame.MouseScrollDelta.Y;
             
             var scale = (decimal)Math.Pow(1.1, -_scrollPos) * 1024;
             
@@ -241,11 +278,11 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
     
     private void RegisterKeybinds()
     {
-        KeybindManager.Add("mapWorld", Key.M, RisingEdge, () => _worldAction = new WorldAction(WorldActionType.Map, "map.svg"));
-        KeybindManager.Add("saveWorld", Key.S, RisingEdge, () =>_worldAction = new WorldAction(WorldActionType.Save, "save.qdt"));
-        KeybindManager.Add("loadWorld", Key.L, RisingEdge, () => _worldAction = new WorldAction(WorldActionType.Load, "save.qdt"));
-        KeybindManager.Add("clearWorld", Key.C, RisingEdge, () => _worldAction = new WorldAction(WorldActionType.Clear, ""));
-        KeybindManager.Add("logMousePos", Key.LeftControl, RisingEdge, () => Log(_mouseWorldCoords));
+        KeybindManager.Add("mapWorld", Key.M, RisingEdge, () => SendPacket(new LocalPacket("map", LocalPacketType.Map, "map.svg")));
+        KeybindManager.Add("saveWorld", Key.S, RisingEdge, () => SendPacket( new LocalPacket("save", LocalPacketType.Save, "save.qdt")));
+        KeybindManager.Add("loadWorld", Key.L, RisingEdge, () => SendPacket(new LocalPacket("load", LocalPacketType.Load, "save.qdt")));
+        KeybindManager.Add("clearWorld", Key.C, RisingEdge, () => SendPacket(new LocalPacket("clear", LocalPacketType.Clear)));
+        KeybindManager.Add("logMousePos", Key.LeftAlt, RisingEdge, () => Log(_mouseWorldCoords));
         
         KeybindManager.Add("shuffleBrush", Key.RightMouse, RisingEdge, () =>
         {
@@ -281,13 +318,10 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
             
         });
         
-        KeybindManager.Add("drawSingle", [(Key.LeftMouse, Enabled), (Key.LeftShift, Disabled)], () =>
-            _worldModifications.Add(
-                new WorldModification(
-                    new Range2D(RoundMouseWorldCoords(_mouseWorldCoords)),
-                    _activeBrush
-                ))
-        );
+        KeybindManager.Add("pickTile", [(Key.LeftControl, Enabled), (Key.LeftMouse, RisingEdge)], () => 
+        {
+            SendPacket(new LocalPacket("new_brush", LocalPacketType.GetTile, _mouseWorldCoords, "new_brush"));
+        });
         
         KeybindManager.Add("drawRect", [(Key.LeftMouse, FallingEdge), (Key.LeftShift, Enabled)], () => 
         {
@@ -388,6 +422,75 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
     }
     
     
+    #region Local Packets
+    
+    /// <summary>
+    /// Returns all outgoing packets, and clears the list.
+    /// </summary>
+    public LocalPacket[] GetOutgoingPackets()
+    {
+        LocalPacket[] actions;
+        lock (_outgoingPacketLock)
+        {
+            actions = _outgoingPackets.ToArray();
+            _outgoingPackets.Clear();
+        }
+        
+        return actions;
+    }
+    
+    /// <summary>
+    /// Returns all incoming packets, and clears the list.
+    /// </summary>
+    private LocalPacket[] GetIncomingPackets()
+    {
+        LocalPacket[] packets;
+        lock (_incomingPacketLock)
+        {
+            packets = _incomingPackets.ToArray();
+            _incomingPackets.Clear();
+        }
+        return packets;
+    }
+    
+    /// <summary>
+    /// Adds a <see cref="LocalPacket"/> to the list of packets to send next server tick.
+    /// </summary>
+    /// <param name="packet">the <see cref="LocalPacket"/></param>
+    private void SendPacket(LocalPacket packet)
+    {
+        lock (_outgoingPacketLock)
+        {
+            _outgoingPackets.Add(packet);
+        }
+    }
+    
+    /// <summary>
+    /// Sends a <see cref="LocalPacket"/> to this <see cref="MainRenderManager"/>.
+    /// </summary>
+    /// <param name="packet">the <see cref="LocalPacket"/></param>
+    public void AddIncomingPacket(LocalPacket packet)
+    {
+        lock (_incomingPacketLock)
+        {
+            _incomingPackets.Add(packet);
+        }
+    }
+    
+    /// <summary>
+    /// Sends multiple <see cref="LocalPacket"/>s to this <see cref="MainRenderManager"/>.
+    /// </summary>
+    /// <param name="packets">the <see cref="LocalPacket"/>s</param>
+    public void AddIncomingPackets(LocalPacket[] packets)
+    {
+        lock (_incomingPacketLock)
+        {
+            _incomingPackets.AddRange(packets);
+        }
+    }
+    
+    #endregion
+    
     #region Public setters / getters
     
     /// <summary>
@@ -403,18 +506,6 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
         return modifications;
     }
     
-    /// <summary>
-    /// Gets the last <see cref="WorldAction"/> done since the last time this method was called, and resets the
-    /// <see cref="WorldAction"/> stored on this <see cref="MainRenderManager"/>.
-    /// </summary>
-    public WorldAction? GetWorldAction()
-    {
-        //TODO: thread safety
-        var action = _worldAction;
-        _worldAction = null;
-        
-        return action;
-    }
     
     /// <summary>
     /// Updates the additional geometry information on the render thread. See <see cref="TreeModifications"/> and <see cref="DataModifications"/>.
@@ -457,15 +548,10 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
         return canUpdate;
     }
     
-    /// <summary>
-    /// Overrides the current <see cref="WorldAction"/>, setting it to a new value.
-    /// </summary>
-    /// <param name="worldAction">the new <see cref="WorldAction"/></param>
-    public void SetWorldAction(WorldAction worldAction)
+    public void LoadWorld(string path)
     {
-        _worldAction = worldAction;
+        SendPacket(new LocalPacket("load_world", LocalPacketType.Load, path));
     }
-    
     
     /// <summary>
     /// Converts screen coords (like mouse pos) into world coords (like positions of objects).
@@ -511,6 +597,7 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
     
     #endregion
     
+    
     public override void Dispose()
     {
         GeometryLock.Dispose();
@@ -518,7 +605,6 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
         
         base.Dispose();
     }
-    
     
     public void SetGameManager(MainGameManager manager)
     {
