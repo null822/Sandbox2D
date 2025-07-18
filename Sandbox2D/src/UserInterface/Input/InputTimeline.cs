@@ -58,7 +58,10 @@ public class InputTimeline : IEnumerable<Input>
         foreach (var input in ReadingBuffer)
         {
             var key = (int)input.Key;
-
+            
+            if (key is < 0 or > (int)Key.LastKeyboardKey + 1)
+                continue;
+            
             switch (input.Type)
             {
                 case InputType.Key:
