@@ -25,9 +25,16 @@ public static class Constants
     public const VSyncMode Vsync = VSyncMode.On;
     
     /// <summary>
-    /// The amound of times to poll for new input frames per second. Independant from rendering framerate
+    /// The additional amound of times to poll for new input frames per second, independently of rendering framerate.
+    /// Note that input is already polled once every frame. If this value is lower than the current framerate, no
+    /// additional input frames will be polled.
     /// </summary>
-    public const int InputFramerate = 500;
+    public const int AdditionalInputFrequency = 5000;
+    
+    /// <summary>
+    /// The time in milliseconds to wait before updating the framerate and inputrate counters.
+    /// </summary>
+    public const int FrameStatisticsBatchTime = 50;
     
     /// <summary>
     /// Enables OpenGL debug logging.

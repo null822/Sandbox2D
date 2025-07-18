@@ -44,7 +44,7 @@ public abstract class RenderManager(IRegistryPopulator registryPopulator) : IDis
     /// Renders the next frame.
     /// </summary>
     /// <param name="frametime">the amount of time that passed since the previous frame, in seconds</param>
-    public virtual void Render(double frametime) { }
+    public virtual void Render(TimeSpan frametime) { }
     
     /// <summary>
     /// Called every time the window gets resized.

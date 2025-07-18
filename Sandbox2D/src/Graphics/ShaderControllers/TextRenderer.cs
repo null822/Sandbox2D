@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Math2D;
@@ -130,8 +131,15 @@ public class TextRenderer : ShaderController
             ..((Vec2<float>)geometry.Bl).ToArray(), 0.0f,       lineSize.Y,  // left bottom
             ..((Vec2<float>)geometry.Tl).ToArray(), 0.0f,       0.0f         // left top
         ];
+
+        var bytes = Encoding.UTF8.GetBytes(text.Replace("\n", ""));
+        var textUtf8 = new uint[bytes.Length];
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            var b = bytes[i];
+            textUtf8[i] = b;
+        }
         
-        var textUtf8 = Encoding.UTF8.GetBytes(text.Replace("\n", "")).Select(b => (uint)b).ToArray();
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _charBuffer);
         GL.BufferData(BufferTarget.ShaderStorageBuffer, textUtf8.Length * sizeof(uint), textUtf8, Hint);
         

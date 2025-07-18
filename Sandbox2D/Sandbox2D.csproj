@@ -6,6 +6,7 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>default</LangVersion>
         <TargetFramework>net9.0</TargetFramework>
+        <Nullable>enable</Nullable>
     </PropertyGroup>
     
     <ItemGroup>

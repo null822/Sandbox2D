@@ -119,7 +119,7 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
         set => _translation = value;
     }
     
-    public override void Render(double frametime)
+    public override void Render(TimeSpan frametime)
     {
         // clear the color buffer
         GL.Clear(ClearBufferMask.ColorBufferBit);
@@ -183,7 +183,8 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
         var mspt = Math.Max(
             _gameManager.GetCurrentTickTime().TotalMilliseconds,
             _gameManager.GetPreviousTickTime().TotalMilliseconds);
-        _rText.SetText($"{1 / frametime:F4} FPS, {mspt:F4} MSPT, Load: {mspt / (1000.0 / Tps):P4}\n" +
+        
+        _rText.SetText($"{ApplicationManager.Framerate:F4} FPS, {ApplicationManager.Inputrate:F4} IPS, {mspt:F4} MSPT, Load: {mspt / (1000.0 / Tps):P4}\n" +
                        $"Mouse: ({_mouseWorldCoords.X:F0}, {_mouseWorldCoords.Y:F0}) Translation: ({_translation.X:F4}, {_translation.Y:F4}) Scale: x{Scale:F16}",
             (4, 4), 1f, ScreenSize);
         _rText.Invoke();
@@ -392,14 +393,15 @@ public class MainRenderManager(IRegistryPopulator registry) : RenderManager(regi
     
     public override void OnResize(Vec2<int> newSize)
     {
-        if (ScreenSize != (0, 0))
-        {
-            var scale2D = (Vec2<float>)newSize / (Vec2<float>)ScreenSize;
-            var scale = (decimal)(scale2D.X + scale2D.Y) / 2m;
-            
-            Scale *= scale;
-        }
+        // don't scale when the one of the screen dimensions is 0
+        if (newSize.X == 0 || newSize.Y == 0)
+            return;
         
+        var scale2D = (Vec2<float>)newSize / (Vec2<float>)ScreenSize;
+        var scale = (decimal)(scale2D.X + scale2D.Y) / 2m;
+            
+        Scale *= scale;
+            
         CalculateScaleBounds();
     }
     

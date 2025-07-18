@@ -32,8 +32,8 @@ public class WindowManager : NativeWindow
     private readonly Stopwatch _frameTimer = new();
     private TimeSpan _prevFrameTime = TimeSpan.Zero;
     
-    public readonly EventWaitHandle RenderTimeHandle = new ManualResetEvent(true);
-    public readonly EventWaitHandle RenderSyncHandle = new ManualResetEvent(true);
+    public readonly ManualResetEventSlim RenderEvent = new(false);
+    public volatile bool IsRenderingDone = false;
     
     private readonly Lock _resizeStateLock = new();
     private bool _doResize;
@@ -92,7 +92,12 @@ public class WindowManager : NativeWindow
                 var cancelArgs = new CancelEventArgs();
                 OnClosing(cancelArgs);
                 if (!cancelArgs.Cancel)
+                {
+                    RenderEvent.Wait();
+                    RenderEvent.Reset();
+                    IsRenderingDone = true;
                     break;
+                }
             }
 
             lock (_resizeStateLock)
@@ -111,8 +116,9 @@ public class WindowManager : NativeWindow
             }
             
             
-            // wait for, and then render the frame
-            RenderTimeHandle.WaitOne();
+            // wait for the frame 
+            RenderEvent.Wait();
+            // begin the frame
             
             _inputFrame.SwapBuffers(); // swap input buffers, reading from the one that was previously being written to
             
@@ -120,10 +126,10 @@ public class WindowManager : NativeWindow
             OnUpdateInput(); // update input
             OnRenderFrame(); // render the frame
             
-            GL.Flush(); // ensure the frame is fully rendered
+            Context.SwapBuffers(); // ensure the frame is fully rendered, then display the frame
             
-            RenderTimeHandle.Reset(); // end render time
-            RenderSyncHandle.Set(); // start render sync time
+            RenderEvent.Reset();
+            IsRenderingDone = true;
         }
         IsShutdown = true;
     }
@@ -134,10 +140,10 @@ public class WindowManager : NativeWindow
     /// </summary>
     private void OnRenderFrame()
     {
-        var args = new FrameEventArgs((_frameTimer.Elapsed - _prevFrameTime).TotalSeconds);
+        var time = _frameTimer.Elapsed - _prevFrameTime;
         _prevFrameTime = _frameTimer.Elapsed;
         
-        RenderManager.Render(args.Time);
+        RenderManager.Render(time);
     }
     
     /// <summary>
