@@ -71,7 +71,7 @@ const int Leaf = 1;
 
 UINT64 Unsign(INT64 i, int b)
 {
-    UINT64 mask = b == 64 ? ~UINT64(0) : ~(~UINT64(0) << b);
+    UINT64 mask = b == BIT_DEPTH ? ~UINT64(0) : ~(~UINT64(0) << b);
     
     return (UINT64(i) & mask) ^ (UINT64(0x1u) << (b-1));
 }
@@ -87,10 +87,15 @@ INT32 GetNodeRef(QuadtreeNode node, uint index)
         return -16;
     }
     
+    // Node ref positions:
+    // 2 | 3
+    // --+--
+    // 0 | 1
+    
     switch (index) {
-        case 0: return INT32(node.Ref0L); // -X -Y | BL | 2 | 3
-        case 1: return INT32(node.Ref1L); // +X -Y | BR | --+--
-        case 2: return INT32(node.Ref2L); // -X +Y | TL | 0 | 1
+        case 0: return INT32(node.Ref0L); // -X -Y | BL |
+        case 1: return INT32(node.Ref1L); // +X -Y | BR |
+        case 2: return INT32(node.Ref2L); // -X +Y | TL |
         case 3: return INT32(node.Ref3L); // +X +Y | TR |
     }
     

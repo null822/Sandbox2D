@@ -111,9 +111,8 @@ public class DynamicBuffer : ShaderController, IDisposable
             var modification = modifications[i];
             if (!unique.Add(modification.Index)) continue;
             
-            modification.Value
-                .Serialize(true)
-                .CopyTo(_dataArr, index * dataSize);
+            var value = modification.Value?.Serialize(true) ?? new byte[T.SerializeLength];
+            value.CopyTo(_dataArr, index * dataSize);
             
             _indexArr[index] = (uint)modification.Index;
             
