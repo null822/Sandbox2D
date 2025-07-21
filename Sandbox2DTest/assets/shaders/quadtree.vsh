@@ -38,7 +38,7 @@ vec2 VertexToScreenCoords(vec2 vertexCoords)
 {
     vertexCoords = vec2(vertexCoords.x, -vertexCoords.y);
     vertexCoords += 1.0;
-    vertexCoords /= 2.0;
+    vertexCoords *= 0.5;
     
     vertexCoords *= ScreenSize;
     return vertexCoords;
@@ -79,7 +79,7 @@ vec2 WorldToScreenCoords(VEC64 worldCoords)
     
     vec2 screenCoords = vec2(untranslated + (SubTranslation * Scale));
     screenCoords = vec2(screenCoords.x, -screenCoords.y);
-    screenCoords += ScreenSize / 2.0;
+    screenCoords += ScreenSize * 0.5;
     
     return screenCoords;
 }

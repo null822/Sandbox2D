@@ -83,6 +83,7 @@ public class QuadtreeRenderer : ShaderController, IDisposable
         else Shader.Set("Translation", (Vec2<int>)_translation);
         Shader.Set("SubTranslation", _subTranslation);
         Shader.Set("Scale", _scale);
+        Shader.Set("InverseScale", 1 / _scale);
         Shader.Set("ScreenSize", (Vec2<float>)_renderManager.ScreenSize);
         Shader.Set("MaxHeight", _gpuMaxHeight);
         

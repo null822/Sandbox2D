@@ -28,7 +28,7 @@
 in smooth vec2 ScreenCoords;
 
 uniform vec2 ScreenSize; // the size of the screen, in pixels
-uniform double Scale; // current zoom (size multiplier)
+uniform double InverseScale; // inverse of current zoom
 uniform VEC64 Translation; // current translation from the center of `RenderRoot`, rounded to the nearest integer
 uniform vec2 SubTranslation; // decimal part of the current translation from the center of `RenderRoot`
 uniform int MaxHeight; // the amount of height levels in the quadtree to be rendered
@@ -111,7 +111,7 @@ INT32 GetNode(VEC64 coords)
 {
     // map the coords to unsigned integers
     UVEC64 uCoords = Unsign(coords, MaxHeight);
-    
+        
     // start at the render root, not the acutal root
     INT32 nodeRef = 0;
     QuadtreeNode node = Tree[0];
@@ -149,11 +149,11 @@ INT32 GetNode(VEC64 coords)
 // converts screen coordinates to world coordinates, rounded to the nearest integer
 VEC64 ScreenToWorldCoords(vec2 screenCoords)
 {
-    screenCoords -= ScreenSize / 2.0;
+    screenCoords -= ScreenSize * 0.5;
     screenCoords = vec2(screenCoords.x, -screenCoords.y);
     
     // flooring prevents rounding inconsistencies between +/- values when converting to integers
-    dvec2 untranslated = floor((screenCoords / Scale) - SubTranslation);
+    dvec2 untranslated = floor((screenCoords * InverseScale) - SubTranslation);
     
     if (untranslated.x > double(MAX64) || untranslated.x < double(MIN64) || untranslated.y > double(MAX64) || untranslated.y < double(MIN64))
     {
