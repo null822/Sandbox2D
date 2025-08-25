@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Math2D;
@@ -70,7 +69,6 @@ public class TextRenderer : ShaderController
         Shader.Set("glyphAtlasSize", GlyphAtlasSize.ToVector2i());
         
         _glyphTexture = GlContext.Registry.Texture.Get("font");
-        // _glyphTexture.Use(TextureUnit.Texture0);
     }
     
     public override void Invoke()
@@ -78,9 +76,6 @@ public class TextRenderer : ShaderController
         // bind vao/buffers
         GL.BindVertexArray(_vertexArrayObject);
         GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, _charBuffer);
-        
-        // bind vao/buffers
-        GL.BindVertexArray(_vertexArrayObject);
         GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 1, _lineBuffer);
         
         // apply the glyph texture

@@ -124,10 +124,13 @@ public class WindowManager : NativeWindow
             
             RenderManager.Update(); // update
             OnUpdateInput(); // update input
+            
+            GL.PushDebugGroup(DebugSourceExternal.DebugSourceApplication, 0, -1, "OnRenderFrame");
             OnRenderFrame(); // render the frame
+            GL.PopDebugGroup();
             
             Context.SwapBuffers(); // ensure the frame is fully rendered, then display the frame
-            
+
             RenderEvent.Reset();
             IsRenderingDone = true;
         }

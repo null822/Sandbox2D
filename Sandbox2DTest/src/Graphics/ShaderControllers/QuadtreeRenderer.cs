@@ -3,6 +3,7 @@ using Math2D.Quadtree;
 using OpenTK.Graphics.OpenGL4;
 using Sandbox2D;
 using Sandbox2D.Graphics;
+using Sandbox2D.Graphics.Buffers;
 using Sandbox2D.Graphics.ShaderControllers;
 using Sandbox2DTest.World;
 using Vector2 = OpenTK.Mathematics.Vector2;
@@ -26,12 +27,12 @@ public class QuadtreeRenderer : ShaderController, IDisposable
     /// <summary>
     /// The buffer that contains the <see cref="Quadtree{T}.Tree"/> array of the <see cref="Quadtree{T}"/> to be rendered
     /// </summary>
-    private readonly DynamicBuffer _tree;
+    private readonly DynamicGpuBuffer _tree;
     
     /// <summary>
     /// The buffer that contains the <see cref="Quadtree{T}.Data"/> array of the <see cref="Quadtree{T}"/> to be rendered
     /// </summary>
-    private readonly DynamicBuffer _data;
+    private readonly DynamicGpuBuffer _data;
     
     
     // geometry arrays
@@ -56,8 +57,8 @@ public class QuadtreeRenderer : ShaderController, IDisposable
         if (gpuGpuMaxHeight > _renderManager.MaxGpuQtHeight) throw new Exception($"Invalid Max Height for Quadtree. Was: {gpuGpuMaxHeight}, Range: 2-{_renderManager.MaxGpuQtHeight}.");
         _gpuMaxHeight = gpuGpuMaxHeight;
         
-        _tree = new DynamicBuffer(hint);
-        _data = new DynamicBuffer(hint);
+        _tree = new DynamicGpuBuffer(hint);
+        _data = new DynamicGpuBuffer(hint);
         
         // update the vao (creates it, in this case)
         UpdateVao();
@@ -125,7 +126,7 @@ public class QuadtreeRenderer : ShaderController, IDisposable
     {
         _tree.Resize((int)treeLength * QuadtreeNode.SerializeLength);
         var newTreeIndex = _tree.Modify(tree, treeIndex);
-        _tree.Set(renderRoot, 0);
+        _tree.Write(renderRoot, 0);
         
         _data.Resize((int)dataLength * Tile.SerializeLength);
         var newDataIndex = _data.Modify(data, dataIndex);
@@ -159,8 +160,8 @@ public class QuadtreeRenderer : ShaderController, IDisposable
     
     public override void ResetGeometry()
     {
-        _tree.ResetGeometry();
-        _data.ResetGeometry();
+        _tree.Clear();
+        _data.Clear();
     }
 
     public void SetMaxHeight(int maxHeight)

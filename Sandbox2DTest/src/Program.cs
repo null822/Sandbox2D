@@ -18,7 +18,6 @@ public static class Program
     private static readonly MainGameManager GameManager;
     
     private static readonly MainRenderManager RenderManager;
-    // private static readonly MainRenderManager TestRenderManager;
     
     private static readonly CommonRegistryPopulator CommonRegistryPopulator = new();
     private static readonly ClientRegistryPopulator ClientRegistryPopulator = new();
@@ -26,13 +25,10 @@ public static class Program
     
     static Program()
     {
-        Console.Clear();
-
         Thread.CurrentThread.Name = "Main Thread";
         
         RenderManager = new MainRenderManager(ClientRegistryPopulator);
-        // TestRenderManager = new MainRenderManager(ClientRegistryPopulator);
-        GameManager = new MainGameManager(Constants.Tps, [RenderManager/*, TestRenderManager*/]);
+        GameManager = new MainGameManager(Constants.Tps, [RenderManager]);
     }
     
     /// <summary>
@@ -47,6 +43,8 @@ public static class Program
         var fCol = Console.ForegroundColor;
         var bCol = Console.BackgroundColor;
         
+        Console.Clear();
+        
         try
         {
             ServerRegistryPopulator.Register();
@@ -54,7 +52,6 @@ public static class Program
             
             // connect server with client(s)
             RenderManager.SetGameManager(GameManager);
-            // TestRenderManager.SetGameManager(GameManager);
             
             var settings = new NativeWindowSettings
             {
@@ -64,18 +61,9 @@ public static class Program
                 Icon = LoadIcon($"{GlobalVariables.AssetDirectory}/icon.png", (64, 64)),
                 Vsync = Constants.Vsync
             };
-            var testSettings = new NativeWindowSettings
-            {
-                ClientSize = (Constants.InitialScreenSize.X, Constants.InitialScreenSize.Y),
-                Title = "Test Sandbox2D",
-                Flags = ContextFlags.Debug,
-                Icon = LoadIcon($"{GlobalVariables.AssetDirectory}/icon.png", (64, 64)),
-                Vsync = Constants.Vsync
-            };
             
             // create windows
             ApplicationManager.AddWindow(RenderManager, settings);
-            // ApplicationManager.AddWindow(TestRenderManager, testSettings);
             
             if (args.Length == 1)
                 RenderManager.LoadWorld(args[0]);
